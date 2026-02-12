@@ -102,6 +102,11 @@ check_required_env() {
 
 service_is_up() {
     local service_name="$1"
+
+    if compose_cmd ps --services --status running 2>/dev/null | grep -qx "$service_name"; then
+        return 0
+    fi
+
     compose_cmd ps "$service_name" | tail -n +2 | grep -q "Up"
 }
 

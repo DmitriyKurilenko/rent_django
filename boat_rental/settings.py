@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from decouple import config
+from decouple import config, Csv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -136,8 +136,11 @@ LOGIN_URL = '/login/'
 
 # Security (production)
 SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = config('USE_X_FORWARDED_HOST', default=True, cast=bool)
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
 SECURE_CONTENT_TYPE_NOSNIFF = config('SECURE_CONTENT_TYPE_NOSNIFF', default=True, cast=bool)
 X_FRAME_OPTIONS = config('X_FRAME_OPTIONS', default='DENY')
 
