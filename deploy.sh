@@ -191,7 +191,7 @@ main() {
     fi
     
     # Step 3: Backup database (if exists)
-    if [ "$SKIP_BACKUP" != "true" ]; then
+    if [ "${SKIP_BACKUP:-false}" != "true" ]; then
         backup_database
     fi
     
