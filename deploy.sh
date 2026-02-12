@@ -70,6 +70,41 @@ get_env_value() {
     fi
 }
 
+check_required_env() {
+    local missing=()
+    local required_keys=(
+        "SECRET_KEY"
+        "ALLOWED_HOSTS"
+        "DB_NAME"
+        "DB_USER"
+        "DB_PASSWORD"
+        "REDIS_PASSWORD"
+    )
+    local key
+    local value
+
+    print_info "Checking required .env variables..."
+
+    for key in "${required_keys[@]}"; do
+        value=$(get_env_value "$key" "")
+        if [ -z "$value" ]; then
+            missing+=("$key")
+        fi
+    done
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        print_error "Missing required .env variables: ${missing[*]}"
+        exit 1
+    fi
+
+    print_success "Required .env variables are present"
+}
+
+service_is_up() {
+    local service_name="$1"
+    compose_cmd ps "$service_name" | tail -n +2 | grep -q "Up"
+}
+
 check_requirements() {
     print_info "Checking requirements..."
     
@@ -183,7 +218,7 @@ wait_for_services() {
     attempt=0
     
     while [ $attempt -lt $max_attempts ]; do
-        if compose_cmd ps | grep -qE "web[[:space:]].*Up" && compose_cmd ps | grep -qE "nginx[[:space:]].*Up"; then
+        if service_is_up "web" && service_is_up "nginx"; then
             print_success "Critical services (web, nginx) are up"
             return 0
         fi
@@ -205,8 +240,11 @@ show_status() {
 }
 
 show_failure_diagnostics() {
-    print_info "Startup diagnostics (web/nginx logs):"
-    compose_cmd logs --tail=120 web nginx || true
+    print_info "Startup diagnostics (service states):"
+    compose_cmd ps || true
+    compose_cmd ps -a || true
+    print_info "Startup diagnostics (web/nginx/db logs):"
+    compose_cmd logs --tail=160 web nginx db || true
 }
 
 # Main deployment flow
@@ -221,6 +259,9 @@ main() {
 
     # Step 2: Validate compose config
     validate_compose
+
+    # Step 2.3: Validate required environment values
+    check_required_env
 
     if [ "$DRY_RUN" = true ]; then
         print_success "Dry run passed. No deployment actions executed."
