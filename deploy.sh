@@ -139,6 +139,36 @@ validate_compose() {
     print_success "Compose configuration is valid"
 }
 
+check_ssl_files() {
+    local cert_path
+    local key_path
+    local chain_path
+    local cert_host_path
+    local key_host_path
+    local chain_host_path
+
+    cert_path=$(get_env_value "NGINX_SSL_CERT_PATH" "/etc/nginx/ssl/fullchain.pem")
+    key_path=$(get_env_value "NGINX_SSL_KEY_PATH" "/etc/nginx/ssl/privkey.pem")
+    chain_path=$(get_env_value "NGINX_SSL_CHAIN_PATH" "/etc/nginx/ssl/chain.pem")
+
+    cert_host_path="${cert_path/\/etc\/nginx\/ssl/.\/nginx\/ssl}"
+    key_host_path="${key_path/\/etc\/nginx\/ssl/.\/nginx\/ssl}"
+    chain_host_path="${chain_path/\/etc\/nginx\/ssl/.\/nginx\/ssl}"
+
+    print_info "Checking SSL certificate files for nginx..."
+
+    if [ ! -f "$cert_host_path" ] || [ ! -f "$key_host_path" ] || [ ! -f "$chain_host_path" ]; then
+        print_error "SSL certificate files not found. Expected:"
+        echo "  - $cert_host_path"
+        echo "  - $key_host_path"
+        echo "  - $chain_host_path"
+        print_info "Run: sudo ./setup-ssl.sh"
+        exit 1
+    fi
+
+    print_success "SSL certificate files found"
+}
+
 restart_services() {
     print_info "Restarting services..."
     compose_cmd down
@@ -153,8 +183,8 @@ wait_for_services() {
     attempt=0
     
     while [ $attempt -lt $max_attempts ]; do
-        if compose_cmd ps | grep -q "healthy"; then
-            print_success "Services are healthy"
+        if compose_cmd ps | grep -qE "web[[:space:]].*Up" && compose_cmd ps | grep -qE "nginx[[:space:]].*Up"; then
+            print_success "Critical services (web, nginx) are up"
             return 0
         fi
         
@@ -163,7 +193,8 @@ wait_for_services() {
         sleep 2
     done
     
-    print_error "Services failed to become healthy"
+    print_error "Services failed to start (web/nginx not up)"
+    compose_cmd ps
     return 1
 }
 
@@ -189,6 +220,9 @@ main() {
         print_success "Dry run passed. No deployment actions executed."
         return 0
     fi
+
+    # Step 2.5: Ensure SSL files exist for nginx
+    check_ssl_files
     
     # Step 3: Backup database (if exists)
     if [ "${SKIP_BACKUP:-false}" != "true" ]; then
@@ -225,6 +259,7 @@ main() {
     echo "  1. Check logs: docker-compose -f docker-compose.prod.yml logs -f"
     echo "  2. Test the application: https://yourdomain.com"
     echo "  3. Monitor Celery: docker-compose -f docker-compose.prod.yml logs -f celery_worker"
+    echo "  4. If nginx fails, verify SSL files exist under ./nginx/ssl and paths in .env"
     echo ""
 }
 

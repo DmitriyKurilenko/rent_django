@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # SSL Certificate Setup Script using Certbot
-# This script automates Let's Encrypt SSL certificate installation
+# This script automates Let's Encrypt SSL certificate installation for dockerized nginx
 
-set -e
+set -euo pipefail
 
 # Colors
 RED='\033[0;31m'
@@ -23,6 +23,16 @@ print_info() {
     echo -e "${YELLOW}→ $1${NC}"
 }
 
+COMPOSE_FILE="docker-compose.prod.yml"
+
+compose_cmd() {
+    if docker compose version &> /dev/null; then
+        docker compose -f "${COMPOSE_FILE}" "$@"
+    else
+        docker-compose -f "${COMPOSE_FILE}" "$@"
+    fi
+}
+
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
     print_error "Please run as root (use sudo)"
@@ -34,6 +44,11 @@ read -p "Enter your domain name (e.g., example.com): " DOMAIN
 
 if [ -z "$DOMAIN" ]; then
     print_error "Domain name cannot be empty"
+    exit 1
+fi
+
+if [ ! -f "${COMPOSE_FILE}" ]; then
+    print_error "${COMPOSE_FILE} not found in current directory"
     exit 1
 fi
 
@@ -62,9 +77,8 @@ fi
 
 # Create directories
 SSL_DIR="./nginx/ssl"
-mkdir -p $SSL_DIR
+mkdir -p "$SSL_DIR"
 
-# Option 1: Automatic setup with Nginx
 print_info "Obtaining SSL certificate..."
 
 read -p "Enter your email for renewal notifications: " EMAIL
@@ -74,28 +88,36 @@ if [ -z "$EMAIL" ]; then
     exit 1
 fi
 
-# Stop nginx if running
-if systemctl is-active --quiet nginx; then
-    systemctl stop nginx
-    print_info "Stopped Nginx temporarily"
+# Stop dockerized nginx if running (port 80 must be free for certbot standalone)
+if compose_cmd ps | grep -q "nginx"; then
+    print_info "Stopping docker nginx temporarily for HTTP challenge..."
+    compose_cmd stop nginx || true
 fi
 
-# Get certificate
-certbot certonly \
+# Get certificate (try domain + www, fallback to domain-only)
+CERT_DOMAINS=("-d" "$DOMAIN" "-d" "www.$DOMAIN")
+if ! certbot certonly \
     --standalone \
     --non-interactive \
     --agree-tos \
-    --email $EMAIL \
-    -d $DOMAIN \
-    -d www.$DOMAIN
+    --email "$EMAIL" \
+    "${CERT_DOMAINS[@]}"; then
+    print_info "Failed for www.${DOMAIN}, retrying with ${DOMAIN} only..."
+    certbot certonly \
+        --standalone \
+        --non-interactive \
+        --agree-tos \
+        --email "$EMAIL" \
+        -d "$DOMAIN"
+fi
 
-if [ $? -eq 0 ]; then
+if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
     print_success "SSL certificate obtained successfully"
     
     # Copy certificates to project directory
-    cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem $SSL_DIR/
-    cp /etc/letsencrypt/live/$DOMAIN/privkey.pem $SSL_DIR/
-    cp /etc/letsencrypt/live/$DOMAIN/chain.pem $SSL_DIR/
+    install -m 644 "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" "$SSL_DIR/fullchain.pem"
+    install -m 600 "/etc/letsencrypt/live/$DOMAIN/privkey.pem" "$SSL_DIR/privkey.pem"
+    install -m 644 "/etc/letsencrypt/live/$DOMAIN/chain.pem" "$SSL_DIR/chain.pem"
     
     print_success "Certificates copied to $SSL_DIR"
     
@@ -115,12 +137,18 @@ if [ $? -eq 0 ]; then
     print_info "Setting up automatic certificate renewal..."
     
     # Create renewal hook
-    cat > /etc/letsencrypt/renewal-hooks/post/reload-nginx.sh <<EOF
+        cat > /etc/letsencrypt/renewal-hooks/post/reload-nginx.sh <<EOF
 #!/bin/bash
-cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem $SSL_DIR/
-cp /etc/letsencrypt/live/$DOMAIN/privkey.pem $SSL_DIR/
-cp /etc/letsencrypt/live/$DOMAIN/chain.pem $SSL_DIR/
-docker-compose -f $(pwd)/docker-compose.prod.yml restart nginx
+set -e
+install -m 644 /etc/letsencrypt/live/$DOMAIN/fullchain.pem $SSL_DIR/fullchain.pem
+install -m 600 /etc/letsencrypt/live/$DOMAIN/privkey.pem $SSL_DIR/privkey.pem
+install -m 644 /etc/letsencrypt/live/$DOMAIN/chain.pem $SSL_DIR/chain.pem
+cd $(pwd)
+if docker compose version >/dev/null 2>&1; then
+    docker compose -f ${COMPOSE_FILE} restart nginx
+else
+    docker-compose -f ${COMPOSE_FILE} restart nginx
+fi
 EOF
     
     chmod +x /etc/letsencrypt/renewal-hooks/post/reload-nginx.sh
@@ -131,6 +159,8 @@ EOF
         print_success "Auto-renewal cron job added"
     fi
     
+    print_info "Starting nginx container..."
+    compose_cmd up -d nginx
     print_success "SSL setup completed!"
     echo ""
     echo "=========================================="
@@ -142,9 +172,10 @@ EOF
     echo "Project SSL location: $SSL_DIR/"
     echo ""
     print_info "Next steps:"
-    echo "  1. Deploy your application: ./deploy.sh"
-    echo "  2. Test SSL: https://www.ssllabs.com/ssltest/analyze.html?d=$DOMAIN"
-    echo "  3. Certificates will auto-renew every 60 days"
+    echo "  1. Verify: curl -I http://127.0.0.1 && curl -k -I https://127.0.0.1"
+    echo "  2. Restart full stack if needed: ./deploy.sh"
+    echo "  3. Test SSL: https://www.ssllabs.com/ssltest/analyze.html?d=$DOMAIN"
+    echo "  4. Certificates will auto-renew every 60 days"
     echo ""
 else
     print_error "Failed to obtain SSL certificate"
