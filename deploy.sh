@@ -195,12 +195,18 @@ wait_for_services() {
     
     print_error "Services failed to start (web/nginx not up)"
     compose_cmd ps
+    show_failure_diagnostics
     return 1
 }
 
 show_status() {
     print_info "Service status:"
     compose_cmd ps
+}
+
+show_failure_diagnostics() {
+    print_info "Startup diagnostics (web/nginx logs):"
+    compose_cmd logs --tail=120 web nginx || true
 }
 
 # Main deployment flow
