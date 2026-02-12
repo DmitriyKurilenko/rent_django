@@ -51,6 +51,14 @@ free_port_80() {
         fi
     done
 
+    if is_port_80_busy && ss -ltnp '( sport = :80 )' 2>/dev/null | grep -q 'nginx'; then
+        print_info "Stopping host nginx process listening on port 80..."
+        systemctl stop nginx 2>/dev/null || true
+        service nginx stop 2>/dev/null || true
+        pkill -TERM nginx 2>/dev/null || true
+        sleep 1
+    fi
+
     if is_port_80_busy; then
         show_port_80_owners
         print_error "Port 80 is still busy. Stop the process above and re-run setup-ssl.sh"
