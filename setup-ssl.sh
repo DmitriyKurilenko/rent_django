@@ -25,6 +25,41 @@ print_info() {
 
 COMPOSE_FILE="docker-compose.prod.yml"
 
+is_port_80_busy() {
+    ss -ltn '( sport = :80 )' | grep -q ':80'
+}
+
+show_port_80_owners() {
+    print_info "Port 80 listeners:"
+    ss -ltnp '( sport = :80 )' || true
+}
+
+free_port_80() {
+    print_info "Ensuring TCP port 80 is free for Let's Encrypt challenge..."
+
+    if compose_cmd ps 2>/dev/null | grep -q "nginx"; then
+        print_info "Stopping docker nginx temporarily..."
+        compose_cmd stop nginx || true
+    fi
+
+    for svc in nginx apache2 httpd caddy; do
+        if systemctl list-unit-files | grep -q "^${svc}\.service"; then
+            if systemctl is-active --quiet "$svc"; then
+                print_info "Stopping system service: $svc"
+                systemctl stop "$svc" || true
+            fi
+        fi
+    done
+
+    if is_port_80_busy; then
+        show_port_80_owners
+        print_error "Port 80 is still busy. Stop the process above and re-run setup-ssl.sh"
+        exit 1
+    fi
+
+    print_success "Port 80 is free"
+}
+
 compose_cmd() {
     if docker compose version &> /dev/null; then
         docker compose -f "${COMPOSE_FILE}" "$@"
@@ -88,11 +123,7 @@ if [ -z "$EMAIL" ]; then
     exit 1
 fi
 
-# Stop dockerized nginx if running (port 80 must be free for certbot standalone)
-if compose_cmd ps | grep -q "nginx"; then
-    print_info "Stopping docker nginx temporarily for HTTP challenge..."
-    compose_cmd stop nginx || true
-fi
+free_port_80
 
 # Get certificate (try domain + www, fallback to domain-only)
 CERT_DOMAINS=("-d" "$DOMAIN" "-d" "www.$DOMAIN")
