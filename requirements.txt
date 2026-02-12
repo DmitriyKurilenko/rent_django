@@ -1,0 +1,15 @@
+Django==4.2.9
+psycopg2-binary==2.9.9
+gunicorn==21.2.0
+Pillow==10.2.0
+python-decouple==3.8
+whitenoise==6.6.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+boto3==1.26.0
+polib==1.2.0
+
+# Celery для кэширования и ускорения
+celery==5.3.4
+redis==5.0.1
+django-celery-beat==2.5.0

@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Вход" %} - BoatRental{% endblock %}
+
+{% block content %}
+
+<div class="min-h-screen bg-gradient-to-b from-primary to-base-100 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-base-100 shadow-lg mb-4">
+                <i class="fas fa-sign-in-alt text-3xl text-primary"></i>
+            </div>
+            <h1 class="text-4xl font-bold text-white mb-2">{% trans "Добро пожаловать!" %}</h1>
+            <p class="text-base-100">{% trans "Войдите в свой аккаунт" %}</p>
+        </div>
+        
+        <!-- Login Card -->
+        <div class="card bg-base-100 shadow-2xl">
+            <div class="card-body gap-4">
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-error shadow-lg">
+                        <div>
+                            <i class="fas fa-exclamation-circle"></i>
+                            <div>
+                                {% for error in form.non_field_errors %}
+                                <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Username -->
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-semibold">
+                                <i class="fas fa-user text-primary mr-2"></i>
+                                {% trans "Имя пользователя" %}
+                            </span>
+                        </label>
+                        <input 
+                            type="text" 
+                            name="username" 
+                            placeholder="example_user" 
+                            class="input input-bordered input-lg focus:input-primary"
+                            required 
+                        />
+                        {% if form.username.errors %}
+                        <label class="label">
+                            <span class="label-text-alt text-error">{{ form.username.errors.0 }}</span>
+                        </label>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Password -->
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text font-semibold">
+                                <i class="fas fa-lock text-primary mr-2"></i>
+                                {% trans "Пароль" %}
+                            </span>
+                        </label>
+                        <input 
+                            type="password" 
+                            name="password" 
+                            placeholder="••••••••" 
+                            class="input input-bordered input-lg focus:input-primary"
+                            required 
+                        />
+                        {% if form.password.errors %}
+                        <label class="label">
+                            <span class="label-text-alt text-error">{{ form.password.errors.0 }}</span>
+                        </label>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary btn-lg w-full mt-6">
+                        <i class="fas fa-sign-in-alt"></i>
+                        {% trans "Войти" %}
+                    </button>
+                </form>
+                
+                <div class="divider">{% trans "или" %}</div>
+                
+                <!-- Register Link -->
+                <a href="{% url 'register' %}" class="btn btn-outline btn-lg w-full">
+                    <i class="fas fa-user-plus"></i>
+                    {% trans "Создать аккаунт" %}
+                </a>
+                
+                <!-- Password Reset Link -->
+                <p class="text-center text-sm">
+                    <a href="#" class="link link-primary font-semibold">
+                        {% trans "Забыли пароль?" %}
+                    </a>
+                </p>                
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,394 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Создать оффер" %} - BoatRental{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-4rem)] bg-base-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-3xl mx-auto">
+            <h1 class="text-3xl font-bold mb-1">{% trans "Создать оффер" %}</h1>
+            <p class="text-base-content/60 mb-6">{% trans "Вставьте ссылку с boataround.com с датами аренды" %}</p>
+
+            <div class="card bg-base-100 shadow-lg" x-data="offerForm()">
+                <div class="card-body gap-4">
+                    <form @submit.prevent="submitForm" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Error Alert -->
+                        <div x-show="Object.keys(errors).length > 0" x-transition class="alert alert-error">
+                            <template x-for="(error, field) in errors" :key="field">
+                                <span x-text="`${field}: ${error}`"></span>
+                            </template>
+                        </div>
+
+                        <!-- URL Input -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Ссылка boataround.com" %}</span>
+                            </label>
+                            <input type="text" x-model="form.source_url" @input="validateUrl"
+                                placeholder="https://www.boataround.com/ru/yachta/...?checkIn=...&checkOut=..."
+                                class="input input-bordered input-sm font-mono text-xs"
+                                :class="{ 'input-error': errors.source_url }" required>
+                        </div>
+
+                        <!-- URL Info Alert -->
+                        <div x-show="urlInfo.valid" x-transition class="alert alert-info text-sm">
+                            <span>{% trans "Заезд:" %} <span x-text="displayCheckIn" class="font-semibold"></span> | 
+                                  {% trans "Выезд:" %} <span x-text="displayCheckOut" class="font-semibold"></span></span>
+                        </div>
+
+                        <!-- Offer Type -->
+                        {% if user.profile.can_create_tourist_offers and user.profile.can_create_captain_offers %}
+                        <div class="form-control">
+                            <label class="label pt-2">
+                                <span class="label-text font-semibold">{% trans "Тип оффера" %}</span>
+                            </label>
+                            <div class="flex gap-2">
+                                <label class="label cursor-pointer flex-1 justify-start gap-2 border border-base-300 rounded p-2">
+                                    <input type="radio" name="offer_type" value="tourist" x-model="form.offer_type" 
+                                           class="radio radio-xs radio-primary" checked>
+                                    <span class="text-sm">⛵ {% trans "Туристический" %}</span>
+                                </label>
+                                <label class="label cursor-pointer flex-1 justify-start gap-2 border border-base-300 rounded p-2">
+                                    <input type="radio" name="offer_type" value="captain" x-model="form.offer_type" 
+                                           class="radio radio-xs radio-secondary">
+                                    <span class="text-sm">⚓ {% trans "Агентский" %}</span>
+                                </label>
+                            </div>
+                        </div>
+                        {% elif user.profile.can_create_captain_offers %}
+                        <input type="hidden" name="offer_type" value="captain" x-model="form.offer_type">
+                        {% endif %}
+
+                        <!-- Branding Mode -->
+                        <div class="form-control">
+                            <label class="label pt-2">
+                                <span class="label-text font-semibold">{% trans "Брендинг страницы" %}</span>
+                            </label>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                <label class="label cursor-pointer justify-start gap-2 border border-base-300 rounded p-2">
+                                    <input type="radio" name="branding_mode" value="default" x-model="form.branding_mode" class="radio radio-xs radio-primary" checked>
+                                    <span class="text-sm">{% trans "Стандарт" %}</span>
+                                </label>
+                                {% if user.profile.can_use_no_branding %}
+                                <label class="label cursor-pointer justify-start gap-2 border border-base-300 rounded p-2">
+                                    <input type="radio" name="branding_mode" value="no_branding" x-model="form.branding_mode" class="radio radio-xs radio-primary">
+                                    <span class="text-sm">{% trans "Без брендинга" %}</span>
+                                </label>
+                                {% endif %}
+                                {% if user.profile.can_use_custom_branding %}
+                                <label class="label cursor-pointer justify-start gap-2 border border-base-300 rounded p-2">
+                                    <input type="radio" name="branding_mode" value="custom_branding" x-model="form.branding_mode" class="radio radio-xs radio-primary">
+                                    <span class="text-sm">{% trans "Кастом (заглушка)" %}</span>
+                                </label>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Title -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Заголовок" %}</span>
+                                <span class="label-text-alt text-xs" x-show="form.title.length > 0">
+                                    <span x-text="form.title.length"></span>/300</span>
+                            </label>
+                            <input type="text" x-model="form.title" placeholder="{% trans 'Роскошная яхта на Кипре' %}"
+                                class="input input-bordered input-sm" maxlength="300">
+                        </div>
+
+                        <!-- Description -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Описание" %}</span>
+                                <span class="label-text-alt text-xs" x-show="form.description.length > 0">
+                                    <span x-text="form.description.length"></span>/1000</span>
+                            </label>
+                            <textarea x-model="form.description" rows="2" placeholder="{% trans 'Дополнительное описание' %}"
+                                class="textarea textarea-bordered textarea-sm" maxlength="1000"></textarea>
+                        </div>
+
+                        <!-- Checkboxes -->
+                        <div class="flex flex-col gap-3 pt-2">
+                            <label class="label cursor-pointer justify-start gap-2">
+                                <input type="checkbox" x-model="form.show_countdown" class="checkbox checkbox-xs checkbox-primary">
+                                <span class="text-sm">{% trans "Таймер обратного отсчета" %}</span>
+                            </label>
+                            <label class="label cursor-pointer justify-start gap-2">
+                                <input type="checkbox" x-model="form.force_refresh" name="force_refresh" 
+                                       class="checkbox checkbox-xs checkbox-warning">
+                                <span class="text-sm">{% trans "Обновить данные" %}</span>
+                            </label>
+                            {% if user.profile.can_create_tourist_offers %}
+                            <label class="label cursor-pointer justify-start gap-2" x-show="form.offer_type === 'tourist'">
+                                <input type="checkbox" x-model="form.has_meal" class="checkbox checkbox-xs checkbox-success">
+                                <span class="text-sm">{% trans "Включено питание" %}</span>
+                            </label>
+                            {% endif %}
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Заметки" %}</span>
+                            </label>
+                            <textarea x-model="form.notes" rows="2" placeholder="{% trans 'Внутренние заметки' %}"
+                                class="textarea textarea-bordered textarea-sm"></textarea>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="card-actions justify-between pt-2">
+                            <a href="{% url 'offers_list' %}" class="btn btn-ghost btn-sm">{% trans "Назад" %}</a>
+                            <button type="submit" class="btn btn-primary btn-sm"
+                                :disabled="loading || !isValid" :class="{ 'loading': loading }">
+                                <span x-text="loading ? '{% trans 'Создание...' %}' : '{% trans 'Создать' %}'"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Help Section -->
+            <div class="collapse collapse-plus bg-base-100 shadow-lg mt-6">
+                <input type="checkbox">
+                <div class="collapse-title font-semibold text-sm">❓ {% trans "Как это работает?" %}</div>
+                <div class="collapse-content text-sm">
+                    <ol class="list-decimal list-inside space-y-1">
+                        <li>{% trans "Откройте яхту на boataround.com" %}</li>
+                        <li>{% trans "Выберите даты аренды" %}</li>
+                        <li>{% trans "Скопируйте URL из адресной строки" %}</li>
+                        <li>{% trans "Вставьте выше и нажмите создать" %}</li>
+                        <li>{% trans "Готово! Отправьте ссылку клиенту" %}</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function offerForm() {
+    return {
+        form: {
+            source_url: '',
+            title: '',
+            description: '',
+            offer_type: '{% if user.profile.can_create_tourist_offers and user.profile.can_create_captain_offers %}tourist{% elif user.profile.can_create_captain_offers %}captain{% else %}tourist{% endif %}',
+            branding_mode: 'default',
+            show_countdown: true,
+            force_refresh: false,
+            has_meal: false,
+            notes: ''
+        },
+        errors: {},
+        loading: false,
+        urlInfo: {
+            valid: false,
+            checkIn: '',
+            checkOut: '',
+            slug: ''
+        },
+        
+        get displayCheckIn() {
+            return this.formatDate(this.urlInfo.checkIn);
+        },
+        
+        get displayCheckOut() {
+            return this.formatDate(this.urlInfo.checkOut);
+        },
+        
+        get isValid() {
+            return this.form.source_url.length > 0 && 
+                   Object.keys(this.errors).length === 0;
+        },
+        
+        validateUrl() {
+            this.errors = {};
+            this.urlInfo.valid = false;
+            
+            let url = this.form.source_url.trim();
+            
+            if (!url) return;
+            
+            if (!url.toLowerCase().includes('boataround.com')) {
+                this.errors.source_url = 'Используйте ссылку с boataround.com';
+                return;
+            }
+            
+            try {
+                // Добавляем https:// если схема не указана
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = 'https://' + url;
+                }
+                
+                // Парсим параметры напрямую из строки, без new URL()
+                const checkInMatch = url.match(/[?&]checkIn=([^&]+)/i);
+                const checkOutMatch = url.match(/[?&]checkOut=([^&]+)/i);
+                
+                const checkIn = checkInMatch ? decodeURIComponent(checkInMatch[1]) : null;
+                const checkOut = checkOutMatch ? decodeURIComponent(checkOutMatch[1]) : null;
+                
+                if (!checkIn || !checkOut) {
+                    this.errors.source_url = 'Нужны даты: checkIn и checkOut в URL';
+                    return;
+                }
+                
+                // Ищем slug в пути URL (может быть /boat/ или /yachta/ или в любом другом формате)
+                const pathMatch = url.match(/\/(boat|yachta)\/([a-zA-Z0-9_-]+)\/?(\?|$)/);
+                const slug = pathMatch ? pathMatch[2] : '';
+                
+                if (!slug) {
+                    this.errors.source_url = 'Не удалось определить ID яхты из URL';
+                    return;
+                }
+                
+                this.urlInfo = {
+                    valid: true,
+                    checkIn: checkIn,
+                    checkOut: checkOut,
+                    slug: slug
+                };
+            } catch (e) {
+                this.errors.source_url = 'Ошибка парсинга URL: ' + e.message;
+            }
+        },
+        
+        formatDate(dateStr) {
+            // Парсит дату в различных форматах и возвращает локальное представление
+            try {
+                if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    const date = new Date(year, month - 1, day);
+                    return date.toLocaleDateString('ru-RU');
+                }
+
+                let date;
+                
+                if (typeof dateStr === 'string' && dateStr.length > 10 && !dateStr.includes('-')) {
+                    // Это похоже на timestamp в миллисекундах
+                    date = new Date(parseInt(dateStr));
+                } else if (typeof dateStr === 'string' && dateStr.length === 10 && dateStr.includes('-')) {
+                    // ISO format YYYY-MM-DD
+                    date = new Date(dateStr + 'T00:00:00');
+                } else {
+                    // Попробуем как есть
+                    date = new Date(dateStr);
+                }
+                
+                if (isNaN(date.getTime())) {
+                    return dateStr;
+                }
+                
+                return date.toLocaleDateString('ru-RU');
+            } catch (e) {
+                return dateStr;
+            }
+        },
+        
+        formatDateForInput(dateStr) {
+            // Конвертирует дату в формат YYYY-MM-DD для input[type=date]
+            try {
+                if (!dateStr) return '';
+
+                // Уже корректный ISO-формат даты — возвращаем как есть,
+                // чтобы избежать сдвига на день из-за timezone/UTC
+                if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    return dateStr;
+                }
+                
+                let date;
+                
+                if (typeof dateStr === 'string' && dateStr.length > 10 && !dateStr.includes('-')) {
+                    // Это похоже на timestamp в миллисекундах
+                    date = new Date(parseInt(dateStr));
+                } else if (typeof dateStr === 'string' && dateStr.length === 10 && dateStr.includes('-')) {
+                    // ISO format YYYY-MM-DD
+                    date = new Date(dateStr + 'T00:00:00');
+                } else {
+                    // Попробуем как есть
+                    date = new Date(dateStr);
+                }
+                
+                if (isNaN(date.getTime())) {
+                    console.warn('Invalid date:', dateStr);
+                    return '';
+                }
+                
+                return date.toISOString().split('T')[0];
+            } catch (e) {
+                console.error('Date format error:', e, dateStr);
+                return '';
+            }
+        },
+        
+        async submitForm() {
+            if (!this.isValid) return;
+            
+            this.loading = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
+                formData.append('source_url', this.form.source_url);
+                formData.append('title', this.form.title);
+                formData.append('description', this.form.description);
+                formData.append('offer_type', this.form.offer_type);
+                formData.append('branding_mode', this.form.branding_mode);
+                formData.append('check_in', this.formatDateForInput(this.urlInfo.checkIn));
+                formData.append('check_out', this.formatDateForInput(this.urlInfo.checkOut));
+                formData.append('show_countdown', this.form.show_countdown ? 'on' : '');
+                formData.append('force_refresh', this.form.force_refresh ? 'true' : 'false');
+                if (this.form.offer_type === 'tourist') {
+                    formData.append('has_meal', this.form.has_meal ? 'on' : '');
+                }
+                formData.append('notes', this.form.notes);
+                
+                const response = await fetch('{% url "create_offer" %}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                const responseText = await response.text();
+                let data = {};
+                try {
+                    data = responseText ? JSON.parse(responseText) : {};
+                } catch (parseError) {
+                    throw new Error('Сервер вернул некорректный ответ. Проверьте ссылку и даты в URL.');
+                }
+                console.log('Response data:', data);
+                
+                if (data.success && data.offer_url) {
+                    // Успешно создан - редиректим на оффер
+                    console.log('Redirecting to:', data.offer_url);
+                    window.location.href = data.offer_url;
+                } else if (response.status === 200 && data.success) {
+                    // Может быть другой формат ответа
+                    console.log('Success but no offer_url:', data);
+                    alert(data.message || 'Оффер создан успешно!');
+                    window.location.href = '{% url "offers_list" %}';
+                } else {
+                    console.error('Error response:', data);
+                    alert(data.message || data.error || 'Ошибка при создании оффера');
+                }
+            } catch (error) {
+                console.error('Catch error:', error);
+                alert('Ошибка: ' + error.message);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        init() {
+            this.$watch('form.source_url', () => {
+                this.validateUrl();
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load i18n l10n %}
+
+{% block title %}Управление чартерами - BoatRental{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-2xl font-bold">Управление комиссиями чартеров</h1>
+            <p class="text-sm opacity-70 mt-1">Всего компаний: {{ charters_count }}</p>
+        </div>
+        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost">
+            <i class="fas fa-arrow-left"></i> Назад в ЛК
+        </a>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <form method="get" class="flex flex-col sm:flex-row gap-2">
+                <input
+                    type="text"
+                    name="q"
+                    value="{{ query }}"
+                    placeholder="Поиск по названию чартера"
+                    class="input input-bordered input-sm flex-1"
+                >
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="fas fa-search"></i> Найти
+                </button>
+                {% if query %}
+                <a href="{% url 'charters_management' %}" class="btn btn-sm btn-ghost">
+                    Сброс
+                </a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="space-y-2 mb-4">
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th>ID</th>
+                            <th>Лодок</th>
+                            <th>Комиссия (%)</th>
+                            <th class="text-right">Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for charter in charters %}
+                        <tr>
+                            <td class="font-medium">{{ charter.name }}</td>
+                            <td class="text-xs opacity-70">{{ charter.charter_id }}</td>
+                            <td>{{ charter.boats.count }}</td>
+                            <td>
+                                <form method="post" class="flex items-center gap-2 justify-end">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="charter_id" value="{{ charter.id }}">
+                                    <input
+                                        type="number"
+                                        name="commission"
+                                        step="1"
+                                        min="0"
+                                        max="100"
+                                        value="{{ charter.commission|unlocalize }}"
+                                        class="input input-sm input-bordered w-28"
+                                        required
+                                    >
+                            </td>
+                            <td class="text-right">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        Сохранить
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-8 opacity-60">Чартерные компании пока не найдены</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

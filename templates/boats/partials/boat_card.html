@@ -1,0 +1,67 @@
+{% load cdn_tags %}
+<div class="card bg-base-100 shadow hover:shadow-lg transition">
+    <figure class="relative h-48">
+        {% if boat.image %}
+            <img src="{{ boat.image|cdn_url }}" alt="{{ boat.name }}" class="w-full h-full object-cover">
+        {% else %}
+            <div class="w-full h-full bg-base-200 flex items-center justify-center">
+                <i class="fas fa-ship text-4xl opacity-20"></i>
+            </div>
+        {% endif %}
+        
+        <div class="absolute top-2 right-2">
+            <div class="badge badge-primary">{{ boat.get_boat_type_display }}</div>
+        </div>
+        
+        {% if user.is_authenticated %}
+                <form method="post" action="{% url 'toggle_favorite' boat.pk %}" class="absolute top-2 left-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-circle btn-sm bg-white/90 border-0 hover:bg-white">
+                        <i class="fas fa-heart {% if is_favorite %}text-error{% else %}text-base-content/30{% endif %}"></i>
+                    </button>
+                </form>
+        {% endif %}
+    </figure>
+    
+    <div class="card-body">
+        <h2 class="card-title">
+            {{ boat.name }}
+            {% if boat.has_skipper %}
+                <div class="badge badge-secondary">Со шкипером</div>
+            {% endif %}
+        </h2>
+        
+        <p class="text-sm text-base-content/70">
+            <i class="fas fa-map-marker-alt text-primary"></i> {{ boat.location }}
+        </p>
+        
+        <p class="text-sm line-clamp-2">{{ boat.description }}</p>
+        
+        <div class="flex gap-4 text-sm mt-2">
+            <span><i class="fas fa-users text-primary"></i> {{ boat.capacity }} чел.</span>
+            <span><i class="fas fa-ruler text-primary"></i> {{ boat.length }} м</span>
+            <span><i class="fas fa-calendar text-primary"></i> {{ boat.year }}</span>
+        </div>
+        
+        {% if boat.cabins > 0 or boat.bathrooms > 0 %}
+        <div class="flex gap-4 text-sm text-base-content/70">
+            {% if boat.cabins > 0 %}
+                <span><i class="fas fa-bed"></i> {{ boat.cabins }}</span>
+            {% endif %}
+            {% if boat.bathrooms > 0 %}
+                <span><i class="fas fa-bath"></i> {{ boat.bathrooms }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="card-actions justify-between items-end mt-4">
+            <div>
+                <div class="text-2xl font-bold text-primary">{{ boat.price_per_day|floatformat:0 }} ₽</div>
+                <div class="text-xs text-base-content/50">за день</div>
+            </div>
+            <a href="{% url 'boat_detail' boat.pk %}" class="btn btn-primary btn-sm">
+                Подробнее
+            </a>
+        </div>
+    </div>
+</div>

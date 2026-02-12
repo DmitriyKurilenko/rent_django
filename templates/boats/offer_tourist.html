@@ -1,0 +1,260 @@
+{% extends 'base.html' %}
+{% load cdn_tags i18n %}
+
+{% block title %}{{ offer.title }} - {% trans "Туристическое предложение" %}{% endblock %}
+
+{% block content %}
+
+<div class="max-w-5xl mx-auto px-4 py-6">
+    {% if is_custom_branding %}
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-paint-brush"></i>
+        <span>{% trans "Кастомный брендинг (заглушка): здесь будет ваш логотип, фирменные цвета и контакты." %}</span>
+    </div>
+    {% endif %}
+
+    <!-- Header -->
+    <div class="mb-6 flex items-start justify-between">
+        <div>
+            <h1 class="text-2xl font-bold">{{ offer.title }}</h1>
+            <p class="text-sm text-base-content/60 mt-1">
+                {% if offer.boat_data.marina %}{{ offer.boat_data.marina }}, {% endif %}
+                {% if offer.boat_data.location %}{{ offer.boat_data.location }}{% endif %}
+            </p>
+        </div>
+        {% if user.is_authenticated %}
+        <div class="flex gap-2">
+            {% if can_view_internal_notes %}
+            <button type="button" class="btn btn-sm btn-outline" x-data @click="copyLink()">
+                <i class="fas fa-link"></i> {% trans "Скопировать ссылку" %}
+            </button>
+            {% endif %}
+            <a href="{% url 'offers_list' %}" class="btn btn-sm btn-ghost">
+                <i class="fas fa-list"></i> {% trans "Все офферы" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 gap-6">
+        
+        <!-- Full Width Column -->
+        <div class="space-y-4">
+            
+            <!-- Image Carousel -->
+            {% if offer.boat_data.images and offer.boat_data.images|length > 0 %}
+            <div class="card bg-base-100 shadow" x-data="offerGallery()">
+                <div class="card-body">
+                    <h3 class="font-bold text-sm mb-3">{% trans "Галерея" %} ({{ offer.boat_data.images|length }} {% trans "фото" %})</h3>
+                    
+                    <!-- Main Image Display -->
+                    <div class="mb-4 relative">
+                        <img :src="currentImage" 
+                             alt="{{ offer.title }}"
+                             class="w-full h-[500px] object-contain rounded-lg shadow-md bg-base-200"
+                             loading="eager"
+                        />
+                        
+                        <!-- Navigation Arrows -->
+                        {% if offer.boat_data.images|length > 1 %}
+                        <button @click="prev()" class="absolute left-3 top-1/2 -translate-y-1/2 btn btn-circle btn-sm btn-ghost hover:bg-base-300">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <button @click="next()" class="absolute right-3 top-1/2 -translate-y-1/2 btn btn-circle btn-sm btn-ghost hover:bg-base-300">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                        {% endif %}
+                        
+                        <!-- Thumbnail Strip -->
+                        {% if offer.boat_data.images|length > 1 %}
+                        <div class="flex gap-2 mt-3 overflow-x-auto pb-2">
+                            {% for image in offer.boat_data.images %}
+                            <img src="{{ image|cdn_url }}" 
+                                 alt="{% trans "Превью" %} {{ forloop.counter }}"
+                                 @click="selectImage({{ forloop.counter0 }})"
+                                 :class="currentIndex === {{ forloop.counter0 }} ? 'border-primary' : 'border-base-300'"
+                                 class="h-20 w-20 object-cover rounded cursor-pointer border-2 flex-shrink-0 transition-all hover:opacity-80"
+                            />
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card bg-base-200 shadow h-[500px] flex items-center justify-center">
+                <div class="text-center">
+                    <p class="text-sm text-base-content/50">{% trans "Нет фотографий" %}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Description and Price Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Description (wider) -->
+                {% if offer.boat_data.description %}
+                <div class="lg:col-span-2 card bg-base-100 shadow">
+                    <div class="card-body gap-2">
+                        <h3 class="font-bold text-sm">{% trans "Описание" %}</h3>
+                        <p class="text-sm leading-relaxed">{{ offer.boat_data.description|linebreaks }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Price Block (narrower) -->
+                <div class="card bg-primary text-primary-content shadow">
+                    <div class="card-body gap-5 p-5">
+                        <h3 class="font-bold text-base">{% trans "Цена" %}</h3>
+                        {% if offer.total_price %}
+                            <div class="text-7xl font-bold mt-2">{{ offer.total_price|floatformat:0 }}</div>
+                            <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>
+                            <div class="text-xl opacity-75 mt-2">{{ offer.check_in|date:"d.m" }} - {{ offer.check_out|date:"d.m.Y" }} • {% nights_between offer.check_in offer.check_out %} {% trans "ночей" %}</div>
+                            
+                            <!-- Кнопка бронирования (только для туристов) -->
+                            {% if can_book_from_offer %}
+                                <form method="post" action="{% url 'book_offer' offer.uuid %}" class="mt-4">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-secondary btn-block btn-lg">
+                                        <i class="fas fa-calendar-check"></i>
+                                        {% trans "Забронировать" %}
+                                    </button>
+                                </form>
+                            {% endif %}
+                        {% else %}
+                            <div class="text-sm opacity-90">{% trans "Цена не доступна" %}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Boat Specs and Tech Combined -->
+            <div class="card bg-base-100 shadow">
+                <div class="card-body gap-2">
+                    <h3 class="font-bold text-sm mb-2">{% trans "Параметры" %}</h3>
+                    <div class="grid grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+                        {% if offer.boat_data.name %}<div><span class="opacity-70">{% trans "Название:" %}</span> {{ offer.boat_data.name }}</div>{% endif %}
+                        {% if offer.boat_data.type %}<div><span class="opacity-70">{% trans "Тип:" %}</span> {{ offer.boat_data.type }}</div>{% endif %}
+                        {% if offer.boat_data.manufacturer %}<div><span class="opacity-70">{% trans "Производитель:" %}</span> {{ offer.boat_data.manufacturer }}</div>{% endif %}
+                        {% if offer.boat_data.model %}<div><span class="opacity-70">{% trans "Модель:" %}</span> {{ offer.boat_data.model }}</div>{% endif %}
+                        {% if offer.boat_data.year %}<div><span class="opacity-70">{% trans "Год:" %}</span> {{ offer.boat_data.year }}</div>{% endif %}
+                        {% if offer.boat_data.length %}<div><span class="opacity-70">{% trans "Длина:" %}</span> {{ offer.boat_data.length }}м</div>{% endif %}
+                        {% if offer.boat_data.beam %}<div><span class="opacity-70">{% trans "Ширина:" %}</span> {{ offer.boat_data.beam }}м</div>{% endif %}
+                        {% if offer.boat_data.draft %}<div><span class="opacity-70">{% trans "Осадка:" %}</span> {{ offer.boat_data.draft }}м</div>{% endif %}
+                        {% if offer.boat_data.cabins %}<div><span class="opacity-70">{% trans "Каюты:" %}</span> {{ offer.boat_data.cabins }}</div>{% endif %}
+                        {% if offer.boat_data.berths %}<div><span class="opacity-70">{% trans "Мест:" %}</span> {{ offer.boat_data.berths }}</div>{% endif %}
+                        {% if offer.boat_data.toilets %}<div><span class="opacity-70">{% trans "Туалеты:" %}</span> {{ offer.boat_data.toilets }}</div>{% endif %}
+                        {% if offer.boat_data.engine %}<div><span class="opacity-70">{% trans "Двигатель:" %}</span> {{ offer.boat_data.engine }}</div>{% endif %}
+                        {% if offer.boat_data.engine_power %}<div><span class="opacity-70">{% trans "Мощность:" %}</span> {{ offer.boat_data.engine_power }} л.с.</div>{% endif %}
+                        {% if offer.boat_data.number_engines %}<div><span class="opacity-70">{% trans "Двигателей:" %}</span> {{ offer.boat_data.number_engines }}</div>{% endif %}
+                        {% if offer.boat_data.engine_type %}<div><span class="opacity-70">{% trans "Тип ДВ:" %}</span> {{ offer.boat_data.engine_type }}</div>{% endif %}
+                        {% if offer.boat_data.fuel %}<div><span class="opacity-70">{% trans "Топливо:" %}</span> {{ offer.boat_data.fuel }}л</div>{% endif %}
+                        {% if offer.boat_data.fuel_type %}<div><span class="opacity-70">{% trans "Вид ТС:" %}</span> {{ offer.boat_data.fuel_type }}</div>{% endif %}
+                        {% if offer.boat_data.water_tank %}<div><span class="opacity-70">{% trans "Вода:" %}</span> {{ offer.boat_data.water_tank }}л</div>{% endif %}
+                        {% if offer.boat_data.maximum_speed %}<div><span class="opacity-70">{% trans "Скорость:" %}</span> {{ offer.boat_data.maximum_speed }} уз</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cockpit, Entertainment, Equipment Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Cockpit -->
+                {% if offer.boat_data.cockpit and offer.boat_data.cockpit|length > 0 %}
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body gap-2">
+                        <h3 class="font-bold text-sm mb-2">{% trans "Кокпит" %}</h3>
+                        <div class="space-y-1 text-xs">
+                            {% for item in offer.boat_data.cockpit %}
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-check text-success text-xs"></i>
+                                <span>{{ item.name|striptags }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Entertainment -->
+                {% if offer.boat_data.entertainment and offer.boat_data.entertainment|length > 0 %}
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body gap-2">
+                        <h3 class="font-bold text-sm mb-2">{% trans "Развлечения" %}</h3>
+                        <div class="space-y-1 text-xs">
+                            {% for item in offer.boat_data.entertainment %}
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-check text-success text-xs"></i>
+                                <span>{{ item.name|striptags }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Equipment -->
+                {% if offer.boat_data.equipment and offer.boat_data.equipment|length > 0 %}
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body gap-2">
+                        <h3 class="font-bold text-sm mb-2">{% trans "Оборудование" %}</h3>
+                        <div class="space-y-1 text-xs">
+                            {% for item in offer.boat_data.equipment %}
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-check text-success text-xs"></i>
+                                <span>{{ item.name|striptags }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Notes -->
+            {% if can_view_internal_notes and offer.notes %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body gap-2">
+                    <h3 class="font-bold text-sm">{% trans "Внутренние заметки" %}</h3>
+                    <p class="text-xs">{{ offer.notes }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function offerGallery() {
+        return {
+            currentIndex: 0,
+            images: [
+                {% for image in offer.boat_data.images %}'{{ image|cdn_url }}'{% if not forloop.last %},{% endif %}{% endfor %}
+            ],
+            get currentImage() {
+                return this.images[this.currentIndex] || '';
+            },
+            selectImage(index) {
+                this.currentIndex = index;
+            },
+            next() {
+                this.currentIndex = (this.currentIndex + 1) % this.images.length;
+            },
+            prev() {
+                this.currentIndex = (this.currentIndex - 1 + this.images.length) % this.images.length;
+            }
+        }
+    }
+
+
+
+    function copyLink() {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            alert('Ссылка скопирована в буфер обмена!');
+        }).catch(() => {
+            alert('Ошибка при копировании ссылки');
+        });
+    }
+</script>
+
+{% endblock %}

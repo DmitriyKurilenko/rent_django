@@ -1,0 +1,639 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Boat Rental\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-03 10:33+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Вход"
+msgstr ""
+
+msgid "Добро пожаловать!"
+msgstr ""
+
+msgid "Войдите в свой аккаунт"
+msgstr ""
+
+msgid "Имя пользователя"
+msgstr ""
+
+msgid "Пароль"
+msgstr ""
+
+msgid "Войти"
+msgstr ""
+
+msgid "или"
+msgstr ""
+
+msgid "Создать аккаунт"
+msgstr ""
+
+msgid "Забыли пароль?"
+msgstr ""
+
+msgid "Личный кабинет"
+msgstr ""
+
+msgid "Меню"
+msgstr ""
+
+msgid "Дашборд"
+msgstr ""
+
+msgid "Профиль"
+msgstr ""
+
+msgid "Избранное"
+msgstr ""
+
+msgid "Мои офферы"
+msgstr ""
+
+msgid "Мои бронирования"
+msgstr ""
+
+msgid "Администрация"
+msgstr ""
+
+msgid "Выход"
+msgstr ""
+
+msgid "Избранные"
+msgstr ""
+
+msgid "Бронирования"
+msgstr ""
+
+msgid "Лодки"
+msgstr ""
+
+msgid "Офферы"
+msgstr ""
+
+msgid "Редактировать профиль"
+msgstr ""
+
+msgid "Роль"
+msgstr ""
+
+msgid "Только администратор может изменить"
+msgstr ""
+
+msgid "Телефон"
+msgstr ""
+
+msgid "О себе"
+msgstr ""
+
+msgid "Аватар"
+msgstr ""
+
+msgid "Сохранить"
+msgstr ""
+
+msgid "Регистрация"
+msgstr ""
+
+msgid "Присоединитесь к нам!"
+msgstr ""
+
+msgid "Создайте новый аккаунт"
+msgstr ""
+
+msgid "Email"
+msgstr ""
+
+msgid "Выберите роль"
+msgstr ""
+
+msgid "Турист"
+msgstr ""
+
+msgid "Владелец яхты"
+msgstr ""
+
+msgid "Капитан"
+msgstr ""
+
+msgid "Подтвердить пароль"
+msgstr ""
+
+msgid "Зарегистрироваться"
+msgstr ""
+
+msgid "Уже есть аккаунт?"
+msgstr ""
+
+msgid "Главная"
+msgstr ""
+
+msgid "Поиск"
+msgstr ""
+
+msgid "Выйти"
+msgstr ""
+
+msgid "Язык"
+msgstr ""
+
+msgid "Кабинет"
+msgstr ""
+
+msgid "Лучшая платформа для аренды яхт по всему миру"
+msgstr ""
+
+msgid "Навигация"
+msgstr ""
+
+msgid "Поиск лодок"
+msgstr ""
+
+msgid "О нас"
+msgstr ""
+
+msgid "Блог"
+msgstr ""
+
+msgid "Информация"
+msgstr ""
+
+msgid "Часто задаваемые вопросы"
+msgstr ""
+
+msgid "Условия использования"
+msgstr ""
+
+msgid "Политика конфиденциальности"
+msgstr ""
+
+msgid "Контакты"
+msgstr ""
+
+msgid "Следите за нами"
+msgstr ""
+
+msgid "Все права защищены"
+msgstr ""
+
+msgid "Сделано с"
+msgstr ""
+
+msgid "для любителей приключений"
+msgstr ""
+
+msgid "Создать оффер"
+msgstr ""
+
+msgid "Вставьте ссылку с boataround.com с датами аренды"
+msgstr ""
+
+msgid "Ссылка boataround.com"
+msgstr ""
+
+msgid "Заезд:"
+msgstr ""
+
+msgid "Выезд:"
+msgstr ""
+
+msgid "Тип оффера"
+msgstr ""
+
+msgid "Туристический"
+msgstr ""
+
+msgid "Агентский"
+msgstr ""
+
+msgid "Заголовок"
+msgstr ""
+
+msgid "Роскошная яхта на Кипре"
+msgstr ""
+
+msgid "Описание"
+msgstr ""
+
+msgid "Дополнительное описание"
+msgstr ""
+
+msgid "Таймер обратного отсчета"
+msgstr ""
+
+msgid "Обновить данные"
+msgstr ""
+
+msgid "Включено питание"
+msgstr ""
+
+msgid "Заметки"
+msgstr ""
+
+msgid "Внутренние заметки"
+msgstr ""
+
+msgid "Назад"
+msgstr ""
+
+msgid "Создание..."
+msgstr ""
+
+msgid "Создать"
+msgstr ""
+
+msgid "Как это работает?"
+msgstr ""
+
+msgid "Откройте яхту на boataround.com"
+msgstr ""
+
+msgid "Выберите даты аренды"
+msgstr ""
+
+msgid "Скопируйте URL из адресной строки"
+msgstr ""
+
+msgid "Вставьте выше и нажмите создать"
+msgstr ""
+
+msgid "Готово! Отправьте ссылку клиенту"
+msgstr ""
+
+msgid "избранных лодок"
+msgstr ""
+
+msgid "Найдите идеальную яхту"
+msgstr ""
+
+msgid "Более 27 000 яхт в лучших локациях мира"
+msgstr ""
+
+msgid "Направление"
+msgstr ""
+
+msgid "Заезд"
+msgstr ""
+
+msgid "Выезд"
+msgstr ""
+
+msgid "Тип судна"
+msgstr ""
+
+msgid "Все типы"
+msgstr ""
+
+msgid "Парусная яхта"
+msgstr ""
+
+msgid "Катамаран"
+msgstr ""
+
+msgid "Моторная яхта"
+msgstr ""
+
+msgid "Моторная лодка"
+msgstr ""
+
+msgid "Найти лодки"
+msgstr ""
+
+msgid "Поиск..."
+msgstr ""
+
+msgid "Популярные направления"
+msgstr ""
+
+msgid "Турция"
+msgstr ""
+
+msgid "Сейшелы"
+msgstr ""
+
+msgid "Греция"
+msgstr ""
+
+msgid "Хорватия"
+msgstr ""
+
+msgid "Испания"
+msgstr ""
+
+msgid "Италия"
+msgstr ""
+
+msgid "Все бронирования"
+msgstr ""
+
+msgid "Ваши бронирования и круизы"
+msgstr ""
+
+msgid "Управление всеми бронированиями"
+msgstr ""
+
+msgid "Бронирования по вашим офферам"
+msgstr ""
+
+msgid "Всего"
+msgstr ""
+
+msgid "Ожидают"
+msgstr ""
+
+msgid "Подтверждено"
+msgstr ""
+
+msgid "Ожидает"
+msgstr ""
+
+msgid "Отменено"
+msgstr ""
+
+msgid "Завершено"
+msgstr ""
+
+msgid "Посмотреть оффер"
+msgstr ""
+
+msgid "Удалить"
+msgstr ""
+
+msgid "Нет бронирований"
+msgstr ""
+
+msgid "Начните искать лодки и создавайте бронирования!"
+msgstr ""
+
+msgid "Пока нет бронирований от клиентов"
+msgstr ""
+
+msgid "Агентское предложение"
+msgstr ""
+
+msgid "Все офферы"
+msgstr ""
+
+msgid "Галерея"
+msgstr ""
+
+msgid "фото"
+msgstr ""
+
+msgid "Превью"
+msgstr ""
+
+msgid "Нет фотографий"
+msgstr ""
+
+msgid "Цена"
+msgstr ""
+
+msgid "Скидка"
+msgstr ""
+
+msgid "за"
+msgstr ""
+
+msgid "Кокпит"
+msgstr ""
+
+msgid "Развлечения"
+msgstr ""
+
+msgid "Оборудование"
+msgstr ""
+
+msgid "Параметры"
+msgstr ""
+
+msgid "Название:"
+msgstr ""
+
+msgid "Тип:"
+msgstr ""
+
+msgid "Производитель:"
+msgstr ""
+
+msgid "Модель:"
+msgstr ""
+
+msgid "Год:"
+msgstr ""
+
+msgid "Длина:"
+msgstr ""
+
+msgid "Ширина:"
+msgstr ""
+
+msgid "Осадка:"
+msgstr ""
+
+msgid "Каюты:"
+msgstr ""
+
+msgid "Мест:"
+msgstr ""
+
+msgid "Туалеты:"
+msgstr ""
+
+msgid "Двигатель:"
+msgstr ""
+
+msgid "Мощность:"
+msgstr ""
+
+msgid "Двигателей:"
+msgstr ""
+
+msgid "Тип ДВ:"
+msgstr ""
+
+msgid "Топливо:"
+msgstr ""
+
+msgid "Вид ТС:"
+msgstr ""
+
+msgid "Вода:"
+msgstr ""
+
+msgid "Скорость:"
+msgstr ""
+
+msgid "Дополнительно"
+msgstr ""
+
+msgid "Услуги"
+msgstr ""
+
+msgid "Доставка"
+msgstr ""
+
+msgid "Не включено"
+msgstr ""
+
+msgid "Туристическое предложение"
+msgstr ""
+
+msgid "ночей"
+msgstr ""
+
+msgid "Забронировать"
+msgstr ""
+
+msgid "Цена не доступна"
+msgstr ""
+
+msgid "Управление коммерческими предложениями"
+msgstr ""
+
+msgid "Поиск яхт"
+msgstr ""
+
+msgid "Найти яхту"
+msgstr ""
+
+msgid "Поиск доступных яхт для аренды"
+msgstr ""
+
+msgid "Фильтры"
+msgstr ""
+
+msgid "Тип яхты"
+msgstr ""
+
+msgid "Любой"
+msgstr ""
+
+msgid "Парусник"
+msgstr ""
+
+msgid "Моторная"
+msgstr ""
+
+msgid "Количество кают"
+msgstr ""
+
+msgid "Любое"
+msgstr ""
+
+msgid "Год выпуска"
+msgstr ""
+
+msgid "От"
+msgstr ""
+
+msgid "До"
+msgstr ""
+
+msgid "Цена за день (EUR)"
+msgstr ""
+
+msgid "Найдено яхт"
+msgstr ""
+
+msgid "По рейтингу"
+msgstr ""
+
+msgid "Цена ↑"
+msgstr ""
+
+msgid "Цена ↓"
+msgstr ""
+
+msgid "Скидка ↓"
+msgstr ""
+
+# Navigation
+#~ msgid "Home"
+#~ msgstr "Inicio"
+
+#~ msgid "Search"
+#~ msgstr "Búsqueda"
+
+#~ msgid "Favorites"
+#~ msgstr "Favoritos"
+
+#~ msgid "My Bookings"
+#~ msgstr "Mis reservas"
+
+#~ msgid "Language"
+#~ msgstr "Idioma"
+
+# Boat details
+#~ msgid "Boat Details"
+#~ msgstr "Detalles del barco"
+
+#~ msgid "Equipment"
+#~ msgstr "Equipo"
+
+#~ msgid "Services"
+#~ msgstr "Servicios"
+
+#~ msgid "Price"
+#~ msgstr "Precio"
+
+#~ msgid "Location"
+#~ msgstr "Ubicación"
+
+#~ msgid "Marina"
+#~ msgstr "Marina"
+
+#~ msgid "Cockpit"
+#~ msgstr "Cabina"
+
+#~ msgid "Entertainment"
+#~ msgstr "Entretenimiento"
+
+#~ msgid "Additional Services"
+#~ msgstr "Servicios adicionales"
+
+#~ msgid "Delivery Extras"
+#~ msgstr "Extras de entrega"
+
+#~ msgid "Not Included"
+#~ msgstr "No incluido"
+
+# Actions
+#~ msgid "Book Now"
+#~ msgstr "Reservar ahora"
+
+#~ msgid "Add to Favorites"
+#~ msgstr "Agregar a favoritos"
+
+#~ msgid "Remove from Favorites"
+#~ msgstr "Quitar de favoritos"
+
+#~ msgid "Contact Owner"
+#~ msgstr "Contactar al propietario"
+
+# Messages
+#~ msgid "Boat not found"
+#~ msgstr "Barco no encontrado"
+
+#~ msgid "No boats available"
+#~ msgstr "No hay barcos disponibles"
+
+#~ msgid "Loading..."
+#~ msgstr "Cargando..."
+
+#~ msgid "Error"
+#~ msgstr "Error"
+
+#~ msgid "Success"
+#~ msgstr "Éxito"

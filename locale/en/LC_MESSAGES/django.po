@@ -1,0 +1,326 @@
+# Boat Rental Translation File
+# Copyright (C) 2026 Boat Rental
+# This file is distributed under the same license as the Boat Rental package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Boat Rental\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-03 10:33+0300\n"
+"PO-Revision-Date: 2026-02-03 10:45+0000\n"
+"Last-Translator: Auto\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Вход"
+msgstr "Login"
+
+msgid "Добро пожаловать!"
+msgstr "Welcome!"
+
+msgid "Войдите в свой аккаунт"
+msgstr "Sign in to your account"
+
+msgid "Имя пользователя"
+msgstr "Username"
+
+msgid "Пароль"
+msgstr "Password"
+
+msgid "Войти"
+msgstr "Sign In"
+
+msgid "или"
+msgstr "or"
+
+msgid "Создать аккаунт"
+msgstr "Create Account"
+
+msgid "Забыли пароль?"
+msgstr "Forgot password?"
+
+msgid "Регистрация"
+msgstr "Registration"
+
+msgid "Присоединитесь к нам!"
+msgstr "Join us!"
+
+msgid "Создайте новый аккаунт"
+msgstr "Create a new account"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Выберите роль"
+msgstr "Choose your role"
+
+msgid "Турист"
+msgstr "Tourist"
+
+msgid "Владелец яхты"
+msgstr "Yacht Owner"
+
+msgid "Капитан"
+msgstr "Captain"
+
+msgid "Личный кабинет"
+msgstr "Dashboard"
+
+msgid "Меню"
+msgstr "Menu"
+
+msgid "Дашборд"
+msgstr "Dashboard"
+
+msgid "Профиль"
+msgstr "Profile"
+
+msgid "Избранное"
+msgstr "Favorites"
+
+msgid "Мои офферы"
+msgstr "My Offers"
+
+msgid "Мои бронирования"
+msgstr "My Bookings"
+
+msgid "Администрация"
+msgstr "Administration"
+
+msgid "Выход"
+msgstr "Logout"
+
+msgid "Избранные"
+msgstr "Favorites"
+
+msgid "Бронирования"
+msgstr "Bookings"
+
+msgid "Лодки"
+msgstr "Boats"
+
+msgid "Офферы"
+msgstr "Offers"
+
+msgid "Редактировать профиль"
+msgstr "Edit Profile"
+
+msgid "Роль"
+msgstr "Role"
+
+msgid "Только администратор может изменить"
+msgstr "Only admin can change"
+
+msgid "Телефон"
+msgstr "Phone"
+
+msgid "О себе"
+msgstr "About"
+
+msgid "Аватар"
+msgstr "Avatar"
+
+msgid "Сохранить"
+msgstr "Save"
+
+msgid "Главная"
+msgstr "Home"
+
+msgid "Поиск"
+msgstr "Search"
+
+msgid "Кабинет"
+msgstr "Cabinet"
+
+msgid "Выйти"
+msgstr "Logout"
+
+msgid "Язык"
+msgstr "Language"
+
+msgid "Найдите идеальную яхту"
+msgstr "Find Your Perfect Yacht"
+
+msgid "Более 27 000 яхт в лучших локациях мира"
+msgstr "Over 27,000 yachts in the world's best locations"
+
+msgid "Направление"
+msgstr "Destination"
+
+msgid "Заезд"
+msgstr "Check-in"
+
+msgid "Выезд"
+msgstr "Check-out"
+
+msgid "Тип судна"
+msgstr "Vessel Type"
+
+msgid "Все типы"
+msgstr "All Types"
+
+msgid "Парусная яхта"
+msgstr "Sailing Yacht"
+
+msgid "Катамаран"
+msgstr "Catamaran"
+
+msgid "Моторная яхта"
+msgstr "Motor Yacht"
+
+msgid "Поиск яхт"
+msgstr "Search Yachts"
+
+msgid "Найти яхту"
+msgstr "Find a Yacht"
+
+msgid "Поиск доступных яхт для аренды"
+msgstr "Search for available yachts to rent"
+
+msgid "Фильтры"
+msgstr "Filters"
+
+msgid "Тип яхты"
+msgstr "Yacht Type"
+
+msgid "Любой"
+msgstr "Any"
+
+msgid "Парусник"
+msgstr "Sailboat"
+
+msgid "Моторная"
+msgstr "Motorboat"
+
+msgid "Количество кают"
+msgstr "Number of Cabins"
+
+msgid "Любое"
+msgstr "Any"
+
+msgid "Год выпуска"
+msgstr "Year Built"
+
+msgid "От"
+msgstr "From"
+
+msgid "До"
+msgstr "To"
+
+msgid "Цена за день (EUR)"
+msgstr "Price per Day (EUR)"
+
+msgid "Найдено яхт"
+msgstr "Yachts Found"
+
+msgid "По рейтингу"
+msgstr "By Rating"
+
+msgid "Цена ↑"
+msgstr "Price ↑"
+
+msgid "Цена ↓"
+msgstr "Price ↓"
+
+msgid "Скидка ↓"
+msgstr "Discount ↓"
+
+msgid "Все бронирования"
+msgstr "All Bookings"
+
+msgid "Ваши бронирования и круизы"
+msgstr "Your bookings and cruises"
+
+msgid "Управление всеми бронированиями"
+msgstr "Manage all bookings"
+
+msgid "Бронирования по вашим офферам"
+msgstr "Bookings from your offers"
+
+msgid "Всего"
+msgstr "Total"
+
+msgid "Ожидают"
+msgstr "Pending"
+
+msgid "Подтверждено"
+msgstr "Confirmed"
+
+msgid "Ожидает"
+msgstr "Pending"
+
+msgid "Отменено"
+msgstr "Cancelled"
+
+msgid "Завершено"
+msgstr "Completed"
+
+msgid "Посмотреть оффер"
+msgstr "View Offer"
+
+msgid "Удалить"
+msgstr "Delete"
+
+msgid "Нет бронирований"
+msgstr "No Bookings"
+
+msgid "Начните искать лодки и создавайте бронирования!"
+msgstr "Start searching for boats and create bookings!"
+
+msgid "Пока нет бронирований от клиентов"
+msgstr "No bookings from clients yet"
+
+msgid "Поиск лодок"
+msgstr "Search Boats"
+
+msgid "Управление коммерческими предложениями"
+msgstr "Manage commercial offers"
+
+msgid "Создать"
+msgstr "Create"
+
+msgid "избранных лодок"
+msgstr "favorite boats"
+
+msgid "Лучшая платформа для аренды яхт по всему миру"
+msgstr "The best platform for yacht rentals worldwide"
+
+msgid "Навигация"
+msgstr "Navigation"
+
+msgid "Часто задаваемые вопросы"
+msgstr "FAQ"
+
+msgid "Условия использования"
+msgstr "Terms of Use"
+
+msgid "Политика конфиденциальности"
+msgstr "Privacy Policy"
+
+msgid "Контакты"
+msgstr "Contacts"
+
+msgid "Следите за нами"
+msgstr "Follow Us"
+
+msgid "Все права защищены"
+msgstr "All Rights Reserved"
+
+msgid "Сделано с"
+msgstr "Made with"
+
+msgid "для любителей приключений"
+msgstr "for adventure lovers"
+
+msgid "Информация"
+msgstr "Information"
+
+msgid "О нас"
+msgstr "About Us"
+
+msgid "Блог"
+msgstr "Blog"

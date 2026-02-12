@@ -1,0 +1,880 @@
+{% extends 'base.html' %}
+{% load boat_filters %}
+
+{% block title %}{{ boat.name }} - BoatRental{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-4">
+    <!-- Gallery at Top -->
+    {% if boat.images %}
+    <div class="card bg-base-100 shadow mb-3">
+        <div class="card-body">
+            <h3 class="font-bold text-sm mb-3">
+                <i class="fas fa-images"></i>
+                Галерея ({{ boat.images|length }} фото)
+            </h3>
+            
+            <!-- Image Carousel -->
+            <div x-data="boatGallery()">
+                <!-- Main Image Display -->
+                <div class="mb-4 relative">
+                    <img :src="currentImage" 
+                         alt="{{ boat.name }}"
+                         class="w-full h-[500px] object-contain rounded-lg shadow-md bg-base-200"
+                         loading="eager"
+                    />
+                    
+                    <!-- Navigation Arrows -->
+                    {% if boat.images|length > 1 %}
+                    <button @click="prev()" class="absolute left-3 top-1/2 -translate-y-1/2 btn btn-circle btn-sm btn-ghost hover:bg-base-300">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button @click="next()" class="absolute right-3 top-1/2 -translate-y-1/2 btn btn-circle btn-sm btn-ghost hover:bg-base-300">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    {% endif %}
+                    
+                    <!-- Thumbnail Strip -->
+                    {% if boat.images|length > 1 %}
+                    <div class="flex gap-2 mt-3 overflow-x-auto pb-2">
+                        {% for image in boat.images %}
+                        <img src="{{ image }}" 
+                             alt="Превью {{ forloop.counter }}"
+                             @click="selectImage({{ forloop.counter0 }})"
+                             :class="currentIndex === {{ forloop.counter0 }} ? 'border-primary' : 'border-base-300'"
+                             class="h-20 w-20 object-cover rounded cursor-pointer border-2 flex-shrink-0 transition-all hover:opacity-80"
+                        />
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Header with Title -->
+    <div class="mb-3">
+        <div class="flex items-start justify-between mb-4">
+            <div>
+                <h1 class="text-4xl font-bold mb-2">{{ boat.name }}</h1>
+            </div>
+            <a href="javascript:history.back()" class="btn btn-circle btn-ghost">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        
+        <div class="lg:col-span-2 space-y-3">
+            
+            <!-- Description -->
+            {% if boat.description %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body">
+                    <h2 class="card-title">
+                        <i class="fas fa-align-left"></i>
+                        Описание
+                    </h2>
+                    <p class="leading-relaxed mt-4">{{ boat.description|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Location Info -->
+            {% if boat.marina or boat.country or boat.city %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body py-3 px-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {% if boat.country %}
+                        <div class="flex items-start gap-2">
+                            <i class="fas fa-globe text-primary mt-1"></i>
+                            <div>
+                                <div class="text-xs opacity-60">Страна</div>
+                                <div class="font-semibold text-sm">{{ boat.country }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if boat.city %}
+                        <div class="flex items-start gap-2">
+                            <i class="fas fa-city text-primary mt-1"></i>
+                            <div>
+                                <div class="text-xs opacity-60">Город</div>
+                                <div class="font-semibold text-sm">{{ boat.city }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if boat.marina %}
+                        <div class="flex items-start gap-2">
+                            <i class="fas fa-anchor text-primary mt-1"></i>
+                            <div>
+                                <div class="text-xs opacity-60">Марина</div>
+                                <div class="font-semibold text-sm">{{ boat.marina }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Complete Specifications -->
+            <div class="card bg-base-100 shadow">
+                <div class="card-body pb-4">
+                    <h2 class="card-title mb-4">
+                        <i class="fas fa-list-check"></i>
+                        Полная спецификация
+                    </h2>
+                    
+                    <!-- Basic Info Section -->
+                    {% if boat.manufacturer or boat.model or boat.year %}
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold opacity-70 mb-2">Основная информация</h3>
+                        <div class="grid grid-cols-3 gap-3 text-sm">
+                            {% if boat.manufacturer %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Производитель</span>
+                                <span class="font-semibold">{{ boat.manufacturer }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.model %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Модель</span>
+                                <span class="font-semibold">{{ boat.model }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.year %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Год постройки</span>
+                                <span class="font-semibold">{{ boat.year }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Dimensions Section -->
+                    {% if boat.length or boat.beam or boat.draft %}
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold opacity-70 mb-2">Размеры</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                            {% if boat.length %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Длина</span>
+                                <span class="font-semibold">{{ boat.length }}м</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.beam %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Ширина</span>
+                                <span class="font-semibold">{{ boat.beam }}м</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.draft %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Осадка</span>
+                                <span class="font-semibold">{{ boat.draft }}м</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Accommodation Section -->
+                    {% if boat.cabins or boat.berths or boat.toilets %}
+                    <div class="mb-4">
+                        <h3 class="text-sm font-semibold opacity-70 mb-2">Размещение</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                            {% if boat.cabins %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Каюты</span>
+                                <span class="font-semibold">{{ boat.cabins }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.berths %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Спальные места</span>
+                                <span class="font-semibold">{{ boat.berths }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.toilets %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Туалеты</span>
+                                <span class="font-semibold">{{ boat.toilets }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Engine & Fuel Section -->
+                    {% if boat.engine or boat.fuel or boat.maximum_speed %}
+                    <div>
+                        <h3 class="text-sm font-semibold opacity-70 mb-2">Двигатель и топливо</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                            {% if boat.engine %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Двигатель</span>
+                                <span class="font-semibold">{{ boat.engine }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.fuel %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Топливо</span>
+                                <span class="font-semibold">{{ boat.fuel }} л</span>
+                            </div>
+                            {% endif %}
+                            
+                            {% if boat.maximum_speed %}
+                            <div class="bg-base-200 rounded p-2">
+                                <span class="opacity-60 block text-xs">Макс. скорость</span>
+                                <span class="font-semibold">{{ boat.maximum_speed }} уз</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Cockpit Equipment -->
+            <!-- Entertainment Equipment -->
+            <!-- Equipment -->
+            {% if boat.cockpit or boat.entertainment or boat.equipment %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {% if boat.cockpit and boat.cockpit|length > 0 %}
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body py-3 px-4">
+                        <h2 class="card-title mb-3 text-base">
+                            <i class="fas fa-compass"></i>
+                            Кокпит
+                        </h2>
+                        <div class="space-y-1">
+                            {% for item in boat.cockpit %}
+                            <div class="flex items-center gap-2 text-sm">
+                                <i class="fas fa-check text-success"></i>
+                                <span>{{ item.name|striptags }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if boat.entertainment and boat.entertainment|length > 0 %}
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body py-3 px-4">
+                        <h2 class="card-title mb-3 text-base">
+                            <i class="fas fa-tv"></i>
+                            Развлечения
+                        </h2>
+                        <div class="space-y-1">
+                            {% for item in boat.entertainment %}
+                            <div class="flex items-center gap-2 text-sm">
+                                <i class="fas fa-check text-success"></i>
+                                <span>{{ item.name|striptags }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if boat.equipment and boat.equipment|length > 0 %}
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body py-3 px-4">
+                        <h2 class="card-title mb-3 text-base">
+                            <i class="fas fa-tools"></i>
+                            Оборудование
+                        </h2>
+                        <div class="space-y-1">
+                            {% for item in boat.equipment %}
+                            <div class="flex items-center gap-2 text-sm">
+                                <i class="fas fa-check text-success"></i>
+                                <span>{{ item.name|striptags }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Amenities -->
+            {% if boat.amenities and boat.amenities|length > 0 %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body">
+                    <h2 class="card-title mb-4">
+                        <i class="fas fa-spa"></i>
+                        Удобства
+                    </h2>
+                    <div class="grid grid-cols-2 gap-3">
+                        {% for amenity in boat.amenities %}
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-check-circle text-success"></i>
+                            <span>{{ amenity }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            <!-- Extras -->
+            {% if boat.extras and boat.extras|length > 0 %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body py-3 px-4">
+                    <h2 class="card-title mb-3 text-base">
+                        <i class="fas fa-star"></i>
+                        Дополнительные услуги
+                    </h2>
+                    <div class="space-y-2">
+                        {% for item in boat.extras %}
+                        <div class="flex justify-between items-start gap-4 pb-2 border-b border-base-200 last:border-b-0 text-sm">
+                            <div>
+                                <div class="font-semibold">{{ item.name }}</div>
+                            </div>
+                            <div class="text-right {% if item.unit == "Обязательно" %}bg-error/20 px-2 py-1 rounded border border-error/50{% endif %}">
+                                {% if item.price %}
+                                <div class="text-sm">
+                                    {% if item.price|stringformat:"s" != item.price|floatformat:0|stringformat:"s" %}
+                                        {{ item.price }}
+                                    {% else %}
+                                        {{ item.price|floatformat:0 }} EUR
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                {% if item.unit %}
+                                {% if item.unit == "Обязательно" %}
+                                <div class="badge badge-error badge-sm">{{ item.unit }}</div>
+                                {% elif item.unit == "Опционально" %}
+                                <div class="badge badge-sm">{{ item.unit }}</div>
+                                {% else %}
+                                <div class="text-xs opacity-60">{{ item.unit }}</div>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Additional Services -->
+            {% if boat.additional_services and boat.additional_services|length > 0 %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body py-3 px-4">
+                    <h2 class="card-title mb-3 text-base">
+                        <i class="fas fa-concierge-bell"></i>
+                        Дополнительно
+                    </h2>
+                    <div class="space-y-2">
+                        {% for item in boat.additional_services %}
+                        <div class="flex justify-between items-start gap-4 pb-2 border-b border-base-200 last:border-b-0 text-sm">
+                            <div>
+                                <div class="font-semibold">{{ item.name }}</div>
+                            </div>
+                            <div class="text-right {% if item.unit == "Обязательно" %}bg-error/20 px-2 py-1 rounded border border-error/50{% endif %}">
+                                {% if item.amount_with_unit %}
+                                <div class="text-sm">{{ item.amount_with_unit }}</div>
+                                {% elif item.price %}
+                                <div class="text-sm">
+                                    {% if item.price|stringformat:"s" != item.price|floatformat:0|stringformat:"s" %}
+                                        {{ item.price }}
+                                    {% else %}
+                                        {{ item.price|floatformat:0 }} EUR
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                {% if item.unit %}
+                                {% if item.unit == "Обязательно" %}
+                                <div class="badge badge-error badge-sm">{{ item.unit }}</div>
+                                {% elif item.unit == "Опционально" %}
+                                <div class="badge badge-sm">{{ item.unit }}</div>
+                                {% else %}
+                                <div class="text-xs opacity-60">{{ item.unit }}</div>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Not Included -->
+            {% if boat.not_included and boat.not_included|length > 0 %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body py-3 px-4">
+                    <h2 class="card-title mb-3 text-base">
+                        <i class="fas fa-times-circle"></i>
+                        Не включено в цену
+                    </h2>
+                    <div class="space-y-2">
+                        {% for item in boat.not_included %}
+                        <div class="flex justify-between items-start gap-4 pb-2 border-b border-base-200 last:border-b-0 text-sm">
+                            <div>
+                                <div class="font-semibold">{{ item.name }}</div>
+                            </div>
+                            <div class="text-right {% if item.option == "Обязательно" %}bg-error/20 px-2 py-1 rounded border border-error/50{% endif %}">
+                                {% if item.price %}
+                                <div class="text-sm">{{ item.price }}</div>
+                                {% endif %}
+                                {% if item.option %}
+                                {% if item.option == "Обязательно" %}
+                                <div class="badge badge-error badge-sm">{{ item.option }}</div>
+                                {% elif item.option == "Опционально" %}
+                                <div class="badge badge-sm">{{ item.option }}</div>
+                                {% else %}
+                                <div class="text-xs opacity-60">{{ item.option }}</div>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Delivery Services -->
+            {% if boat.delivery_extras and boat.delivery_extras|length > 0 %}
+            <div class="card bg-base-100 shadow">
+                <div class="card-body py-3 px-4">
+                    <h2 class="card-title mb-3 text-base">
+                        <i class="fas fa-boxes"></i>
+                        Услуги доставки
+                    </h2>
+                    <div class="space-y-2">
+                        {% for item in boat.delivery_extras %}
+                        <div class="flex justify-between items-start gap-4 pb-2 border-b border-base-200 last:border-b-0 text-sm">
+                            <div>
+                                <div class="font-semibold">{{ item.name }}</div>
+                            </div>
+                            <div class="text-right {% if item.unit == "Обязательно" %}bg-error/20 px-2 py-1 rounded border border-error/50{% endif %}">
+                                {% if item.price %}
+                                <div class="text-sm">{{ item.price }} EUR</div>
+                                {% endif %}
+                                {% if item.unit %}
+                                {% if item.unit == "Обязательно" %}
+                                <div class="badge badge-error badge-sm">{{ item.unit }}</div>
+                                {% elif item.unit == "Опционально" %}
+                                <div class="badge badge-sm">{{ item.unit }}</div>
+                                {% else %}
+                                <div class="text-xs opacity-60">{{ item.unit }}</div>
+                                {% endif %}
+                                {% endif %}
+                                {% if item.description %}
+                                <div class="text-xs opacity-60">{{ item.description }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}            
+        </div>
+        
+        <div class="lg:col-span-1">
+            <div class="card bg-gradient-to-br from-primary to-secondary text-primary-content shadow-lg sticky top-20">
+                <div class="card-body">
+                    {% if check_in and check_out %}
+                    <div class="text-sm opacity-90 mb-4">
+                        {{ check_in }} → {{ check_out }}
+                        {% if rental_days %}<span class="text-xs">({{ rental_days }} дн.)</span>{% endif %}
+                    </div>
+                    
+                    <div class="mb-6">
+                        {% if boat.old_price and boat.discount_percent %}
+                        <div class="text-sm opacity-75 line-through">
+                            {{ boat.old_price|default:"0"|floatformat:0 }} EUR
+                        </div>
+                        {% endif %}
+                        <div class="text-4xl font-bold mb-2">
+                            {{ boat.total_price|default:"0"|floatformat:0 }} EUR
+                        </div>
+                        {% if boat.discount_percent %}
+                        <div class="text-sm text-green-200">
+                            Скидка до {{ boat.discount_percent|floatformat:0 }}%
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="text-lg mb-6 opacity-90">По запросу</div>
+                    {% endif %}
+                    
+                    <button class="btn btn-neutral w-full" x-data @click="alert('Скоро будет доступно')">
+                        <i class="fas fa-phone"></i> Связаться
+                    </button>
+                    
+                    {% if user.is_authenticated %}
+                    <!-- Кнопка избранного -->
+                    <div x-data="{ 
+                        isFavorite: {{ is_favorite|yesno:'true,false' }},
+                        loading: false,
+                        async toggleFavorite() {
+                            if (this.loading) return;
+                            this.loading = true;
+                            try {
+                                const response = await fetch('{% url 'toggle_favorite' boat.slug %}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'X-CSRFToken': '{{ csrf_token }}',
+                                        'Content-Type': 'application/json',
+                                    },
+                                    credentials: 'same-origin'
+                                });
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    this.isFavorite = data.is_favorite;
+                                }
+                            } catch (error) {
+                                console.error('Error toggling favorite:', error);
+                            } finally {
+                                this.loading = false;
+                            }
+                        }
+                    }">
+                        <button 
+                            @click="toggleFavorite()"
+                            :disabled="loading"
+                            class="btn btn-outline w-full mt-2"
+                            :class="isFavorite ? 'btn-error' : 'btn-primary'"
+                        >
+                            <i :class="isFavorite ? 'fas fa-heart' : 'far fa-heart'"></i>
+                            <span x-text="isFavorite ? 'В избранном' : 'Добавить в избранное'"></span>
+                        </button>
+                    </div>
+                    {% endif %}
+                    
+                    {% if user.is_authenticated and user.profile.can_book_boats %}
+                    <!-- Кнопка бронирования для туриста/капитана/агента -->
+                    <button class="btn btn-primary w-full mt-2" x-data @click="document.getElementById('bookingModal').showModal()">
+                        <i class="fas fa-calendar-check"></i> Забронировать
+                    </button>
+                    {% endif %}
+                    {% if user.is_authenticated and user.profile.can_create_offers %}
+                    <!-- Кнопка создания оффера -->
+                    <button class="btn btn-accent w-full mt-2" x-data @click="document.getElementById('createOfferModal').showModal()">
+                        <i class="fas fa-file-invoice"></i> Создать оффер
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Offer Modal -->
+{% if user.is_authenticated %}
+<dialog id="createOfferModal" class="modal" x-data="{
+    hasExistingDates: {% if check_in and check_out %}true{% else %}false{% endif %},
+    checkIn: '{{ check_in|default:'' }}',
+    checkOut: '{{ check_out|default:'' }}',
+    rentalDays: {{ rental_days|default:0 }},
+    offerType: 'captain',
+    get datesValid() {
+        return this.checkIn && this.checkOut && this.checkIn < this.checkOut;
+    },
+    calculateDays() {
+        if (this.checkIn && this.checkOut) {
+            const start = new Date(this.checkIn);
+            const end = new Date(this.checkOut);
+            this.rentalDays = Math.max(0, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+        } else {
+            this.rentalDays = 0;
+        }
+    },
+    getMinCheckOut() {
+        if (this.checkIn) {
+            const date = new Date(this.checkIn);
+            date.setDate(date.getDate() + 1);
+            return date.toISOString().split('T')[0];
+        }
+        return '';
+    }
+}">
+    <div class="modal-box">
+        <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" @click="$el.closest('dialog').close()">✕</button>
+        <h3 class="font-bold text-lg mb-4">
+            <i class="fas fa-clipboard-list"></i>
+            Действия
+        </h3>
+        
+        <div class="space-y-4">
+            <!-- Даты аренды -->
+            <div class="bg-base-200 p-4 rounded-lg">
+                <div class="text-sm font-semibold mb-3">Даты аренды</div>
+                
+                <template x-if="!hasExistingDates">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-xs">Заезд</span>
+                            </label>
+                            <input 
+                                type="date" 
+                                x-model="checkIn"
+                                @change="calculateDays()"
+                                :min="new Date().toISOString().split('T')[0]"
+                                class="input input-bordered input-sm"
+                                required
+                            />
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-xs">Выезд</span>
+                            </label>
+                            <input 
+                                type="date" 
+                                x-model="checkOut"
+                                @change="calculateDays()"
+                                :min="getMinCheckOut()"
+                                class="input input-bordered input-sm"
+                                required
+                            />
+                        </div>
+                    </div>
+                </template>
+                
+                <template x-if="hasExistingDates">
+                    <div>
+                        <div class="font-semibold" x-text="`${checkIn} → ${checkOut}`"></div>
+                        <div class="text-sm opacity-70" x-show="rentalDays > 0" x-text="`${rentalDays} дней`"></div>
+                    </div>
+                </template>
+                
+                <div x-show="!hasExistingDates && rentalDays > 0" class="text-sm opacity-70 mt-2">
+                    <span x-text="`${rentalDays} дней`"></span>
+                </div>
+            </div>
+            
+            <div class="bg-base-200 p-4 rounded-lg">
+                <div class="text-sm opacity-70 mb-1">Цена</div>
+                <div class="text-2xl font-bold">{{ boat.total_price|default:"0"|floatformat:0 }} EUR</div>
+            </div>
+            
+            {% if user.profile.can_create_tourist_offers and user.profile.can_create_captain_offers %}
+            <!-- Выбор типа оффера для менеджеров/админов -->
+            <form method="POST" :action="`{% url 'quick_create_offer' boat_slug=boat.slug %}?check_in=${checkIn}&check_out=${checkOut}`" id="offerForm" @submit="if (!datesValid) { alert('Пожалуйста, укажите корректные даты'); return false; }">
+                {% csrf_token %}
+                
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text font-semibold">Тип оффера</span>
+                    </label>
+                    <div class="space-y-2">
+                        <label class="label cursor-pointer bg-base-200 p-3 rounded-lg hover:bg-base-300 transition-colors">
+                            <div class="flex items-start gap-3 flex-1">
+                                <input type="radio" name="offer_type" value="captain" x-model="offerType" class="radio radio-primary" />
+                                <div>
+                                    <span class="label-text font-semibold">Агентский</span>
+                                    <div class="text-xs opacity-70">Детальная информация для агентов</div>
+                                </div>
+                            </div>
+                        </label>
+                        
+                        <label class="label cursor-pointer bg-base-200 p-3 rounded-lg hover:bg-base-300 transition-colors">
+                            <div class="flex items-start gap-3 flex-1">
+                                <input type="radio" name="offer_type" value="tourist" x-model="offerType" class="radio radio-primary" />
+                                <div>
+                                    <span class="label-text font-semibold">Туристический</span>
+                                    <div class="text-xs opacity-70">Упрощенный вид для клиентов</div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-control mb-4" x-show="offerType === 'tourist'">
+                    <label class="label cursor-pointer bg-base-200 p-3 rounded-lg">
+                        <span class="label-text">Включить питание</span>
+                        <input type="checkbox" name="has_meal" class="checkbox checkbox-primary" />
+                    </label>
+                </div>
+                
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" @click="$el.closest('dialog').close()">Отмена</button>
+                    <button type="submit" class="btn btn-primary" :disabled="!datesValid">
+                        <i class="fas fa-plus"></i>
+                        Создать оффер
+                    </button>
+                </div>
+            </form>
+            {% elif user.profile.can_create_captain_offers %}
+            <!-- Только капитанский оффер для агентов/капитанов -->
+            <form method="POST" :action="`{% url 'quick_create_offer' boat_slug=boat.slug %}?check_in=${checkIn}&check_out=${checkOut}`" @submit="if (!datesValid) { alert('Пожалуйста, укажите корректные даты'); return false; }">
+                {% csrf_token %}
+                <input type="hidden" name="offer_type" value="captain" />
+                
+                <div class="alert alert-info mb-4">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Будет создан агентский оффер</span>
+                </div>
+                
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" @click="$el.closest('dialog').close()">Отмена</button>
+                    <button type="submit" class="btn btn-primary" :disabled="!datesValid">
+                        <i class="fas fa-plus"></i>
+                        Создать оффер
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+{% endif %}
+
+<!-- Booking Modal -->
+<dialog id="bookingModal" class="modal" x-data="{
+    hasExistingDates: {% if check_in and check_out %}true{% else %}false{% endif %},
+    checkIn: '{{ check_in|default:'' }}',
+    checkOut: '{{ check_out|default:'' }}',
+    rentalDays: {{ rental_days|default:0 }},
+    get datesValid() {
+        return this.checkIn && this.checkOut && this.checkIn < this.checkOut;
+    },
+    calculateDays() {
+        if (this.checkIn && this.checkOut) {
+            const start = new Date(this.checkIn);
+            const end = new Date(this.checkOut);
+            this.rentalDays = Math.max(0, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+        } else {
+            this.rentalDays = 0;
+        }
+    },
+    getMinCheckOut() {
+        if (this.checkIn) {
+            const date = new Date(this.checkIn);
+            date.setDate(date.getDate() + 1);
+            return date.toISOString().split('T')[0];
+        }
+        return '';
+    }
+}">
+    <div class="modal-box">
+        <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" @click="$el.closest('dialog').close()">✕</button>
+        <h3 class="font-bold text-lg mb-4">
+            <i class="fas fa-calendar-check"></i>
+            Забронировать яхту
+        </h3>
+
+        <div class="space-y-4">
+            <div class="bg-base-200 p-4 rounded-lg">
+                <div class="text-sm font-semibold mb-3">Даты аренды</div>
+
+                <template x-if="!hasExistingDates">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-xs">Заезд</span>
+                            </label>
+                            <input 
+                                type="date" 
+                                x-model="checkIn"
+                                @change="calculateDays()"
+                                :min="new Date().toISOString().split('T')[0]"
+                                class="input input-bordered input-sm"
+                                required
+                            />
+                        </div>
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text text-xs">Выезд</span>
+                            </label>
+                            <input 
+                                type="date" 
+                                x-model="checkOut"
+                                @change="calculateDays()"
+                                :min="getMinCheckOut()"
+                                class="input input-bordered input-sm"
+                                required
+                            />
+                        </div>
+                    </div>
+                </template>
+
+                <template x-if="hasExistingDates">
+                    <div>
+                        <div class="font-semibold" x-text="`${checkIn} → ${checkOut}`"></div>
+                        <div class="text-sm opacity-70" x-show="rentalDays > 0" x-text="`${rentalDays} дней`"></div>
+                    </div>
+                </template>
+
+                <div x-show="!hasExistingDates && rentalDays > 0" class="text-sm opacity-70 mt-2">
+                    <span x-text="`${rentalDays} дней`"></span>
+                </div>
+            </div>
+
+            <div class="bg-base-200 p-4 rounded-lg">
+                <div class="text-sm opacity-70 mb-1">Цена</div>
+                <div class="text-2xl font-bold">{{ boat.total_price|default:"0"|floatformat:0 }} EUR</div>
+            </div>
+
+            <form method="POST" :action="`{% url 'book_boat' boat_slug=boat.slug %}?check_in=${checkIn}&check_out=${checkOut}`" @submit="if (!datesValid) { alert('Пожалуйста, укажите корректные даты'); return false; }">
+                {% csrf_token %}
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" @click="$el.closest('dialog').close()">Отмена</button>
+                    <button type="submit" class="btn btn-primary" :disabled="!datesValid">
+                        <i class="fas fa-calendar-check"></i>
+                        Забронировать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<footer class="footer footer-center bg-base-200 text-base-content p-4 mt-16">
+    <p>© 2026 BoatRental - Ваша платформа для аренды яхт</p>
+</footer>
+
+<script>
+    function boatGallery() {
+        return {
+            currentIndex: 0,
+            images: [
+                {% for image in boat.images %}'{{ image }}'{% if not forloop.last %},{% endif %}{% endfor %}
+            ],
+            get currentImage() {
+                return this.images[this.currentIndex] || '';
+            },
+            selectImage(index) {
+                this.currentIndex = index;
+            },
+            next() {
+                this.currentIndex = (this.currentIndex + 1) % this.images.length;
+            },
+            prev() {
+                this.currentIndex = (this.currentIndex - 1 + this.images.length) % this.images.length;
+            }
+        }
+    }
+
+    function copyLink() {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url);
+        alert('Ссылка скопирована в буфер обмена!');
+    }
+</script>
+
+{% endblock %}

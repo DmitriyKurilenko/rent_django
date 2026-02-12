@@ -1,0 +1,176 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="ru" data-theme="winter">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BoatRental - Аренда яхт и лодок{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen">
+    {% if not hide_site_branding %}
+    <div class="navbar bg-base-100 shadow sticky top-0 z-50">
+        <div class="navbar-start">
+            <div class="dropdown">
+                <label tabindex="0" class="btn btn-ghost lg:hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16" />
+                    </svg>
+                </label>
+                <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-50 p-2 shadow-lg bg-base-100 rounded-box w-52">
+                    <li><a href="{% url 'home' %}"><i class="fas fa-home mr-2"></i>{% trans "Главная" %}</a></li>
+                    <li><a href="{% url 'boat_search' %}"><i class="fas fa-search mr-2"></i>{% trans "Поиск" %}</a></li>
+                    {% if user.is_authenticated %}
+                        <li><a href="{% url 'logout' %}"><i class="fas fa-sign-out-alt mr-2"></i>{% trans "Выйти" %}</a></li>
+                    {% else %}
+                        <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt mr-2"></i>{% trans "Войти" %}</a></li>
+                    {% endif %}
+                    <li class="menu-title"><span><i class="fas fa-globe mr-2"></i>{% trans "Язык" %}</span></li>
+                    {% get_available_languages as languages %}
+                    {% get_current_language as current_lang %}
+                    {% for lang_code, lang_name in languages %}
+                        <li>
+                            <form action="{% url 'set_language' %}" method="post">
+                                {% csrf_token %}
+                                <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                                <input name="language" type="hidden" value="{{ lang_code }}">
+                                <button type="submit" class="w-full text-left {% if current_lang == lang_code %}font-bold text-primary{% endif %}">
+                                    {{ lang_name }}
+                                </button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <a href="{% url 'home' %}" class="btn btn-ghost normal-case text-xl">
+                <i class="fas fa-anchor text-primary mr-2"></i>
+                <span class="font-bold">Boat<span class="text-primary">Rental</span></span>
+            </a>
+        </div>
+        
+        <div class="navbar-end hidden lg:flex">
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="{% url 'home' %}"><i class="fas fa-home mr-2"></i>{% trans "Главная" %}</a></li>
+                <li><a href="{% url 'boat_search' %}"><i class="fas fa-search mr-2"></i>{% trans "Поиск" %}</a></li>
+                {% if user.is_authenticated %}
+                    <li><a href="{% url 'profile' %}"><i class="fas fa-user mr-2"></i>{% trans "Кабинет" %}</a></li>
+                    <li><a href="{% url 'logout' %}"><i class="fas fa-sign-out-alt mr-2"></i>{% trans "Выйти" %}</a></li>
+                {% else %}
+                    <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt mr-2"></i>{% trans "Войти" %}</a></li>
+                {% endif %}
+            </ul>
+        </div>
+                <div class="navbar-end">
+            <!-- Language Selector -->
+            <div class="dropdown dropdown-end">
+                <label tabindex="0" class="btn btn-ghost btn-sm">
+                    <i class="fas fa-globe"></i>
+                    <span class="ml-1">{{ LANGUAGE_CODE|upper }}</span>
+                </label>
+                <ul tabindex="0" class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 rounded-box w-40 mt-2">
+                    {% get_available_languages as languages %}
+                    {% get_current_language as current_lang %}
+                    {% for lang_code, lang_name in languages %}
+                        <li>
+                            <form action="{% url 'set_language' %}" method="post" style="padding: 0; margin: 0;">
+                                {% csrf_token %}
+                                <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                                <input name="language" type="hidden" value="{{ lang_code }}">
+                                <button type="submit" class="w-full text-left {% if current_lang == lang_code %}bg-primary text-primary-content{% endif %}">
+                                    {{ lang_name }}
+                                </button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+            </div>
+    {% endif %}
+    
+    <main class="min-h-[calc(100vh-4rem)]">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Footer -->
+    {% if not hide_site_branding %}
+    <footer class="bg-base-200 text-base-content border-t border-base-300">
+        <div class="container mx-auto px-4 py-12">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <!-- Логотип и описание -->
+                <div>
+                    <h2 class="text-2xl font-bold mb-2">⛵ BoatRental</h2>
+                    <p class="text-sm opacity-70">{% trans "Лучшая платформа для аренды яхт по всему миру" %}</p>
+                </div>
+                
+                <!-- Быстрые ссылки -->
+                <div>
+                    <h3 class="font-semibold mb-4">{% trans "Навигация" %}</h3>
+                    <nav class="flex flex-col gap-2">
+                        <a href="{% url 'home' %}" class="link link-hover">{% trans "Главная" %}</a>
+                        <a href="{% url 'boat_search' %}" class="link link-hover">{% trans "Поиск лодок" %}</a>
+                        <a href="#" class="link link-hover">{% trans "О нас" %}</a>
+                        <a href="#" class="link link-hover">{% trans "Блог" %}</a>
+                    </nav>
+                </div>
+                
+                <!-- Информация -->
+                <div>
+                    <h3 class="font-semibold mb-4">{% trans "Информация" %}</h3>
+                    <nav class="flex flex-col gap-2">
+                        <a href="#" class="link link-hover">{% trans "Часто задаваемые вопросы" %}</a>
+                        <a href="#" class="link link-hover">{% trans "Условия использования" %}</a>
+                        <a href="#" class="link link-hover">{% trans "Политика конфиденциальности" %}</a>
+                        <a href="#" class="link link-hover">{% trans "Контакты" %}</a>
+                    </nav>
+                </div>
+                
+                <!-- Социальные сети -->
+                <div>
+                    <h3 class="font-semibold mb-4">{% trans "Следите за нами" %}</h3>
+                    <div class="flex gap-4">
+                        <a href="#" class="btn btn-ghost btn-sm btn-circle" title="Facebook">
+                            <i class="fab fa-facebook-f text-lg"></i>
+                        </a>
+                        <a href="#" class="btn btn-ghost btn-sm btn-circle" title="Instagram">
+                            <i class="fab fa-instagram text-lg"></i>
+                        </a>
+                        <a href="#" class="btn btn-ghost btn-sm btn-circle" title="Twitter">
+                            <i class="fab fa-twitter text-lg"></i>
+                        </a>
+                        <a href="#" class="btn btn-ghost btn-sm btn-circle" title="LinkedIn">
+                            <i class="fab fa-linkedin text-lg"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Разделитель -->
+            <div class="divider my-8"></div>
+            
+            <!-- Нижняя часть -->
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-sm opacity-70">
+                    © 2026 BoatRental. {% trans "Все права защищены" %}.
+                </p>
+                <p class="text-sm">
+                    {% trans "Сделано с" %} <i class="fas fa-heart text-error"></i> {% trans "для любителей приключений" %}
+                </p>
+            </div>
+        </div>
+    </footer>
+    {% endif %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

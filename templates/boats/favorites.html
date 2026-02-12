@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+{% load cdn_tags %}
+{% load i18n %}
+
+{% block title %}{% trans "Избранное" %} - BoatRental{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        <!-- Sidebar Menu -->
+        <div class="md:col-span-1">
+            <div class="card bg-base-100 shadow-sm sticky top-24">
+                <div class="card-body p-4">
+                    <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
+                    
+                    <div class="space-y-2">
+                        <!-- Dashboard -->
+                        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
+                        </a>
+                        
+                        <!-- Profile -->
+                        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-user"></i> {% trans "Профиль" %}
+                        </a>
+                        
+                        <!-- Favorites (Active) -->
+                        <button class="btn btn-sm btn-primary justify-start w-full" disabled>
+                            <i class="fas fa-heart"></i> {% trans "Избранное" %}
+                        </button>
+                        
+                        <!-- Offers -->
+                        {% if user.profile.can_create_offers %}
+                        <a href="{% url 'offers_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-file-invoice"></i> {% trans "Мои офферы" %}
+                        </a>
+                        {% endif %}
+                        
+                        <!-- Bookings -->
+                        <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
+                        </a>
+                        
+                        <!-- Admin Panel (админ) -->
+                        {% if user.profile.role == 'admin' %}
+                        <a href="/admin/" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-cog"></i> {% trans "Администрация" %}
+                        </a>
+                        {% endif %}
+                        
+                        <div class="divider my-2"></div>
+                        
+                        <!-- Logout -->
+                        <a href="{% url 'logout' %}" class="btn btn-sm btn-error btn-outline justify-start w-full">
+                            <i class="fas fa-sign-out-alt"></i> {% trans "Выход" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="md:col-span-3">
+            <!-- Header -->
+            <div class="mb-6">
+                <h1 class="text-3xl font-bold">
+                    <i class="fas fa-heart text-error"></i> {% trans "Избранное" %}
+                </h1>
+                <p class="text-sm text-base-content/70 mt-1">
+                    <span class="badge badge-md">{{ favorites_data|length }}</span> {% trans "избранных лодок" %}
+                </p>
+            </div>
+
+            {% if favorites_data %}
+                <!-- Favorites Grid -->
+                <div class="space-y-4">
+                    {% for fav in favorites_data %}
+                    <div id="favorite-card-{{ fav.slug }}" class="bg-base-100 shadow-sm hover:shadow-md transition-all border border-base-300 rounded-lg overflow-hidden flex hover:border-primary">
+                        <!-- Thumbnail -->
+                        <div class="w-56 h-56 flex-shrink-0 bg-base-200 overflow-hidden">
+                            {% if fav.image_url %}
+                                <img 
+                                    src="{{ fav.image_url|cdn_url }}" 
+                                    alt="{{ fav.title }}" 
+                                    class="w-full h-full object-cover hover:scale-105 transition-transform"
+                                >
+                            {% else %}
+                            <div class="w-full h-full flex items-center justify-center bg-base-300">
+                                <i class="fas fa-image text-2xl text-base-content/30"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Content -->
+                        <div class="flex-1 p-4 flex flex-col justify-between">
+                            <!-- Header -->
+                            <div>
+                                <div class="flex items-start justify-between mb-2">
+                                    <h3 class="text-lg font-bold">{{ fav.title }}</h3>
+                                </div>
+
+                                <!-- Location -->
+                                <div class="text-sm text-base-content/70 mb-3">
+                                    <i class="fas fa-map-pin"></i>
+                                    {{ fav.country|default:"" }}
+                                    {% if fav.marina %}• {{ fav.marina }}{% endif %}
+                                    {% if fav.location %}• {{ fav.location }}{% endif %}
+                                </div>
+
+                                <!-- Specs Row -->
+                                <div class="flex flex-wrap gap-4 text-sm mb-3">
+                                    {% if fav.berths %}
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-users text-primary"></i>
+                                        <span>{{ fav.berths }} гостей</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if fav.cabins %}
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-door-open text-primary"></i>
+                                        <span>{{ fav.cabins }} кают</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if fav.length %}
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-ruler text-info"></i>
+                                        <span>{{ fav.length }}м</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if fav.year %}
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-calendar text-warning"></i>
+                                        <span>{{ fav.year }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Added Date -->
+                                <div class="text-xs text-base-content/50 mt-2">
+                                    <i class="far fa-clock"></i> Добавлено: {{ fav.created_at|date:"d.m.Y H:i" }}
+                                </div>
+                            </div>
+
+                            <!-- Footer: Actions -->
+                            <div class="flex items-end justify-end gap-2 pt-3 border-t border-base-300 mt-3" 
+                                 x-data="{
+                                    loading: false,
+                                    async removeFavorite() {
+                                        if (!confirm('Удалить из избранного?')) return;
+                                        this.loading = true;
+                                        try {
+                                            const response = await fetch('{% url 'toggle_favorite' fav.slug %}', {
+                                                method: 'POST',
+                                                headers: {
+                                                    'X-CSRFToken': '{{ csrf_token }}',
+                                                    'Content-Type': 'application/json',
+                                                },
+                                                credentials: 'same-origin'
+                                            });
+                                            if (response.ok) {
+                                                const data = await response.json();
+                                                if (!data.is_favorite) {
+                                                    // Remove card from DOM
+                                                    document.getElementById('favorite-card-{{ fav.slug }}').remove();
+                                                }
+                                            }
+                                        } catch (error) {
+                                            console.error('Error:', error);
+                                            alert('Ошибка при удалении из избранного');
+                                        } finally {
+                                            this.loading = false;
+                                        }
+                                    }
+                                 }">
+                                <button 
+                                    @click="removeFavorite()"
+                                    :disabled="loading"
+                                    class="btn btn-outline btn-error btn-sm"
+                                >
+                                    <i class="fas fa-heart-broken"></i> 
+                                    <span x-text="loading ? 'Удаление...' : 'Удалить'"></span>
+                                </button>
+                                <a href="{% url 'boat_detail_api' fav.slug %}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-eye"></i> Подробнее
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <!-- Empty State -->
+                <div class="text-center py-16">
+                    <i class="fas fa-heart-broken text-9xl text-base-content/20 mb-6"></i>
+                    <h2 class="text-3xl font-bold mb-4">У вас пока нет избранных лодок</h2>
+                    <p class="text-base-content/70 mb-6">Добавьте лодки в избранное, чтобы легко находить их позже</p>
+                    <a href="{% url 'boat_search' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-search"></i> Найти лодку
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

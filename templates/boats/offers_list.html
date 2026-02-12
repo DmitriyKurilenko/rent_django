@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Мои офферы" %}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        <!-- Sidebar Menu -->
+        <div class="md:col-span-1">
+            <div class="card bg-base-100 shadow-sm sticky top-24">
+                <div class="card-body p-4">
+                    <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
+                    
+                    <div class="space-y-2">
+                        <!-- Dashboard -->
+                        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
+                        </a>
+                        
+                        <!-- Profile -->
+                        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-user"></i> {% trans "Профиль" %}
+                        </a>
+                        
+                        <!-- Favorites -->
+                        <a href="{% url 'favorites_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-heart"></i> {% trans "Избранное" %}
+                        </a>
+                        
+                        <!-- Offers (current) -->
+                        {% if user.profile.can_create_offers %}
+                        <button class="btn btn-sm btn-primary justify-start w-full" disabled>
+                            <i class="fas fa-file-invoice"></i> {% trans "Мои офферы" %}
+                        </button>
+                        {% endif %}
+                        
+                        <!-- Bookings -->
+                        <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
+                        </a>
+                        
+                        <!-- Admin Panel -->
+                        {% if user.profile.role == 'admin' %}
+                        <a href="/admin/" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-cog"></i> {% trans "Администрация" %}
+                        </a>
+                        {% endif %}
+                        
+                        <div class="divider my-2"></div>
+                        
+                        <!-- Logout -->
+                        <a href="{% url 'logout' %}" class="btn btn-sm btn-error btn-outline justify-start w-full">
+                            <i class="fas fa-sign-out-alt"></i> {% trans "Выход" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="md:col-span-3">
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-3xl font-bold">
+                        <i class="fas fa-file-invoice"></i> {% trans "Мои офферы" %}
+                    </h1>
+                    <p class="text-sm text-base-content/70 mt-1">{% trans "Управление коммерческими предложениями" %}</p>
+                </div>
+                <a href="{% url 'create_offer' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> {% trans "Создать" %}
+                </a>
+            </div>
+
+            <!-- Статистика -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body py-3 px-4">
+                        <div class="flex items-center gap-2">
+                            <div class="text-primary text-xl">
+                                <i class="fas fa-file-invoice"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs opacity-60">Всего офферов</div>
+                                <div class="text-xl font-bold">{{ offers|length }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body py-3 px-4">
+                        <div class="flex items-center gap-2">
+                            <div class="text-success text-xl">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs opacity-60">Активных</div>
+                                <div class="text-xl font-bold">{{ active_offers }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body py-3 px-4">
+                        <div class="flex items-center gap-2">
+                            <div class="text-info text-xl">
+                                <i class="fas fa-eye"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs opacity-60">Просмотров</div>
+                                <div class="text-xl font-bold">{{ total_views }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Пустой список -->
+            {% if not offers %}
+            <div class="text-center py-12">
+                <i class="fas fa-inbox text-6xl text-base-content/30 mb-4"></i>
+                <h3 class="text-2xl font-bold mb-2">Офферов не найдено</h3>
+                <p class="text-base-content/70 mb-6">Создайте первый оффер для клиента</p>
+                <a href="{% url 'create_offer' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Создать оффер
+                </a>
+            </div>
+            {% else %}
+            
+            <!-- Список офферов -->
+            <div class="space-y-3">
+                {% for offer in offers %}
+                <div class="card bg-base-100 shadow hover:shadow-md transition-shadow">
+                    <div class="card-body p-3">
+                        <div class="flex gap-3 items-center">
+                            <!-- Image -->
+                            <div class="flex-shrink-0 w-16 h-16 bg-base-300 rounded-lg overflow-hidden">
+                                {% if offer.image %}
+                                    <img src="{{ offer.image }}" alt="{{ offer.title_display }}" class="w-full h-full object-cover">
+                                {% else %}
+                                    <div class="flex items-center justify-center h-full">
+                                        <i class="fas fa-ship text-xl text-base-content/30"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Content -->
+                            <div class="flex-1 min-w-0 flex items-center justify-between gap-3">
+                                <!-- Left: Info -->
+                                <div class="flex-1 min-w-0">
+                                    <h2 class="font-semibold text-sm mb-1 truncate">{{ offer.title_display }}</h2>
+                                    <div class="flex items-center gap-2 text-xs flex-wrap">
+                                        {% if offer.offer_type == 'captain' %}
+                                            <span class="badge badge-xs badge-info">Агентский</span>
+                                        {% else %}
+                                            <span class="badge badge-xs badge-success">Туристический</span>
+                                        {% endif %}
+                                        <span class="text-base-content/60">{{ offer.created_at|date:"d.m.Y" }}</span>
+                                        <span class="text-base-content/60">•</span>
+                                        <span>{{ offer.check_in|date:"d.m" }} - {{ offer.check_out|date:"d.m" }}</span>
+                                        <span class="text-base-content/60">•</span>
+                                        <span class="flex items-center gap-1">
+                                            <i class="fas fa-eye text-base-content/40"></i>
+                                            {{ offer.views_count }}
+                                        </span>
+                                        {% if offer.is_active %}
+                                            <span class="badge badge-xs badge-success"><i class="fas fa-check"></i></span>
+                                        {% else %}
+                                            <span class="badge badge-xs badge-error"><i class="fas fa-times"></i></span>
+                                        {% endif %}
+                                        {% if offer.show_countdown %}
+                                            <span class="badge badge-xs badge-warning"><i class="fas fa-clock"></i></span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <!-- Right: Price & Actions -->
+                                <div class="flex items-center gap-3">
+                                    <div class="text-right">
+                                        {% if offer.discount > 0 %}
+                                            
+                                        {% endif %}
+                                        <div class="font-bold text-primary whitespace-nowrap">
+                                            {{ offer.total_price|floatformat:0 }}{{ offer.currency }}
+                                            {% if offer.discount > 0 %}
+                                                <span class="badge badge-warning badge-xs ml-1">-{{ offer.discount|floatformat:0 }}%</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex gap-1" x-data="offerActions('{% url 'offer_view' offer.uuid %}', '{{ offer.uuid }}')">
+                                        <button @click="copy($el)" class="btn btn-ghost btn-xs" title="Скопировать ссылку">
+                                            {% trans "Копировать" %}
+                                        </button>
+                                        <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs" title="Просмотр">
+                                            {% trans "Открыть" %}
+                                        </a>
+                                        <button @click="remove()" class="btn btn-ghost btn-xs text-error" title="Удалить">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function offerActions(offerPath, uuid) {
+    return {
+        copy(buttonEl) {
+            const offerUrl = `${window.location.origin}${offerPath}`;
+            navigator.clipboard.writeText(offerUrl).then(() => {
+                const originalText = buttonEl.textContent.trim();
+                buttonEl.textContent = 'Скопировано';
+                buttonEl.classList.add('btn-success');
+
+                setTimeout(() => {
+                    buttonEl.textContent = originalText;
+                    buttonEl.classList.remove('btn-success');
+                }, 1200);
+            }).catch(err => {
+                alert('Не удалось скопировать ссылку');
+                console.error('Copy failed:', err);
+            });
+        },
+        remove() {
+            if (!confirm('Вы уверены, что хотите удалить этот оффер?')) {
+                return;
+            }
+
+            const lang = window.location.pathname.split('/')[1] || 'ru';
+            const deleteUrl = `/${lang}/offers/${uuid}/delete/`;
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = deleteUrl;
+
+            const csrfToken = getCookie('csrftoken');
+            if (csrfToken) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrfmiddlewaretoken';
+                input.value = csrfToken;
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

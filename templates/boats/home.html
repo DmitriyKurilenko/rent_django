@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}Главная - BoatRental{% endblock %}
+
+{% block content %}
+<div class="hero min-h-screen bg-gradient-to-b from-primary to-base-100">
+    <div class="hero-content text-center">
+        <div class="w-full max-w-2xl px-4">
+            <h1 class="text-5xl md:text-6xl font-bold text-white mb-4">
+                {% trans "Найдите идеальную яхту" %}
+            </h1>
+            <p class="text-lg text-white/90 mb-8">
+                {% trans "Более 27 000 яхт в лучших локациях мира" %}
+            </p>
+            
+            <div class="card bg-base-100 shadow-2xl" x-data="searchForm()">
+                <div class="card-body gap-4">
+                    <form @submit.prevent="handleSearch()" class="space-y-4">
+                        <div class="form-control relative">
+                            <label class="label">
+                                <span class="label-text font-semibold">
+                                    <i class="fas fa-map-marker-alt text-primary mr-2"></i>
+                                    {% trans "Направление" %}
+                                </span>
+                            </label>
+                            <div class="relative">
+                                <input 
+                                    type="text" 
+                                    x-model="location"
+                                    @input.debounce.500ms="fetchLocations"
+                                    @focus="if(suggestions.length > 0 && location.trim().length >= 2 && !selectedDestination) showSuggestions = true"
+                                    placeholder="Турция, Греция, Хорватия..."
+                                    class="input input-bordered input-lg w-full"
+                                    autocomplete="off"
+                                />
+                                <div x-show="loadingSuggestions" class="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <span class="loading loading-spinner loading-sm"></span>
+                                </div>
+                            </div>
+                            
+                            <div x-show="showSuggestions && suggestions.length > 0" 
+                                 x-cloak
+                                 @click.away="showSuggestions = false"
+                                 class="absolute z-50 w-full top-full mt-1 bg-base-100 rounded-lg shadow-xl max-h-80 overflow-y-auto border border-base-300">
+                                <template x-for="suggestion in suggestions" :key="suggestion.value">
+                                    <div @click="selectLocation(suggestion)" 
+                                         class="px-4 py-3 hover:bg-primary hover:text-primary-content cursor-pointer transition-colors border-b border-base-200 last:border-0">
+                                        <div class="font-medium" x-text="suggestion.name"></div>
+                                        <div class="text-xs opacity-70" x-show="suggestion.country" x-text="suggestion.country"></div>
+                                        <div class="text-xs opacity-50" x-show="suggestion.total" x-text="suggestion.total + ' лодок'"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text font-semibold">
+                                        <i class="fas fa-calendar text-primary mr-2"></i>
+                                        {% trans "Заезд" %}
+                                    </span>
+                                </label>
+                                <input 
+                                    type="date" 
+                                    x-model="checkIn"
+                                    :min="today"
+                                    class="input input-bordered"
+                                />
+                            </div>
+                            
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text font-semibold">
+                                        <i class="fas fa-calendar-check text-primary mr-2"></i>
+                                        {% trans "Выезд" %}
+                                    </span>
+                                </label>
+                                <input 
+                                    type="date" 
+                                    x-model="checkOut"
+                                    :min="checkIn || today"
+                                    class="input input-bordered"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">
+                                    <i class="fas fa-ship text-primary mr-2"></i>
+                                    {% trans "Тип судна" %}
+                                </span>
+                            </label>
+                            <select x-model="boatType" class="select select-bordered">
+                                <option value="">{% trans "Все типы" %}</option>
+                                <option value="sailing-yacht">⛵ {% trans "Парусная яхта" %}</option>
+                                <option value="catamaran">🚤 {% trans "Катамаран" %}</option>
+                                <option value="motor-yacht">🛥️ {% trans "Моторная яхта" %}</option>
+                                <option value="motor-boat">🚤 {% trans "Моторная лодка" %}</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-lg w-full" :class="{ 'loading': loading }">
+                            <i class="fas fa-search" x-show="!loading"></i>
+                            <span x-show="!loading">{% trans "Найти лодки" %}</span>
+                            <span x-show="loading">{% trans "Поиск..." %}</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mx-auto px-4 py-16">
+    <h2 class="text-4xl font-bold text-center mb-12">
+        <i class="fas fa-globe text-primary mr-2"></i>
+        {% trans "Популярные направления" %}
+    </h2>
+    
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <a href="{% url 'boat_search' %}?destination=turkey" class="card bg-base-100 shadow hover:shadow-lg transition">
+            <div class="card-body p-4 text-center">
+                <div class="text-4xl mb-2">🇹🇷</div>
+                <h3 class="font-bold text-sm">{% trans "Турция" %}</h3>
+            </div>
+        </a>
+        
+        <a href="{% url 'boat_search' %}?destination=seychelles" class="card bg-base-100 shadow hover:shadow-lg transition">
+            <div class="card-body p-4 text-center">
+                <div class="text-4xl mb-2">🇸🇨</div>
+                <h3 class="font-bold text-sm">{% trans "Сейшелы" %}</h3>
+            </div>
+        </a>
+
+        <a href="{% url 'boat_search' %}?destination=greece" class="card bg-base-100 shadow hover:shadow-lg transition">
+            <div class="card-body p-4 text-center">
+                <div class="text-4xl mb-2">🇬🇷</div>
+                <h3 class="font-bold text-sm">{% trans "Греция" %}</h3>
+            </div>
+        </a>
+        
+        <a href="{% url 'boat_search' %}?destination=croatia" class="card bg-base-100 shadow hover:shadow-lg transition">
+            <div class="card-body p-4 text-center">
+                <div class="text-4xl mb-2">🇭🇷</div>
+                <h3 class="font-bold text-sm">{% trans "Хорватия" %}</h3>
+            </div>
+        </a>
+        
+        <a href="{% url 'boat_search' %}?destination=spain" class="card bg-base-100 shadow hover:shadow-lg transition">
+            <div class="card-body p-4 text-center">
+                <div class="text-4xl mb-2">🇪🇸</div>
+                <h3 class="font-bold text-sm">{% trans "Испания" %}</h3>
+            </div>
+        </a>
+        
+        <a href="{% url 'boat_search' %}?destination=italy" class="card bg-base-100 shadow hover:shadow-lg transition">
+            <div class="card-body p-4 text-center">
+                <div class="text-4xl mb-2">🇮🇹</div>
+                <h3 class="font-bold text-sm">{% trans "Италия" %}</h3>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="container mx-auto px-4 pb-16">
+    <h2 class="text-4xl font-bold text-center mb-8">
+        <i class="fas fa-crown text-primary mr-2"></i>
+        {% trans "Подписки" %}
+    </h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h3 class="card-title">🆓 {% trans "Бесплатная" %}</h3>
+                <p class="text-2xl font-bold">0 ₽ <span class="text-sm font-normal opacity-70">/ {% trans "мес" %}</span></p>
+                <ul class="text-sm space-y-1 mt-2">
+                    <li>✓ {% trans "Поиск и просмотр лодок" %}</li>
+                    <li>✓ {% trans "Избранное" %}</li>
+                    <li>✓ {% trans "Бронирование" %}</li>
+                </ul>
+                <div class="card-actions mt-4">
+                    <a href="{% url 'register' %}?plan=free" class="btn btn-outline btn-primary w-full">{% trans "Зарегистрироваться" %}</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow border-2 border-primary">
+            <div class="card-body">
+                <h3 class="card-title">⚓ {% trans "Стандарт" %}</h3>
+                <p class="text-2xl font-bold">500 ₽ <span class="text-sm font-normal opacity-70">/ {% trans "мес" %}</span></p>
+                <ul class="text-sm space-y-1 mt-2">
+                    <li>✓ {% trans "Всё из Бесплатной" %}</li>
+                    <li>✓ {% trans "Роль капитан/агент" %}</li>
+                    <li>✓ {% trans "Агентский оффер" %}</li>
+                </ul>
+                <div class="card-actions mt-4">
+                    <a href="{% url 'register' %}?plan=standard" class="btn btn-primary w-full">{% trans "Перейти к регистрации" %}</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h3 class="card-title">🚀 {% trans "Продвинутая" %}</h3>
+                <p class="text-2xl font-bold">1000 ₽ <span class="text-sm font-normal opacity-70">/ {% trans "мес" %}</span></p>
+                <ul class="text-sm space-y-1 mt-2">
+                    <li>✓ {% trans "Всё из Стандарт" %}</li>
+                    <li>✓ {% trans "Кастомный брендинг" %}</li>
+                    <li>✓ {% trans "Название и логотип" %} ({% trans "скоро" %})</li>
+                </ul>
+                <div class="card-actions mt-4">
+                    <a href="{% url 'register' %}?plan=advanced" class="btn btn-outline btn-primary w-full">{% trans "Оформить доступ" %}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+function searchForm() {
+    return {
+        location: '',
+        selectedDestination: '',
+        checkIn: '',
+        checkOut: '',
+        boatType: '',
+        suggestions: [],
+        showSuggestions: false,
+        loadingSuggestions: false,
+        loading: false,
+        today: new Date().toISOString().split('T')[0],
+        
+        async fetchLocations() {
+            const query = this.location.trim();
+            if (query.length < 2) {
+                this.suggestions = [];
+                this.showSuggestions = false;
+                return;
+            }
+            
+            this.loadingSuggestions = true;
+            
+            try {
+                const response = await fetch(`/boats/api/autocomplete/?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    this.suggestions = data.data;
+                    this.showSuggestions = true;
+                } else {
+                    this.suggestions = [];
+                    this.showSuggestions = false;
+                }
+            } catch (error) {
+                console.error('Autocomplete error:', error);
+                this.suggestions = [];
+            } finally {
+                this.loadingSuggestions = false;
+            }
+        },
+        
+        selectLocation(suggestion) {
+            this.location = suggestion.name;
+            this.selectedDestination = suggestion.value;
+            this.showSuggestions = false;
+            this.suggestions = [];
+        },
+        
+        async handleSearch() {
+            const destination = this.selectedDestination || this.location;
+            
+            if (!destination) {
+                alert('Выберите направление');
+                return;
+            }
+            
+            this.loading = true;
+            
+            const params = new URLSearchParams();
+            params.append('destination', destination);
+            if (this.checkIn) params.append('check_in', this.checkIn);
+            if (this.checkOut) params.append('check_out', this.checkOut);
+            if (this.boatType) params.append('category', this.boatType);
+            
+            window.location.href = `/boats/search/?${params.toString()}`;
+        }
+    }
+}
+</script>
+{% endblock %}

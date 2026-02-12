@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% load static %}
+{% load boat_filters %}
+{% load i18n %}
+
+{% block title %}{% trans "Поиск яхт" %}{% endblock %}
+
+{% block extra_head %}
+<!-- Force cache refresh: v2.0 -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
+
+{% block content %}
+<div class="bg-primary text-primary-content py-12">
+    <div class="max-w-6xl mx-auto px-4">
+        <h1 class="text-4xl font-bold mb-4">
+            <i class="fas fa-ship"></i> {% trans "Найти яхту" %}
+        </h1>
+        <p class="text-lg opacity-90">{% trans "Поиск доступных яхт для аренды" %}</p>
+    </div>
+</div>
+
+<div class="max-w-6xl mx-auto px-4 py-8">
+    {% if error_message %}
+    <div class="alert alert-error mb-6" role="alert">
+        <i class="fas fa-exclamation-circle"></i>
+        <span>{{ error_message }}</span>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Left: Filters -->
+        <div class="lg:col-span-1">
+            <div class="card bg-base-200 sticky top-20">
+                <div class="card-body">
+                    <h2 class="card-title text-lg mb-4">
+                        <i class="fas fa-filter"></i> {% trans "Фильтры" %}
+                    </h2>
+
+                    <form method="GET" class="space-y-4">
+                        <!-- Search Destination -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Направление" %}</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="destination" 
+                                value="{{ destination|default:'' }}" 
+                                placeholder="Введите место (например, Греция)" 
+                                class="input input-bordered input-sm"
+                                required
+                            >
+                        </div>
+
+                        <!-- Category -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Тип яхты" %}</span>
+                            </label>
+                            <select name="category" class="select select-bordered select-sm">
+                                <option value="">{% trans "Любой" %}</option>
+                                <option value="sailboat">{% trans "Парусник" %}</option>
+                                <option value="motorboat">{% trans "Моторная" %}</option>
+                                <option value="catamaran">{% trans "Катамаран" %}</option>
+                            </select>
+                        </div>
+
+                        <!-- Check-in Date -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Заезд" %}</span>
+                            </label>
+                            <input 
+                                type="date" 
+                                name="check_in" 
+                                value="{{ check_in|default:'' }}" 
+                                class="input input-bordered input-sm"
+                            >
+                        </div>
+
+                        <!-- Check-out Date -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Выезд" %}</span>
+                            </label>
+                            <input 
+                                type="date" 
+                                name="check_out" 
+                                value="{{ check_out|default:'' }}" 
+                                class="input input-bordered input-sm"
+                            >
+                        </div>
+
+                        <!-- Cabins -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Количество кают" %}</span>
+                            </label>
+                            <select name="cabins" class="select select-bordered select-sm">
+                                <option value="">{% trans "Любое" %}</option>
+                                <option value="1" {% if request.GET.cabins == '1' %}selected{% endif %}>1</option>
+                                <option value="2" {% if request.GET.cabins == '2' %}selected{% endif %}>2</option>
+                                <option value="3" {% if request.GET.cabins == '3' %}selected{% endif %}>3</option>
+                                <option value="4" {% if request.GET.cabins == '4' %}selected{% endif %}>4</option>
+                                <option value="5-" {% if request.GET.cabins == '5-' %}selected{% endif %}>5+</option>
+                            </select>
+                        </div>
+
+                        <!-- Year Range -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Год выпуска" %}</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input 
+                                    type="number" 
+                                    name="year_from" 
+                                    value="{{ request.GET.year_from|default:'' }}" 
+                                    placeholder="{% trans 'От' %}"
+                                    min="1980"
+                                    max="2026"
+                                    class="input input-bordered input-sm"
+                                >
+                                <input 
+                                    type="number" 
+                                    name="year_to" 
+                                    value="{{ request.GET.year_to|default:'' }}" 
+                                    placeholder="{% trans 'До' %}"
+                                    min="1980"
+                                    max="2026"
+                                    class="input input-bordered input-sm"
+                                >
+                            </div>
+                        </div>
+
+                        <!-- Price Range -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Цена за день (EUR)" %}</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input 
+                                    type="number" 
+                                    name="price_from" 
+                                    value="{{ request.GET.price_from|default:'' }}" 
+                                    placeholder="От"
+                                    min="0"
+                                    step="10"
+                                    class="input input-bordered input-sm"
+                                >
+                                <input 
+                                    type="number" 
+                                    name="price_to" 
+                                    value="{{ request.GET.price_to|default:'' }}" 
+                                    placeholder="До"
+                                    min="0"
+                                    step="10"
+                                    class="input input-bordered input-sm"
+                                >
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="flex gap-2 pt-2">
+                            <button type="submit" class="btn btn-primary btn-block btn-sm">
+                                <i class="fas fa-search"></i> {% trans "Поиск" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Results -->
+        <div class="lg:col-span-3">
+            {% if boats %}
+                <!-- Results Count -->
+                <div class="mb-6 flex items-center justify-between">
+                    <h2 class="text-2xl font-bold">
+                        <i class="fas fa-list"></i> {% trans "Найдено яхт" %}: <span class="text-primary">{{ total_results }}</span>
+                    </h2>
+                    <select 
+                        name="sort" 
+                        class="select select-bordered select-sm max-w-xs"
+                        onchange="(function(){
+                            const urlObj = new window.URL(window.location.href);
+                            if (this.value && this.value !== 'rank') {
+                                urlObj.searchParams.set('sort', this.value);
+                            } else {
+                                urlObj.searchParams.delete('sort');
+                            }
+                            urlObj.searchParams.set('page', '1');
+                            window.location.href = urlObj.toString();
+                        }).call(this)">
+                        <option value="rank" {% if not sort or sort == 'rank' %}selected{% endif %}>{% trans "По рейтингу" %}</option>
+                        <option value="priceUp" {% if sort == 'priceUp' %}selected{% endif %}>{% trans "Цена ↑" %}</option>
+                        <option value="priceDown" {% if sort == 'priceDown' %}selected{% endif %}>{% trans "Цена ↓" %}</option>
+                        <option value="discountDown" {% if sort == 'discountDown' %}selected{% endif %}>{% trans "Скидка ↓" %}</option>
+                    </select>
+                </div>
+
+                <!-- Boats List -->
+                <div class="space-y-4">
+                    {% for boat in boats %}
+                    <div class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex hover:border-primary">
+                        <!-- Thumbnail -->
+                        <div class="w-56 h-56 flex-shrink-0 bg-base-200 overflow-hidden">
+                            {% if boat.images %}
+                                <img 
+                                    src="{{ boat.images.0 }}" 
+                                    alt="{{ boat.name }}" 
+                                    class="w-full h-full object-cover hover:scale-110 transition-transform duration-300 ease-in-out"
+                                >
+                            {% else %}
+                            <div class="w-full h-full flex items-center justify-center bg-base-300">
+                                <i class="fas fa-image text-2xl text-base-content/30"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Content -->
+                        <div class="flex-1 p-4 flex flex-col justify-between">
+                            <!-- Header -->
+                            <div>
+                                <div class="flex items-start justify-between mb-2">
+                                    <h3 class="text-lg font-bold">{{ boat.name|default:"Лодка" }}</h3>
+                                    {% if boat.featured %}
+                                    <span class="badge badge-accent gap-1 ml-2">
+                                        <i class="fas fa-star"></i>
+                                    </span>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Location -->
+                                <div class="text-sm text-base-content/70 mb-3">
+                                    <i class="fas fa-map-pin"></i>
+                                    {{ boat.country|default:"" }}
+                                    {% if boat.marina %}• {{ boat.marina }}{% endif %}
+                                </div>
+
+                                <!-- Specs Row -->
+                                <div class="flex flex-wrap gap-4 text-sm mb-3">
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-users text-primary"></i>
+                                        <span>{{ boat.berths|default:"—" }} гостей</span>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-door-open text-primary"></i>
+                                        <span>{{ boat.cabins|default:"—" }} кают</span>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-ruler text-info"></i>
+                                        <span>{{ boat.length|default:"—" }}м</span>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <i class="fas fa-star text-warning"></i>
+                                        <span>{{ boat.rating|default:"—" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Footer: Price & Actions -->
+                            <div class="flex items-end justify-between pt-3 border-t border-base-300">
+                                <div>
+                                    {% if check_in and check_out and rental_days and boat.price %}
+                                    <div class="text-xs opacity-70">Итого за {{ rental_days }} дн.</div>
+                                    {% if boat.old_price and boat.discount_percent %}
+                                    <div class="text-xs opacity-75 line-through">
+                                        {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
+                                    </div>
+                                    {% endif %}
+                                    <div class="text-2xl font-bold text-primary">
+                                        {{ boat.price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
+                                    </div>
+                                    {% if boat.discount_percent %}
+                                    <div class="text-xs text-success font-semibold mt-1">
+                                        Скидка до {{ boat.discount_percent|floatformat:0 }}%
+                                    </div>
+                                    {% endif %}
+                                    {% if boat.price_per_day %}
+                                    <div class="text-xs opacity-70 mt-1">
+                                        <span class="font-semibold">{{ boat.price_per_day|floatformat:0 }}</span> за сутки
+                                    </div>
+                                    {% endif %}
+                                    {% else %}
+                                    <div class="text-xs opacity-70">Цена</div>
+                                    {% if boat.old_price and boat.discount_percent %}
+                                    <div class="text-xs opacity-75 line-through">
+                                        {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
+                                    </div>
+                                    {% endif %}
+                                    <div class="text-2xl font-bold text-primary">
+                                        {% if boat.price %}{{ boat.price|floatformat:0 }}{% else %}N/A{% endif %} {{ boat.currency|default:"EUR" }}
+                                    </div>
+                                    {% if boat.discount_percent %}
+                                    <div class="text-xs text-success font-semibold mt-1">
+                                        Скидка до {{ boat.discount_percent|floatformat:0 }}%
+                                    </div>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                                <div class="flex gap-2" x-data="{ 
+                                    isFavorite: {{ boat.is_favorite|yesno:'true,false' }},
+                                    loading: false,
+                                    async toggleFavorite() {
+                                        if (this.loading) return;
+                                        this.loading = true;
+                                        try {
+                                            const response = await fetch('{% url 'toggle_favorite' boat.slug %}', {
+                                                method: 'POST',
+                                                headers: {
+                                                    'X-CSRFToken': '{{ csrf_token }}',
+                                                    'Content-Type': 'application/json',
+                                                },
+                                                credentials: 'same-origin'
+                                            });
+                                            if (response.ok) {
+                                                const data = await response.json();
+                                                this.isFavorite = data.is_favorite;
+                                            }
+                                        } catch (error) {
+                                            console.error('Error:', error);
+                                        } finally {
+                                            this.loading = false;
+                                        }
+                                    }
+                                }">
+                                    {% if user.is_authenticated %}
+                                    <button 
+                                        @click="toggleFavorite()"
+                                        :disabled="loading"
+                                        class="btn btn-ghost btn-sm"
+                                        :class="isFavorite ? 'text-error' : ''"
+                                    >
+                                        <i :class="isFavorite ? 'fas fa-heart' : 'far fa-heart'"></i>
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-ghost btn-sm" x-data @click="window.location.href='{% url 'login' %}?next={{ request.path }}'" title="Войдите, чтобы добавить в избранное">
+                                        <i class="far fa-heart"></i>
+                                    </button>
+                                    {% endif %}
+                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" class="btn btn-primary btn-sm">
+                                        Подробно
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if total_pages > 1 %}
+                <div class="flex justify-center items-center gap-1 mt-8 flex-wrap">
+                    {% if has_previous %}
+                    <a href="?page=1{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">
+                        <i class="fas fa-chevron-left"></i> Первая
+                    </a>
+                    <a href="?page={{ previous_page }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">
+                        Назад
+                    </a>
+                    {% endif %}
+
+                    <!-- Page Numbers -->
+                    {% if page > 3 %}
+                    <a href="?page=1{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">1</a>
+                    <span class="text-base-content/50">...</span>
+                    {% endif %}
+
+                    {% if page > 2 %}
+                    <a href="?page={{ page_minus_2 }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">{{ page_minus_2 }}</a>
+                    {% endif %}
+
+                    {% if page > 1 %}
+                    <a href="?page={{ page_minus_1 }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">{{ page_minus_1 }}</a>
+                    {% endif %}
+
+                    <button class="btn btn-sm btn-primary" disabled>{{ page }}</button>
+
+                    {% if page < total_pages %}
+                    <a href="?page={{ page_plus_1 }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">{{ page_plus_1 }}</a>
+                    {% endif %}
+
+                    {% if page_plus_2 <= total_pages %}
+                    <a href="?page={{ page_plus_2 }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">{{ page_plus_2 }}</a>
+                    {% endif %}
+
+                    {% if page_plus_2 < total_pages %}
+                    <span class="text-base-content/50">...</span>
+                    <a href="?page={{ total_pages }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">{{ total_pages }}</a>
+                    {% endif %}
+
+                    {% if has_next %}
+                    <a href="?page={{ next_page }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">
+                        Далее
+                    </a>
+                    <a href="?page={{ total_pages }}{{ search_query_str }}" class="btn btn-sm btn-ghost" @click="$dispatch('page-loading')">
+                        Последняя <i class="fas fa-chevron-right"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+            {% else %}
+                <!-- Empty State -->
+                <div class="text-center py-16">
+                    <i class="fas fa-search text-6xl text-base-content/20 mb-4"></i>
+                    <h3 class="text-2xl font-bold mb-2">Никаких результатов</h3>
+                    <p class="text-base-content/70 mb-6">
+                        Попробуйте изменить параметры поиска
+                    </p>
+                    <a href="{% url 'boat_search' %}" class="btn btn-primary">
+                        <i class="fas fa-redo"></i> Новый поиск
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+</style>
+{% endblock %}

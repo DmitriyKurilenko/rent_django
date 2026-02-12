@@ -1,0 +1,85 @@
+{% load cdn_tags %}
+<div class="card bg-base-100 shadow hover:shadow-lg transition h-full">
+    {% if boat.image %}
+    <figure class="relative h-48 overflow-hidden">
+           <img src="{{ boat.image|cdn_url }}" 
+             alt="{{ boat.name }}"
+             class="w-full h-full object-cover hover:scale-110 transition"
+             loading="lazy"
+        />
+        
+        <div class="absolute top-2 right-2 badge badge-primary">
+            <strong>{{ boat.price }}{{ boat.currency }}</strong>
+        </div>
+        
+        {% if boat.type %}
+        <div class="absolute top-2 left-2 badge badge-secondary">
+            {{ boat.type }}
+        </div>
+        {% endif %}
+    </figure>
+    {% endif %}
+    
+    <div class="card-body">
+        <h3 class="card-title text-primary line-clamp-2">
+            {{ boat.name }}
+        </h3>
+        
+        {% if boat.location %}
+        <p class="text-sm text-base-content/70 flex items-center gap-2">
+            <i class="fas fa-map-marker-alt text-primary"></i>
+            {{ boat.location }}
+        </p>
+        {% endif %}
+        
+        <div class="flex gap-4 text-sm text-base-content/70">
+            {% if boat.capacity %}
+            <span title="Люди">
+                <i class="fas fa-users text-primary"></i> {{ boat.capacity }}
+            </span>
+            {% endif %}
+            
+            {% if boat.cabins %}
+            <span title="Каюты">
+                <i class="fas fa-bed text-primary"></i> {{ boat.cabins }}
+            </span>
+            {% endif %}
+            
+            {% if boat.length %}
+            <span title="Длина">
+                <i class="fas fa-ruler text-primary"></i> {{ boat.length }}м
+            </span>
+            {% endif %}
+            
+            {% if boat.year %}
+            <span title="Год">
+                <i class="fas fa-calendar text-primary"></i> {{ boat.year }}
+            </span>
+            {% endif %}
+        </div>
+        
+        <div class="card-actions justify-end mt-4">
+            {% if user.is_authenticated and user.profile.can_create_offers %}
+            <a href="{% url 'create_offer' %}?source_url={{ boat.url|urlencode }}" 
+               class="btn btn-primary btn-xs">
+                <i class="fas fa-plus"></i>
+                Оффер
+            </a>
+            {% else %}
+            <a href="{{ boat.url }}" 
+               target="_blank"
+               class="btn btn-outline btn-xs">
+                <i class="fas fa-external-link-alt"></i>
+                Смотреть
+            </a>
+            {% endif %}
+            
+            {% if user.is_authenticated %}
+            <button class="btn btn-ghost btn-xs btn-circle"
+                    title="В избранное">
+                <i class="far fa-heart"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>

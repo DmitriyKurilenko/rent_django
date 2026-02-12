@@ -1,0 +1,106 @@
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME:-boat_rental}
+      - POSTGRES_USER=${DB_USER:-admin}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-admin}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-boat_rental}"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    command: sh /app/entrypoint.sh
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/mediafiles
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-dev-key-for-development-only}
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin}@db:5432/${DB_NAME:-boat_rental}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-yachts}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-replace-me}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-replace-me}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-https://yachts.hb.ru-msk.vkcloud-storage.ru}
+      - S3_REGION=${S3_REGION:-ru-msk}
+      - SECURE_SSL_REDIRECT=${SECURE_SSL_REDIRECT:-False}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-False}
+      - CSRF_COOKIE_SECURE=${CSRF_COOKIE_SECURE:-False}
+      - SECURE_HSTS_SECONDS=${SECURE_HSTS_SECONDS:-0}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build: .
+    command: celery -A boat_rental worker -l info --concurrency=2
+    volumes:
+      - .:/app
+      - media_volume:/app/mediafiles
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-dev-key-for-development-only}
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin}@db:5432/${DB_NAME:-boat_rental}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-yachts}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-replace-me}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-replace-me}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-https://yachts.hb.ru-msk.vkcloud-storage.ru}
+      - S3_REGION=${S3_REGION:-ru-msk}
+    depends_on:
+      - db
+      - redis
+      - web
+
+  celery_beat:
+    build: .
+    command: celery -A boat_rental beat -l info
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-dev-key-for-development-only}
+      - DATABASE_URL=postgresql://${DB_USER:-admin}:${DB_PASSWORD:-admin}@db:5432/${DB_NAME:-boat_rental}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-yachts}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-replace-me}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-replace-me}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-https://yachts.hb.ru-msk.vkcloud-storage.ru}
+      - S3_REGION=${S3_REGION:-ru-msk}
+    depends_on:
+      - db
+      - redis
+      - web
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
