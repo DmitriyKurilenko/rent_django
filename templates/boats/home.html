@@ -47,7 +47,7 @@
                                     <div @click="selectLocation(suggestion)" 
                                          class="px-4 py-3 hover:bg-primary hover:text-primary-content cursor-pointer transition-colors border-b border-base-200 last:border-0">
                                         <div class="font-medium" x-text="suggestion.name"></div>
-                                        <div class="text-xs text-base-content/70" x-show="suggestion.country" x-text="suggestion.country"></div>
+                                        <div class="text-xs text-base-content/90" x-show="suggestion.country" x-text="suggestion.country"></div>
                                         <div class="text-xs text-base-content/50" x-show="suggestion.total" x-text="suggestion.total + ' лодок'"></div>
                                     </div>
                                 </template>
@@ -56,14 +56,15 @@
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="form-control">
-                                <label class="label">
+                                <label class="label" for="check-in">
                                     <span class="label-text font-semibold">
                                         <i class="fas fa-calendar text-primary mr-2"></i>
                                         {% trans "Заезд" %}
                                     </span>
                                 </label>
-                                <input 
-                                    type="date" 
+                                <input
+                                    id="check-in"
+                                    type="date"
                                     x-model="checkIn"
                                     :min="today"
                                     class="input input-bordered"
@@ -71,14 +72,15 @@
                             </div>
                             
                             <div class="form-control">
-                                <label class="label">
+                                <label class="label" for="check-out">
                                     <span class="label-text font-semibold">
                                         <i class="fas fa-calendar-check text-primary mr-2"></i>
                                         {% trans "Выезд" %}
                                     </span>
                                 </label>
-                                <input 
-                                    type="date" 
+                                <input
+                                    id="check-out"
+                                    type="date"
                                     x-model="checkOut"
                                     :min="checkIn || today"
                                     class="input input-bordered"
@@ -87,13 +89,13 @@
                         </div>
                         
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="boat-type">
                                 <span class="label-text font-semibold">
                                     <i class="fas fa-ship text-primary mr-2"></i>
                                     {% trans "Тип судна" %}
                                 </span>
                             </label>
-                            <select x-model="boatType" class="select select-bordered">
+                            <select id="boat-type" x-model="boatType" class="select select-bordered">
                                 <option value="">{% trans "Все типы" %}</option>
                                 <option value="sailing-yacht">⛵ {% trans "Парусная яхта" %}</option>
                                 <option value="catamaran">🚤 {% trans "Катамаран" %}</option>
@@ -102,8 +104,8 @@
                             </select>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary btn-lg w-full" :class="{ 'loading': loading }">
-                            <i class="fas fa-search" x-show="!loading"></i>
+                        <button type="submit" class="btn btn-primary btn-lg w-full" :class="{ 'loading': loading }" :aria-busy="loading">
+                            <i class="fas fa-search" x-show="!loading" aria-hidden="true"></i>
                             <span x-show="!loading">{% trans "Найти лодки" %}</span>
                             <span x-show="loading">{% trans "Поиск..." %}</span>
                         </button>
@@ -120,43 +122,54 @@
         {% trans "Популярные направления" %}
     </h2>
     
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <a href="{% url 'boat_search' %}?destination=turkey" class="card bg-base-100 shadow hover:shadow-lg transition">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" x-data="{
+        get datePart() {
+            const today = new Date();
+            const daysUntilSat = (6 - today.getDay() + 7) % 7 || 7;
+            const checkIn = new Date(today);
+            checkIn.setDate(today.getDate() + daysUntilSat);
+            const checkOut = new Date(checkIn);
+            checkOut.setDate(checkIn.getDate() + 7);
+            const fmt = d => d.toISOString().split('T')[0];
+            return '&check_in=' + fmt(checkIn) + '&check_out=' + fmt(checkOut);
+        }
+    }">
+        <a :href="'{% url 'boat_search' %}?destination=turkey' + datePart" class="card bg-base-100 shadow hover:shadow-lg transition">
             <div class="card-body p-4 text-center">
                 <div class="text-4xl mb-2">🇹🇷</div>
                 <h3 class="font-bold text-sm">{% trans "Турция" %}</h3>
             </div>
         </a>
-        
-        <a href="{% url 'boat_search' %}?destination=seychelles" class="card bg-base-100 shadow hover:shadow-lg transition">
+
+        <a :href="'{% url 'boat_search' %}?destination=seychelles' + datePart" class="card bg-base-100 shadow hover:shadow-lg transition">
             <div class="card-body p-4 text-center">
                 <div class="text-4xl mb-2">🇸🇨</div>
                 <h3 class="font-bold text-sm">{% trans "Сейшелы" %}</h3>
             </div>
         </a>
 
-        <a href="{% url 'boat_search' %}?destination=greece" class="card bg-base-100 shadow hover:shadow-lg transition">
+        <a :href="'{% url 'boat_search' %}?destination=greece' + datePart" class="card bg-base-100 shadow hover:shadow-lg transition">
             <div class="card-body p-4 text-center">
                 <div class="text-4xl mb-2">🇬🇷</div>
                 <h3 class="font-bold text-sm">{% trans "Греция" %}</h3>
             </div>
         </a>
-        
-        <a href="{% url 'boat_search' %}?destination=croatia" class="card bg-base-100 shadow hover:shadow-lg transition">
+
+        <a :href="'{% url 'boat_search' %}?destination=croatia' + datePart" class="card bg-base-100 shadow hover:shadow-lg transition">
             <div class="card-body p-4 text-center">
                 <div class="text-4xl mb-2">🇭🇷</div>
                 <h3 class="font-bold text-sm">{% trans "Хорватия" %}</h3>
             </div>
         </a>
-        
-        <a href="{% url 'boat_search' %}?destination=spain" class="card bg-base-100 shadow hover:shadow-lg transition">
+
+        <a :href="'{% url 'boat_search' %}?destination=spain' + datePart" class="card bg-base-100 shadow hover:shadow-lg transition">
             <div class="card-body p-4 text-center">
                 <div class="text-4xl mb-2">🇪🇸</div>
                 <h3 class="font-bold text-sm">{% trans "Испания" %}</h3>
             </div>
         </a>
-        
-        <a href="{% url 'boat_search' %}?destination=italy" class="card bg-base-100 shadow hover:shadow-lg transition">
+
+        <a :href="'{% url 'boat_search' %}?destination=italy' + datePart" class="card bg-base-100 shadow hover:shadow-lg transition">
             <div class="card-body p-4 text-center">
                 <div class="text-4xl mb-2">🇮🇹</div>
                 <h3 class="font-bold text-sm">{% trans "Италия" %}</h3>
@@ -175,7 +188,7 @@
         <div class="card bg-base-100 shadow">
             <div class="card-body">
                 <h3 class="card-title">🆓 {% trans "Бесплатная" %}</h3>
-                <p class="text-2xl font-bold">0 ₽ <span class="text-sm font-normal text-base-content/70">/ {% trans "мес" %}</span></p>
+                <p class="text-2xl font-bold">0 ₽ <span class="text-sm font-normal text-base-content/90">/ {% trans "мес" %}</span></p>
                 <ul class="text-sm space-y-1 mt-2">
                     <li>✓ {% trans "Поиск и просмотр лодок" %}</li>
                     <li>✓ {% trans "Избранное" %}</li>
@@ -190,7 +203,7 @@
         <div class="card bg-base-100 shadow border-2 border-primary">
             <div class="card-body">
                 <h3 class="card-title">⚓ {% trans "Стандарт" %}</h3>
-                <p class="text-2xl font-bold">500 ₽ <span class="text-sm font-normal text-base-content/70">/ {% trans "мес" %}</span></p>
+                <p class="text-2xl font-bold">500 ₽ <span class="text-sm font-normal text-base-content/90">/ {% trans "мес" %}</span></p>
                 <ul class="text-sm space-y-1 mt-2">
                     <li>✓ {% trans "Всё из Бесплатной" %}</li>
                     <li>✓ {% trans "Роль капитан/агент" %}</li>
@@ -205,7 +218,7 @@
         <div class="card bg-base-100 shadow">
             <div class="card-body">
                 <h3 class="card-title">🚀 {% trans "Продвинутая" %}</h3>
-                <p class="text-2xl font-bold">1000 ₽ <span class="text-sm font-normal text-base-content/70">/ {% trans "мес" %}</span></p>
+                <p class="text-2xl font-bold">1000 ₽ <span class="text-sm font-normal text-base-content/90">/ {% trans "мес" %}</span></p>
                 <ul class="text-sm space-y-1 mt-2">
                     <li>✓ {% trans "Всё из Стандарт" %}</li>
                     <li>✓ {% trans "Кастомный брендинг" %}</li>

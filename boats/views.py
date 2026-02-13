@@ -1197,56 +1197,68 @@ def offers_list(request):
     if not request.user.profile.can_create_offers():
         messages.error(request, 'У вас нет прав для доступа к этой странице')
         return redirect('home')
-    
-    if request.user.profile.role == 'admin':
-        offers = Offer.objects.all()
-    else:
-        offers = Offer.objects.filter(created_by=request.user)
-    
-    # Подготавливаем данные для шаблона
+
+    offers_qs = Offer.objects.filter(created_by=request.user)
+
+    search_query = request.GET.get('q', '').strip()
+    if search_query:
+        offers_qs = offers_qs.filter(
+            Q(title__icontains=search_query)
+            | Q(description__icontains=search_query)
+            | Q(source_url__icontains=search_query)
+        )
+
+    # Статистика по полному queryset (до пагинации)
+    from django.db.models import Sum
+    active_offers = offers_qs.filter(is_active=True).count()
+    total_views = offers_qs.aggregate(total=Sum('views_count'))['total'] or 0
+
+    # Пагинация
+    from django.core.paginator import Paginator
+    page_number = request.GET.get('page', 1)
+    paginator = Paginator(offers_qs, 15)
+    page_obj = paginator.get_page(page_number)
+
+    # Подготавливаем данные для шаблона (только текущая страница)
     from boats.helpers import get_offer_boat_data
     from urllib.parse import urlparse
-    
+
     offers_with_data = []
-    total_views = 0
-    active_offers = 0
-    
-    for offer in offers:
+
+    for offer in page_obj:
         # Извлекаем slug из URL
         parsed_url = urlparse(offer.source_url)
         url_parts = parsed_url.path.strip('/').split('/')
         slug = url_parts[-1] if url_parts else None
-        
+
         # Получаем данные лодки
         if slug:
             boat_data = get_offer_boat_data(slug)
         else:
             boat_data = offer.boat_data or {}
-        
+
         # Get first image from CDN
         pictures = boat_data.get('pictures', [])
         first_image = None
         if pictures:
             first_image = pictures[0]
-        
+
         title = offer.title or boat_data.get('title') or boat_data.get('boat_info', {}).get('title', 'Без названия')
         guests = boat_data.get('max_sleeps', boat_data.get('berths', 0))
-        
-        total_views += offer.views_count
-        if offer.is_active:
-            active_offers += 1
-        
+
         # Оборачиваем offer в объект с дополнительными данными
         offer.image = first_image
         offer.guests = guests
         offer.title_display = title
-        
+
         offers_with_data.append(offer)
-    
+
     context = {
         'offers': offers_with_data,
+        'page_obj': page_obj,
         'total_views': total_views,
         'active_offers': active_offers,
+        'search_query': search_query,
     }
     return render(request, 'boats/offers_list.html', context)
 
