@@ -1,3 +1,17 @@
+FROM node:20-alpine AS assets
+
+WORKDIR /app
+
+COPY package.json tailwind.config.js ./
+COPY assets ./assets
+COPY templates ./templates
+COPY boats ./boats
+COPY accounts ./accounts
+COPY static ./static
+
+RUN npm install --no-audit --no-fund \
+    && npm run build:css
+
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
@@ -17,6 +31,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование проекта
 COPY . .
+
+# Копирование собранного CSS из assets stage
+COPY --from=assets /app/static/css/styles.css /app/static/css/styles.css
 
 # Создание директорий
 RUN mkdir -p /app/staticfiles /app/mediafiles /app/media/boats

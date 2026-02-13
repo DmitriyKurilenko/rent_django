@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .min-h-main {
+    min-height: calc(100vh - 4rem);
+  }
+
+  .h-500px {
+    height: 500px;
+  }
+}

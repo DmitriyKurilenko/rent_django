@@ -2,58 +2,32 @@
 {% load cdn_tags %}
 {% load i18n %}
 
-{% block title %}{% trans "Избранное" %} - BoatRental{% endblock %}
+{% block title %}{% trans "Избранное" %} - Ахой!Rent{% endblock %}
 
 {% block content %}
 <div class="container mx-auto px-4 py-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-        
-        <!-- Sidebar Menu -->
-        <div class="md:col-span-1">
+        <div class="hidden md:block md:col-span-1">
             <div class="card bg-base-100 shadow-sm sticky top-24">
                 <div class="card-body p-4">
                     <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
-                    
                     <div class="space-y-2">
-                        <!-- Dashboard -->
                         <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
                         </a>
-                        
-                        <!-- Profile -->
                         <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-user"></i> {% trans "Профиль" %}
                         </a>
-                        
-                        <!-- Favorites (Active) -->
                         <button class="btn btn-sm btn-primary justify-start w-full" disabled>
                             <i class="fas fa-heart"></i> {% trans "Избранное" %}
                         </button>
-                        
-                        <!-- Offers -->
                         {% if user.profile.can_create_offers %}
                         <a href="{% url 'offers_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-file-invoice"></i> {% trans "Мои офферы" %}
                         </a>
                         {% endif %}
-                        
-                        <!-- Bookings -->
                         <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
-                        </a>
-                        
-                        <!-- Admin Panel (админ) -->
-                        {% if user.profile.role == 'admin' %}
-                        <a href="/admin/" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-cog"></i> {% trans "Администрация" %}
-                        </a>
-                        {% endif %}
-                        
-                        <div class="divider my-2"></div>
-                        
-                        <!-- Logout -->
-                        <a href="{% url 'logout' %}" class="btn btn-sm btn-error btn-outline justify-start w-full">
-                            <i class="fas fa-sign-out-alt"></i> {% trans "Выход" %}
                         </a>
                     </div>
                 </div>
@@ -76,9 +50,9 @@
                 <!-- Favorites Grid -->
                 <div class="space-y-4">
                     {% for fav in favorites_data %}
-                    <div id="favorite-card-{{ fav.slug }}" class="bg-base-100 shadow-sm hover:shadow-md transition-all border border-base-300 rounded-lg overflow-hidden flex hover:border-primary">
+                    <div id="favorite-card-{{ fav.slug }}" class="bg-base-100 shadow-sm hover:shadow-md transition-all border border-base-300 rounded-lg overflow-hidden flex flex-col sm:flex-row hover:border-primary">
                         <!-- Thumbnail -->
-                        <div class="w-56 h-56 flex-shrink-0 bg-base-200 overflow-hidden">
+                        <div class="w-full aspect-square sm:w-56 sm:h-56 flex-shrink-0 bg-base-200 overflow-hidden">
                             {% if fav.image_url %}
                                 <img 
                                     src="{{ fav.image_url|cdn_url }}" 
@@ -93,10 +67,10 @@
                         </div>
 
                         <!-- Content -->
-                        <div class="flex-1 p-4 flex flex-col justify-between">
+                        <div class="flex-1 min-w-0 p-4 flex flex-col justify-between">
                             <!-- Header -->
                             <div>
-                                <div class="flex items-start justify-between mb-2">
+                                <div class="flex items-start justify-between gap-2 mb-2">
                                     <h3 class="text-lg font-bold">{{ fav.title }}</h3>
                                 </div>
 
@@ -143,7 +117,7 @@
                             </div>
 
                             <!-- Footer: Actions -->
-                            <div class="flex items-end justify-end gap-2 pt-3 border-t border-base-300 mt-3" 
+                               <div class="flex flex-col sm:flex-row sm:items-end sm:justify-end gap-2 pt-3 border-t border-base-300 mt-3" 
                                  x-data="{
                                     loading: false,
                                     async removeFavorite() {
@@ -181,7 +155,7 @@
                                     <i class="fas fa-heart-broken"></i> 
                                     <span x-text="loading ? 'Удаление...' : 'Удалить'"></span>
                                 </button>
-                                <a href="{% url 'boat_detail_api' fav.slug %}" class="btn btn-primary btn-sm">
+                                <a href="{% url 'boat_detail_api' fav.slug %}" class="btn btn-primary btn-sm sm:btn-sm">
                                     <i class="fas fa-eye"></i> Подробнее
                                 </a>
                             </div>
@@ -200,7 +174,6 @@
                     </a>
                 </div>
             {% endif %}
-        </div>
     </div>
 </div>
 {% endblock %}

@@ -1,15 +1,17 @@
 {% load i18n %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="ru" data-theme="winter">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}BoatRental - Аренда яхт и лодок{% endblock %}</title>
+    <title>{% block title %}Ахой!Rent - Аренда яхт и лодок{% endblock %}</title>
     
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
     
     <style>
         [x-cloak] { display: none !important; }
@@ -31,6 +33,12 @@
                     <li><a href="{% url 'home' %}"><i class="fas fa-home mr-2"></i>{% trans "Главная" %}</a></li>
                     <li><a href="{% url 'boat_search' %}"><i class="fas fa-search mr-2"></i>{% trans "Поиск" %}</a></li>
                     {% if user.is_authenticated %}
+                        <li><a href="{% url 'profile' %}"><i class="fas fa-user mr-2"></i>{% trans "Кабинет" %}</a></li>
+                        <li><a href="{% url 'favorites_list' %}"><i class="fas fa-heart mr-2"></i>{% trans "Избранное" %}</a></li>
+                        {% if user.profile.can_create_offers %}
+                            <li><a href="{% url 'offers_list' %}"><i class="fas fa-file-invoice mr-2"></i>{% trans "Мои офферы" %}</a></li>
+                        {% endif %}
+                        <li><a href="{% url 'my_bookings' %}"><i class="fas fa-calendar-check mr-2"></i>{% trans "Мои бронирования" %}</a></li>
                         <li><a href="{% url 'logout' %}"><i class="fas fa-sign-out-alt mr-2"></i>{% trans "Выйти" %}</a></li>
                     {% else %}
                         <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt mr-2"></i>{% trans "Войти" %}</a></li>
@@ -54,7 +62,7 @@
             </div>
             <a href="{% url 'home' %}" class="btn btn-ghost normal-case text-xl">
                 <i class="fas fa-anchor text-primary mr-2"></i>
-                <span class="font-bold">Boat<span class="text-primary">Rental</span></span>
+                <span class="font-bold">Ахой!<span class="text-primary">Rent</span></span>
             </a>
         </div>
         
@@ -98,7 +106,7 @@
             </div>
     {% endif %}
     
-    <main class="min-h-[calc(100vh-4rem)]">
+    <main class="min-h-main">
         {% block content %}{% endblock %}
     </main>
     
@@ -109,7 +117,7 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <!-- Логотип и описание -->
                 <div>
-                    <h2 class="text-2xl font-bold mb-2">⛵ BoatRental</h2>
+                    <h2 class="text-2xl font-bold mb-2">⛵ Ахой!Rent</h2>
                     <p class="text-sm opacity-70">{% trans "Лучшая платформа для аренды яхт по всему миру" %}</p>
                 </div>
                 
@@ -161,7 +169,7 @@
             <!-- Нижняя часть -->
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                 <p class="text-sm opacity-70">
-                    © 2026 BoatRental. {% trans "Все права защищены" %}.
+                    © 2026 Ахой!Rent. {% trans "Все права защищены" %}.
                 </p>
                 <p class="text-sm">
                     {% trans "Сделано с" %} <i class="fas fa-heart text-error"></i> {% trans "для любителей приключений" %}

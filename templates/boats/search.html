@@ -30,10 +30,20 @@
     </div>
     {% endif %}
 
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6" x-data="{ mobileFiltersOpen: false, isDesktop: window.innerWidth >= 1024 }" @resize.window="isDesktop = window.innerWidth >= 1024">
         <!-- Left: Filters -->
-        <div class="lg:col-span-1">
-            <div class="card bg-base-200 sticky top-20">
+        <div class="lg:col-span-1 order-2 lg:order-1">
+            <button
+                type="button"
+                class="btn btn-outline btn-sm w-full lg:hidden"
+                @click="mobileFiltersOpen = !mobileFiltersOpen"
+                :aria-expanded="mobileFiltersOpen.toString()"
+            >
+                <i class="fas" :class="mobileFiltersOpen ? 'fa-times' : 'fa-filter'"></i>
+                <span x-text="mobileFiltersOpen ? 'Скрыть фильтры' : 'Показать фильтры'"></span>
+            </button>
+
+            <div class="card bg-base-200 sticky top-20 mt-3 lg:mt-0" x-show="isDesktop || mobileFiltersOpen" x-cloak>
                 <div class="card-body">
                     <h2 class="card-title text-lg mb-4">
                         <i class="fas fa-filter"></i> {% trans "Фильтры" %}
@@ -175,44 +185,70 @@
         </div>
 
         <!-- Right: Results -->
-        <div class="lg:col-span-3">
+        <div class="lg:col-span-3 order-1 lg:order-2">
             {% if boats %}
                 <!-- Results Count -->
-                <div class="mb-6 flex items-center justify-between">
+                <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <h2 class="text-2xl font-bold">
                         <i class="fas fa-list"></i> {% trans "Найдено яхт" %}: <span class="text-primary">{{ total_results }}</span>
                     </h2>
-                    <select 
-                        name="sort" 
-                        class="select select-bordered select-sm max-w-xs"
-                        onchange="(function(){
-                            const urlObj = new window.URL(window.location.href);
-                            if (this.value && this.value !== 'rank') {
-                                urlObj.searchParams.set('sort', this.value);
-                            } else {
-                                urlObj.searchParams.delete('sort');
-                            }
-                            urlObj.searchParams.set('page', '1');
-                            window.location.href = urlObj.toString();
-                        }).call(this)">
-                        <option value="rank" {% if not sort or sort == 'rank' %}selected{% endif %}>{% trans "По рейтингу" %}</option>
-                        <option value="priceUp" {% if sort == 'priceUp' %}selected{% endif %}>{% trans "Цена ↑" %}</option>
-                        <option value="priceDown" {% if sort == 'priceDown' %}selected{% endif %}>{% trans "Цена ↓" %}</option>
-                        <option value="discountDown" {% if sort == 'discountDown' %}selected{% endif %}>{% trans "Скидка ↓" %}</option>
-                    </select>
+                    <div class="flex items-center gap-2">
+                        <select 
+                            name="sort" 
+                            class="select select-bordered select-sm max-w-xs"
+                            onchange="(function(){
+                                const urlObj = new window.URL(window.location.href);
+                                if (this.value && this.value !== 'rank') {
+                                    urlObj.searchParams.set('sort', this.value);
+                                } else {
+                                    urlObj.searchParams.delete('sort');
+                                }
+                                urlObj.searchParams.set('page', '1');
+                                window.location.href = urlObj.toString();
+                            }).call(this)">
+                            <option value="rank" {% if not sort or sort == 'rank' %}selected{% endif %}>{% trans "По рейтингу" %}</option>
+                            <option value="priceUp" {% if sort == 'priceUp' %}selected{% endif %}>{% trans "Цена ↑" %}</option>
+                            <option value="priceDown" {% if sort == 'priceDown' %}selected{% endif %}>{% trans "Цена ↓" %}</option>
+                            <option value="discountDown" {% if sort == 'discountDown' %}selected{% endif %}>{% trans "Скидка ↓" %}</option>
+                        </select>
+                        {% if destination or check_in or check_out or request.GET.category or request.GET.cabins or request.GET.year_from or request.GET.year_to or request.GET.price_from or request.GET.price_to or sort %}
+                        <a href="{% url 'boat_search' %}" class="btn btn-ghost btn-sm">
+                            <i class="fas fa-times"></i>
+                            <span class="hidden sm:inline">Сбросить</span>
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
+
+                {% if destination or check_in or check_out or request.GET.category or request.GET.cabins or request.GET.year_from or request.GET.year_to or request.GET.price_from or request.GET.price_to or sort %}
+                <div class="mb-6 p-3 bg-base-200 rounded-lg">
+                    <div class="flex flex-wrap items-center gap-2 text-sm">
+                        <span class="font-semibold text-base-content/70">Активные фильтры:</span>
+                        {% if destination %}<span class="badge badge-outline">{{ destination }}</span>{% endif %}
+                        {% if request.GET.category %}<span class="badge badge-outline">{{ request.GET.category }}</span>{% endif %}
+                        {% if check_in %}<span class="badge badge-outline">Заезд: {{ check_in }}</span>{% endif %}
+                        {% if check_out %}<span class="badge badge-outline">Выезд: {{ check_out }}</span>{% endif %}
+                        {% if request.GET.cabins %}<span class="badge badge-outline">Каюты: {{ request.GET.cabins }}</span>{% endif %}
+                        {% if request.GET.year_from %}<span class="badge badge-outline">Год от: {{ request.GET.year_from }}</span>{% endif %}
+                        {% if request.GET.year_to %}<span class="badge badge-outline">Год до: {{ request.GET.year_to }}</span>{% endif %}
+                        {% if request.GET.price_from %}<span class="badge badge-outline">Цена от: {{ request.GET.price_from }}</span>{% endif %}
+                        {% if request.GET.price_to %}<span class="badge badge-outline">Цена до: {{ request.GET.price_to }}</span>{% endif %}
+                        {% if sort and sort != 'rank' %}<span class="badge badge-primary">Сортировка: {{ sort }}</span>{% endif %}
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- Boats List -->
                 <div class="space-y-4">
                     {% for boat in boats %}
-                    <div class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex hover:border-primary">
+                    <div class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex flex-col sm:flex-row hover:border-primary">
                         <!-- Thumbnail -->
-                        <div class="w-56 h-56 flex-shrink-0 bg-base-200 overflow-hidden">
+                        <div class="w-full aspect-square sm:w-56 sm:h-56 flex-shrink-0 bg-base-200 overflow-hidden">
                             {% if boat.images %}
                                 <img 
                                     src="{{ boat.images.0 }}" 
                                     alt="{{ boat.name }}" 
-                                    class="w-full h-full object-cover hover:scale-110 transition-transform duration-300 ease-in-out"
+                                    class="w-full h-full object-contain sm:object-cover hover:scale-110 transition-transform duration-300 ease-in-out"
                                 >
                             {% else %}
                             <div class="w-full h-full flex items-center justify-center bg-base-300">
@@ -222,11 +258,11 @@
                         </div>
 
                         <!-- Content -->
-                        <div class="flex-1 p-4 flex flex-col justify-between">
+                        <div class="flex-1 min-w-0 p-4 flex flex-col justify-between">
                             <!-- Header -->
                             <div>
-                                <div class="flex items-start justify-between mb-2">
-                                    <h3 class="text-lg font-bold">{{ boat.name|default:"Лодка" }}</h3>
+                                <div class="flex items-start justify-between gap-2 mb-2">
+                                    <h3 class="text-lg font-bold break-words">{{ boat.name|default:"Лодка" }}</h3>
                                     {% if boat.featured %}
                                     <span class="badge badge-accent gap-1 ml-2">
                                         <i class="fas fa-star"></i>
@@ -263,7 +299,7 @@
                             </div>
 
                             <!-- Footer: Price & Actions -->
-                            <div class="flex items-end justify-between pt-3 border-t border-base-300">
+                            <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pt-3 border-t border-base-300">
                                 <div>
                                     {% if check_in and check_out and rental_days and boat.price %}
                                     <div class="text-xs opacity-70">Итого за {{ rental_days }} дн.</div>
@@ -302,7 +338,7 @@
                                     {% endif %}
                                     {% endif %}
                                 </div>
-                                <div class="flex gap-2" x-data="{ 
+                                <div class="flex gap-2 sm:justify-end w-full sm:w-auto" x-data="{ 
                                     isFavorite: {{ boat.is_favorite|yesno:'true,false' }},
                                     loading: false,
                                     async toggleFavorite() {
@@ -342,7 +378,7 @@
                                         <i class="far fa-heart"></i>
                                     </button>
                                     {% endif %}
-                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" class="btn btn-primary btn-sm">
+                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" class="btn btn-primary btn-sm flex-1 sm:flex-none">
                                         Подробно
                                     </a>
                                 </div>

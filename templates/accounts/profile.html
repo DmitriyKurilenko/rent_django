@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block title %}{% trans "Личный кабинет" %} - BoatRental{% endblock %}
+{% block title %}{% trans "Личный кабинет" %} - Ахой!Rent{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -15,58 +15,27 @@
 {% block content %}
 <div class="container mx-auto px-4 py-6" x-data="{ activeTab: 'dashboard' }">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <!-- Sidebar Menu -->
-        <div class="md:col-span-1">
+        <div class="hidden md:block md:col-span-1">
             <div class="card bg-base-100 shadow-sm sticky top-24">
                 <div class="card-body p-4">
                     <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
-                    
                     <div class="space-y-2">
-                        <!-- Dashboard (все) -->
                         <button type="button" class="btn btn-sm btn-ghost justify-start w-full" @click="activeTab = 'dashboard'">
                             <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
                         </button>
-                        
-                        <!-- Profile (все) -->
                         <button type="button" class="btn btn-sm btn-ghost justify-start w-full" @click="activeTab = 'profile'">
                             <i class="fas fa-user"></i> {% trans "Профиль" %}
                         </button>
-                        
-                        <!-- Favorites (все авторизованные) -->
                         <a href="{% url 'favorites_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-heart"></i> {% trans "Избранное" %}
                         </a>
-                        
-                        <!-- Offers (агент, менеджер, админ) -->
                         {% if user.profile.can_create_offers %}
                         <a href="{% url 'offers_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-file-invoice"></i> {% trans "Мои офферы" %}
                         </a>
                         {% endif %}
-                        
-                        <!-- Bookings (все авторизованные) -->
                         <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
-                        </a>
-                        
-                        <!-- Admin Panel (админ) -->
-                        {% if user.profile.role == 'admin' %}
-                        <a href="/admin/" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-cog"></i> {% trans "Администрация" %}
-                        </a>
-                        {% endif %}
-
-                        {% if user.profile.can_manage_charters %}
-                        <a href="{% url 'charters_management' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-building"></i> Управление чартерами
-                        </a>
-                        {% endif %}
-                        
-                        <div class="divider my-2"></div>
-                        
-                        <!-- Logout -->
-                        <a href="{% url 'logout' %}" class="btn btn-sm btn-error btn-outline justify-start w-full">
-                            <i class="fas fa-sign-out-alt"></i> {% trans "Выход" %}
                         </a>
                     </div>
                 </div>
@@ -250,7 +219,6 @@
                 </div>
             </div>
 
-        </div>
     </div>
 </div>
 

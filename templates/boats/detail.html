@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load boat_filters %}
 
-{% block title %}{{ boat.name }} - BoatRental{% endblock %}
+{% block title %}{{ boat.name }} - Ахой!Rent{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 py-4">
@@ -20,7 +20,7 @@
                 <div class="mb-4 relative">
                     <img :src="currentImage" 
                          alt="{{ boat.name }}"
-                         class="w-full h-[500px] object-contain rounded-lg shadow-md bg-base-200"
+                         class="w-full h-500px object-contain rounded-lg shadow-md bg-base-200"
                          loading="eager"
                     />
                     
@@ -845,7 +845,7 @@
 </dialog>
 
 <footer class="footer footer-center bg-base-200 text-base-content p-4 mt-16">
-    <p>© 2026 BoatRental - Ваша платформа для аренды яхт</p>
+    <p>© 2026 Ахой!Rent - Ваша платформа для аренды яхт</p>
 </footer>
 
 <script>

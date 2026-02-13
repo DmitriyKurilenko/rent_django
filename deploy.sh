@@ -150,7 +150,7 @@ backup_database() {
 }
 
 build_images() {
-    print_info "Building Docker images..."
+    print_info "Building Docker images (including Tailwind+DaisyUI CSS)..."
     compose_cmd build --no-cache
     print_success "Images built successfully"
 }

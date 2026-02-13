@@ -196,6 +196,26 @@ rent_django/
 - **Deployment**: Gunicorn + Nginx + systemd on Ubuntu 20.04+
 - **Monitoring**: Django logging + Celery task tracking
 
+## 🎨 Frontend CSS Build (Tailwind + DaisyUI)
+
+Проект использует локальную сборку CSS (без `cdn.tailwindcss.com`) для лучшей производительности и стабильного LCP.
+
+```bash
+# Установить зависимости (один раз)
+npm install
+
+# Собрать production CSS
+npm run build:css
+
+# Режим разработки (watch)
+npm run watch:css
+```
+
+- Входной файл: `assets/css/tailwind.input.css`
+- Конфиг: `tailwind.config.js`
+- Выходной файл: `static/css/styles.css`
+- В production CSS собирается автоматически на этапе `docker build` (см. `Dockerfile`, stage `assets`).
+
 ---
 
 ## 📚 Documentation Index

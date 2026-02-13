@@ -33,7 +33,7 @@ def register_view(request):
 
             login(request, user)
             messages.success(request, f'Добро пожаловать, {user.username}!')
-            return redirect('home')
+            return redirect('profile')
     else:
         form = RegisterForm(initial={'subscription_plan': selected_plan})
     
