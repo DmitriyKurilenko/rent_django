@@ -46,6 +46,34 @@
                 </a>
             </div>
 
+            <!-- Фильтр по автору (только для admin) -->
+            {% if user.profile.role == 'admin' %}
+            <div class="card bg-base-100 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end">
+                        <div class="form-control md:w-96">
+                            <label class="label py-1">
+                                <span class="label-text text-sm">Поиск по автору оффера</span>
+                            </label>
+                            <input
+                                type="text"
+                                name="author_q"
+                                value="{{ author_query }}"
+                                class="input input-bordered input-sm"
+                                placeholder="username / email"
+                            />
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-search"></i> Найти
+                            </button>
+                            <a href="{% url 'offers_list' %}" class="btn btn-ghost btn-sm">Сброс</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Статистика -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div class="card bg-base-100 shadow">
@@ -56,12 +84,11 @@
                             </div>
                             <div>
                                 <div class="text-xs opacity-60">Всего офферов</div>
-                                <div class="text-xl font-bold">{{ offers|length }}</div>
+                                <div class="text-xl font-bold">{{ page_obj.paginator.count }}</div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
                 <div class="card bg-base-100 shadow">
                     <div class="card-body py-3 px-4">
                         <div class="flex items-center gap-2">
@@ -75,7 +102,6 @@
                         </div>
                     </div>
                 </div>
-                
                 <div class="card bg-base-100 shadow">
                     <div class="card-body py-3 px-4">
                         <div class="flex items-center gap-2">
@@ -181,6 +207,35 @@
                     </div>
                 </div>
                 {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Пагинация -->
+            {% if page_obj.has_other_pages %}
+            <div class="mt-6 flex justify-center">
+                <div class="join">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1{% if author_query %}&author_q={{ author_query }}{% endif %}" class="join-item btn btn-sm">&laquo;</a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if author_query %}&author_q={{ author_query }}{% endif %}" class="join-item btn btn-sm">&lsaquo;</a>
+                    {% else %}
+                        <button class="join-item btn btn-sm btn-disabled">&laquo;</button>
+                        <button class="join-item btn btn-sm btn-disabled">&lsaquo;</button>
+                    {% endif %}
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if num == page_obj.number %}
+                            <button class="join-item btn btn-sm btn-primary btn-active">{{ num }}</button>
+                        {% elif num >= page_obj.number|add:'-2' and num <= page_obj.number|add:'2' %}
+                            <a href="?page={{ num }}{% if author_query %}&author_q={{ author_query }}{% endif %}" class="join-item btn btn-sm">{{ num }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if author_query %}&author_q={{ author_query }}{% endif %}" class="join-item btn btn-sm">&rsaquo;</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if author_query %}&author_q={{ author_query }}{% endif %}" class="join-item btn btn-sm">&raquo;</a>
+                    {% else %}
+                        <button class="join-item btn btn-sm btn-disabled">&rsaquo;</button>
+                        <button class="join-item btn btn-sm btn-disabled">&raquo;</button>
+                    {% endif %}
+                </div>
             </div>
             {% endif %}
         </div>

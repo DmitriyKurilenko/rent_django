@@ -63,11 +63,10 @@
                                 
                                 <div class="flex-1">
                                     <h2 class="font-bold text-lg">{{ user.username }}</h2>
-                                    <p class="text-sm text-base-content/70">{{ user.email }}</p>
+                                    <p class="text-sm text-base-content/80">{{ user.email }}</p>
                                     {% if user.profile.role %}
                                     <div class="mt-1">
-                                        <div class="badge badge-primary badge-sm">{{ user.profile.get_role_display }}</div>
-                                        <div class="badge badge-outline badge-sm ml-1">{{ user.profile.get_subscription_plan_display }}</div>
+                                        <!-- Role/subscription badges removed for minimalism -->
                                     </div>
                                     {% endif %}
                                 </div>
@@ -84,7 +83,7 @@
                                         <i class="fas fa-heart"></i>
                                     </div>
                                     <div>
-                                        <div class="text-xs opacity-60">{% trans "Избранные" %}</div>
+                                        <div class="text-xs text-base-content/70">{% trans "Избранные" %}</div>
                                         <div class="text-2xl font-bold">{{ favorites_count|default:0 }}</div>
                                     </div>
                                 </div>
@@ -98,7 +97,7 @@
                                         <i class="fas fa-calendar"></i>
                                     </div>
                                     <div>
-                                        <div class="text-xs opacity-60">{% trans "Бронирования" %}</div>
+                                        <div class="text-xs text-base-content/70">{% trans "Бронирования" %}</div>
                                         <div class="text-2xl font-bold">{{ bookings_count|default:0 }}</div>
                                     </div>
                                 </div>
@@ -113,7 +112,7 @@
                                         <i class="fas fa-ship"></i>
                                     </div>
                                     <div>
-                                        <div class="text-xs opacity-60">{% trans "Лодки" %}</div>
+                                        <div class="text-xs text-base-content/70">{% trans "Лодки" %}</div>
                                         <div class="text-2xl font-bold">{{ boats_count|default:0 }}</div>
                                     </div>
                                 </div>
@@ -129,7 +128,7 @@
                                         <i class="fas fa-file-invoice"></i>
                                     </div>
                                     <div>
-                                        <div class="text-xs opacity-60">{% trans "Офферы" %}</div>
+                                        <div class="text-xs text-base-content/70">{% trans "Офферы" %}</div>
                                         <div class="text-2xl font-bold">{{ offers_count|default:0 }}</div>
                                     </div>
                                 </div>
@@ -160,53 +159,34 @@
                             </div>
                             {% endif %}
                             
+
+
                             <div class="form-control">
                                 <label class="label">
-                                    <span class="label-text font-medium text-sm">Email</span>
+                                    <span class="label-text font-medium text-sm">Имя</span>
                                 </label>
-                                {{ form.email }}
-                            </div>
-                            
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium text-sm">{% trans "Подписка" %}</span>
-                                </label>
-                                {{ form.subscription_plan }}
+                                {{ form.first_name }}
                             </div>
 
                             <div class="form-control">
                                 <label class="label">
-                                    <span class="label-text font-medium text-sm">{% trans "Роль" %}</span>
+                                    <span class="label-text font-medium text-sm">Фамилия</span>
                                 </label>
-                                {{ form.role }}
-                                {% if not user.is_superuser %}
-                                <label class="label">
-                                    <span class="label-text-alt text-warning text-xs">
-                                        <i class="fas fa-lock"></i> {% trans "Только администратор может изменить" %}
-                                    </span>
-                                </label>
-                                {% endif %}
+                                {{ form.last_name }}
                             </div>
-                            
+
                             <div class="form-control">
                                 <label class="label">
-                                    <span class="label-text font-medium text-sm">{% trans "Телефон" %}</span>
+                                    <span class="label-text font-medium text-sm">Email</span>
+                                </label>
+                                <input type="email" class="input input-bordered input-sm w-full" value="{{ user.email }}" readonly>
+                            </div>
+
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text font-medium text-sm">Телефон</span>
                                 </label>
                                 {{ form.phone }}
-                            </div>
-                            
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium text-sm">{% trans "О себе" %}</span>
-                                </label>
-                                {{ form.bio }}
-                            </div>
-                            
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium text-sm">{% trans "Аватар" %}</span>
-                                </label>
-                                {{ form.avatar }}
                             </div>
                             
                             <div class="card-actions justify-end mt-6">

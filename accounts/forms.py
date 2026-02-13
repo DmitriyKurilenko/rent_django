@@ -37,26 +37,29 @@ class RegisterForm(UserCreationForm):
 
 
 class ProfileUpdateForm(forms.ModelForm):
+    first_name = forms.CharField(max_length=30, required=False, label='Имя')
+    last_name = forms.CharField(max_length=30, required=False, label='Фамилия')
+
     class Meta:
         model = UserProfile
-        fields = ['subscription_plan', 'role', 'phone', 'bio', 'avatar']
-        
+        fields = ['phone']
+
     def __init__(self, *args, **kwargs):
+        user = kwargs['instance'].user if 'instance' in kwargs else None
         super().__init__(*args, **kwargs)
-        # Администратор может изменять роли, остальные - нет
-        if not self.instance.user.is_superuser:
-            self.fields['role'].disabled = True
+        if user:
+            self.fields['first_name'].initial = user.first_name
+            self.fields['last_name'].initial = user.last_name
 
     def save(self, commit=True):
         profile = super().save(commit=False)
-
-        # Синхронизируем роль с подпиской для обычных ролей
-        # admin/superadmin/manager не затираем автоматически
-        if profile.role in ['tourist', 'captain']:
-            if profile.subscription_plan == 'free':
-                profile.role = 'tourist'
-            elif profile.subscription_plan in ['standard', 'advanced']:
-                profile.role = 'captain'
+        user = profile.user
+        user.first_name = self.cleaned_data.get('first_name', user.first_name)
+        user.last_name = self.cleaned_data.get('last_name', user.last_name)
+        if commit:
+            user.save(update_fields=['first_name', 'last_name'])
+            profile.save(update_fields=['phone'])
+        return profile
 
         if commit:
             profile.save()

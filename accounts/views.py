@@ -85,22 +85,20 @@ def profile_view(request):
     
     context = {
         'form': form,
+        # .count() использует индекс, быстро даже при большом объёме
         'favorites_count': Favorite.objects.filter(user=request.user).count(),
         'bookings_count': Booking.objects.filter(user=request.user).count(),
     }
-    
-    # Add boats count if user can manage boats
+    # Если потребуется выводить списки — использовать select_related/prefetch_related
+    # Пример: Favorite.objects.filter(user=request.user).select_related('parsed_boat')[:20]
     if request.user.profile.can_manage_boats:
         from boats.models import Boat
         context['boats_count'] = Boat.objects.filter(owner=request.user).count()
-    
-    # Add offers count if user can create offers
     if request.user.profile.can_create_offers:
         if request.user.profile.role == 'admin':
             context['offers_count'] = Offer.objects.count()
         else:
             context['offers_count'] = Offer.objects.filter(created_by=request.user).count()
-    
     return render(request, 'accounts/profile.html', context)
 
 

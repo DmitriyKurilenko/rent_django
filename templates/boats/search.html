@@ -18,7 +18,7 @@
         <h1 class="text-4xl font-bold mb-4">
             <i class="fas fa-ship"></i> {% trans "Найти яхту" %}
         </h1>
-        <p class="text-lg opacity-90">{% trans "Поиск доступных яхт для аренды" %}</p>
+        <p class="text-lg text-base-content/80">{% trans "Поиск доступных яхт для аренды" %}</p>
     </div>
 </div>
 
@@ -52,10 +52,11 @@
                     <form method="GET" class="space-y-4">
                         <!-- Search Destination -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="search_destination">
                                 <span class="label-text font-semibold">{% trans "Направление" %}</span>
                             </label>
                             <input 
+                                id="search_destination"
                                 type="text" 
                                 name="destination" 
                                 value="{{ destination|default:'' }}" 
@@ -67,10 +68,10 @@
 
                         <!-- Category -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="search_category">
                                 <span class="label-text font-semibold">{% trans "Тип яхты" %}</span>
                             </label>
-                            <select name="category" class="select select-bordered select-sm">
+                            <select id="search_category" name="category" class="select select-bordered select-sm">
                                 <option value="">{% trans "Любой" %}</option>
                                 <option value="sailboat">{% trans "Парусник" %}</option>
                                 <option value="motorboat">{% trans "Моторная" %}</option>
@@ -80,10 +81,11 @@
 
                         <!-- Check-in Date -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="search_check_in">
                                 <span class="label-text font-semibold">{% trans "Заезд" %}</span>
                             </label>
                             <input 
+                                id="search_check_in"
                                 type="date" 
                                 name="check_in" 
                                 value="{{ check_in|default:'' }}" 
@@ -93,10 +95,11 @@
 
                         <!-- Check-out Date -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="search_check_out">
                                 <span class="label-text font-semibold">{% trans "Выезд" %}</span>
                             </label>
                             <input 
+                                id="search_check_out"
                                 type="date" 
                                 name="check_out" 
                                 value="{{ check_out|default:'' }}" 
@@ -302,9 +305,9 @@
                             <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pt-3 border-t border-base-300">
                                 <div>
                                     {% if check_in and check_out and rental_days and boat.price %}
-                                    <div class="text-xs opacity-70">Итого за {{ rental_days }} дн.</div>
+                                    <div class="text-xs text-base-content/70">Итого за {{ rental_days }} дн.</div>
                                     {% if boat.old_price and boat.discount_percent %}
-                                    <div class="text-xs opacity-75 line-through">
+                                    <div class="text-xs text-base-content/60 line-through">
                                         {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
                                     </div>
                                     {% endif %}
@@ -317,14 +320,14 @@
                                     </div>
                                     {% endif %}
                                     {% if boat.price_per_day %}
-                                    <div class="text-xs opacity-70 mt-1">
+                                    <div class="text-xs text-base-content/70 mt-1">
                                         <span class="font-semibold">{{ boat.price_per_day|floatformat:0 }}</span> за сутки
                                     </div>
                                     {% endif %}
                                     {% else %}
-                                    <div class="text-xs opacity-70">Цена</div>
+                                    <div class="text-xs text-base-content/70">Цена</div>
                                     {% if boat.old_price and boat.discount_percent %}
-                                    <div class="text-xs opacity-75 line-through">
+                                    <div class="text-xs text-base-content/60 line-through">
                                         {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
                                     </div>
                                     {% endif %}

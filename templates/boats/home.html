@@ -7,10 +7,10 @@
 <div class="hero min-h-screen bg-gradient-to-b from-primary to-base-100">
     <div class="hero-content text-center">
         <div class="w-full max-w-2xl px-4">
-            <h1 class="text-5xl md:text-6xl font-bold text-white mb-4">
+            <h1 class="text-5xl md:text-6xl font-bold text-primary-content mb-4">
                 {% trans "Найдите идеальную яхту" %}
             </h1>
-            <p class="text-lg text-white/90 mb-8">
+            <p class="text-lg text-primary-content/80 mb-8">
                 {% trans "Более 27 000 яхт в лучших локациях мира" %}
             </p>
             
@@ -47,8 +47,8 @@
                                     <div @click="selectLocation(suggestion)" 
                                          class="px-4 py-3 hover:bg-primary hover:text-primary-content cursor-pointer transition-colors border-b border-base-200 last:border-0">
                                         <div class="font-medium" x-text="suggestion.name"></div>
-                                        <div class="text-xs opacity-70" x-show="suggestion.country" x-text="suggestion.country"></div>
-                                        <div class="text-xs opacity-50" x-show="suggestion.total" x-text="suggestion.total + ' лодок'"></div>
+                                        <div class="text-xs text-base-content/70" x-show="suggestion.country" x-text="suggestion.country"></div>
+                                        <div class="text-xs text-base-content/50" x-show="suggestion.total" x-text="suggestion.total + ' лодок'"></div>
                                     </div>
                                 </template>
                             </div>
@@ -175,7 +175,7 @@
         <div class="card bg-base-100 shadow">
             <div class="card-body">
                 <h3 class="card-title">🆓 {% trans "Бесплатная" %}</h3>
-                <p class="text-2xl font-bold">0 ₽ <span class="text-sm font-normal opacity-70">/ {% trans "мес" %}</span></p>
+                <p class="text-2xl font-bold">0 ₽ <span class="text-sm font-normal text-base-content/70">/ {% trans "мес" %}</span></p>
                 <ul class="text-sm space-y-1 mt-2">
                     <li>✓ {% trans "Поиск и просмотр лодок" %}</li>
                     <li>✓ {% trans "Избранное" %}</li>
@@ -190,7 +190,7 @@
         <div class="card bg-base-100 shadow border-2 border-primary">
             <div class="card-body">
                 <h3 class="card-title">⚓ {% trans "Стандарт" %}</h3>
-                <p class="text-2xl font-bold">500 ₽ <span class="text-sm font-normal opacity-70">/ {% trans "мес" %}</span></p>
+                <p class="text-2xl font-bold">500 ₽ <span class="text-sm font-normal text-base-content/70">/ {% trans "мес" %}</span></p>
                 <ul class="text-sm space-y-1 mt-2">
                     <li>✓ {% trans "Всё из Бесплатной" %}</li>
                     <li>✓ {% trans "Роль капитан/агент" %}</li>
@@ -205,7 +205,7 @@
         <div class="card bg-base-100 shadow">
             <div class="card-body">
                 <h3 class="card-title">🚀 {% trans "Продвинутая" %}</h3>
-                <p class="text-2xl font-bold">1000 ₽ <span class="text-sm font-normal opacity-70">/ {% trans "мес" %}</span></p>
+                <p class="text-2xl font-bold">1000 ₽ <span class="text-sm font-normal text-base-content/70">/ {% trans "мес" %}</span></p>
                 <ul class="text-sm space-y-1 mt-2">
                     <li>✓ {% trans "Всё из Стандарт" %}</li>
                     <li>✓ {% trans "Кастомный брендинг" %}</li>

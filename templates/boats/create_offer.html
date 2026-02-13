@@ -8,7 +8,7 @@
     <div class="container mx-auto px-4 py-8">
         <div class="max-w-3xl mx-auto">
             <h1 class="text-3xl font-bold mb-1">{% trans "Создать оффер" %}</h1>
-            <p class="text-base-content/60 mb-6">{% trans "Вставьте ссылку с boataround.com с датами аренды" %}</p>
+            <p class="text-base-content mb-6">{% trans "Вставьте ссылку с boataround.com с датами аренды" %}</p>
 
             <div class="card bg-base-100 shadow-lg" x-data="offerForm()">
                 <div class="card-body gap-4">
@@ -24,10 +24,10 @@
 
                         <!-- URL Input -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="source_url">
                                 <span class="label-text font-semibold">{% trans "Ссылка boataround.com" %}</span>
                             </label>
-                            <input type="text" x-model="form.source_url" @input="validateUrl"
+                            <input id="source_url" name="source_url" type="text" x-model="form.source_url" @input="validateUrl"
                                 placeholder="https://www.boataround.com/ru/yachta/...?checkIn=...&checkOut=..."
                                 class="input input-bordered input-sm font-mono text-xs"
                                 :class="{ 'input-error': errors.source_url }" required>
@@ -89,23 +89,23 @@
 
                         <!-- Title -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="offer_title">
                                 <span class="label-text font-semibold">{% trans "Заголовок" %}</span>
                                 <span class="label-text-alt text-xs" x-show="form.title.length > 0">
                                     <span x-text="form.title.length"></span>/300</span>
                             </label>
-                            <input type="text" x-model="form.title" placeholder="{% trans 'Роскошная яхта на Кипре' %}"
+                            <input id="offer_title" name="title" type="text" x-model="form.title" placeholder="{% trans 'Роскошная яхта на Кипре' %}"
                                 class="input input-bordered input-sm" maxlength="300">
                         </div>
 
                         <!-- Description -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="offer_description">
                                 <span class="label-text font-semibold">{% trans "Описание" %}</span>
                                 <span class="label-text-alt text-xs" x-show="form.description.length > 0">
                                     <span x-text="form.description.length"></span>/1000</span>
                             </label>
-                            <textarea x-model="form.description" rows="2" placeholder="{% trans 'Дополнительное описание' %}"
+                            <textarea id="offer_description" name="description" x-model="form.description" rows="2" placeholder="{% trans 'Дополнительное описание' %}"
                                 class="textarea textarea-bordered textarea-sm" maxlength="1000"></textarea>
                         </div>
 
@@ -130,10 +130,10 @@
 
                         <!-- Notes -->
                         <div class="form-control">
-                            <label class="label">
+                            <label class="label" for="offer_notes">
                                 <span class="label-text font-semibold">{% trans "Заметки" %}</span>
                             </label>
-                            <textarea x-model="form.notes" rows="2" placeholder="{% trans 'Внутренние заметки' %}"
+                            <textarea id="offer_notes" name="notes" x-model="form.notes" rows="2" placeholder="{% trans 'Внутренние заметки' %}"
                                 class="textarea textarea-bordered textarea-sm"></textarea>
                         </div>
 

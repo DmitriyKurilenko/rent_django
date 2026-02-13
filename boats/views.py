@@ -192,13 +192,7 @@ def boat_search(request):
                 formatted_boat['is_favorite'] = formatted_boat.get('slug') in favorite_slugs
                 boats.append(formatted_boat)
                 
-                # Кэшируем для последующего доступа к деталям
-                try:
-                    cache_boat_id = boat.get('_id') or boat.get('id') or formatted_boat.get('id')
-                    cache_slug = boat.get('slug') or formatted_boat.get('slug')
-                    save_to_cache(boat, cache_boat_id, cache_slug)
-                except Exception as cache_err:
-                    logger.debug(f"[Search View] Failed to cache boat {formatted_boat.get('id')}: {cache_err}")
+                # (Кэш лодок в поиске отключён для ускорения)
                     
             except Exception as e:
                 logger.warning(f"[Search View] Failed to format boat: {e}")
@@ -940,25 +934,30 @@ def my_bookings(request):
 
     # Только менеджер видит все бронирования.
     # Все остальные роли видят только свои.
+    from django.core.paginator import Paginator
+    page_number = request.GET.get('page', 1)
     if user.profile.role == 'manager':
-        bookings = Booking.objects.all().select_related('offer', 'offer__created_by', 'user').order_by('-created_at')
+        bookings_qs = Booking.objects.all().select_related('offer', 'offer__created_by', 'user').order_by('-created_at')
         author_query = request.GET.get('author_q', '').strip()
         if author_query:
-            bookings = bookings.filter(
+            bookings_qs = bookings_qs.filter(
                 Q(offer__created_by__username__icontains=author_query)
                 | Q(offer__created_by__email__icontains=author_query)
                 | Q(offer__created_by__first_name__icontains=author_query)
                 | Q(offer__created_by__last_name__icontains=author_query)
             )
     else:
-        bookings = Booking.objects.filter(user=user).select_related('offer', 'offer__created_by', 'user').order_by('-created_at')
+        bookings_qs = Booking.objects.filter(user=user).select_related('offer', 'offer__created_by', 'user').order_by('-created_at')
         author_query = ''
-    
+
+    paginator = Paginator(bookings_qs, 15)
+    bookings = paginator.get_page(page_number)
+
     # Статистика
-    total_bookings = bookings.count()
-    pending_bookings = bookings.filter(status='pending').count()
-    confirmed_bookings = bookings.filter(status='confirmed').count()
-    
+    total_bookings = bookings_qs.count()
+    pending_bookings = bookings_qs.filter(status='pending').count()
+    confirmed_bookings = bookings_qs.filter(status='confirmed').count()
+
     context = {
         'bookings': bookings,
         'total_bookings': total_bookings,
