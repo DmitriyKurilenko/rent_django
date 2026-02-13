@@ -116,96 +116,157 @@
                 </div>
             </div>
 
-            <!-- Пустой список -->
-            {% if not offers %}
-            <div class="text-center py-12">
-                <i class="fas fa-inbox text-6xl text-base-content/30 mb-4"></i>
-                <h3 class="text-2xl font-bold mb-2">Офферов не найдено</h3>
-                <p class="text-base-content/70 mb-6">Создайте первый оффер для клиента</p>
-                <a href="{% url 'create_offer' %}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Создать оффер
-                </a>
-            </div>
-            {% else %}
-            
-            <!-- Список офферов -->
-            <div class="space-y-3">
-                {% for offer in offers %}
-                <div class="card bg-base-100 shadow hover:shadow-md transition-shadow">
-                    <div class="card-body p-3">
-                        <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
-                            <!-- Image -->
-                            <div class="flex-shrink-0 w-16 h-16 bg-base-300 rounded-lg overflow-hidden">
-                                {% if offer.image %}
-                                    <img src="{{ offer.image }}" alt="{{ offer.title_display }}" class="w-full h-full object-cover">
-                                {% else %}
-                                    <div class="flex items-center justify-center h-full">
-                                        <i class="fas fa-ship text-xl text-base-content/30"></i>
-                                    </div>
-                                {% endif %}
-                            </div>
-                            
-                            <!-- Content -->
-                            <div class="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                <!-- Left: Info -->
-                                <div class="flex-1 min-w-0">
-                                    <h2 class="font-semibold text-sm mb-1 truncate">{{ offer.title_display }}</h2>
-                                    <div class="flex items-center gap-2 text-xs flex-wrap">
-                                        {% if offer.offer_type == 'captain' %}
-                                            <span class="badge badge-xs badge-info">Агентский</span>
+            {% if offers %}
+            <!-- Desktop Table -->
+            <div class="hidden md:block card bg-base-100 shadow-sm">
+                <table class="table table-sm table-zebra w-full">
+                    <thead>
+                        <tr class="bg-base-200">
+                            <th>{% trans "Оффер" %}</th>
+                            <th>{% trans "Даты" %}</th>
+                            <th>{% trans "Статус" %}</th>
+                            <th class="text-right">{% trans "Цена" %}</th>
+                            <th class="text-right">{% trans "Действия" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for offer in offers %}
+                        <tr class="hover">
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-shrink-0">
+                                        {% if offer.image %}
+                                            <img src="{{ offer.image }}" alt="" class="w-10 h-10 rounded object-cover block">
                                         {% else %}
-                                            <span class="badge badge-xs badge-success">Туристический</span>
-                                        {% endif %}
-                                        <span class="text-base-content/60">{{ offer.created_at|date:"d.m.Y" }}</span>
-                                        <span class="text-base-content/60">•</span>
-                                        <span>{{ offer.check_in|date:"d.m" }} - {{ offer.check_out|date:"d.m" }}</span>
-                                        <span class="text-base-content/60">•</span>
-                                        <span class="flex items-center gap-1">
-                                            <i class="fas fa-eye text-base-content/40"></i>
-                                            {{ offer.views_count }}
-                                        </span>
-                                        {% if offer.is_active %}
-                                            <span class="badge badge-xs badge-success"><i class="fas fa-check"></i></span>
-                                        {% else %}
-                                            <span class="badge badge-xs badge-error"><i class="fas fa-times"></i></span>
-                                        {% endif %}
-                                        {% if offer.show_countdown %}
-                                            <span class="badge badge-xs badge-warning"><i class="fas fa-clock"></i></span>
+                                            <div class="w-10 h-10 rounded bg-base-300 flex items-center justify-center">
+                                                <i class="fas fa-ship text-xs text-base-content/30"></i>
+                                            </div>
                                         {% endif %}
                                     </div>
-                                </div>
-                                
-                                <!-- Right: Price & Actions -->
-                                <div class="flex items-center justify-between sm:justify-end gap-3">
-                                    <div class="text-right">
-                                        {% if offer.discount > 0 %}
-                                            
-                                        {% endif %}
-                                        <div class="font-bold text-primary whitespace-nowrap">
-                                            {{ offer.total_price|floatformat:0 }}{{ offer.currency }}
-                                            {% if offer.discount > 0 %}
-                                                <span class="badge badge-warning badge-xs ml-1">-{{ offer.discount|floatformat:0 }}%</span>
+                                    <div class="min-w-0">
+                                        <div class="font-medium text-sm truncate max-w-[14rem]">{{ offer.title_display }}</div>
+                                        <div class="flex items-center gap-2 mt-0.5">
+                                            {% if offer.offer_type == 'captain' %}
+                                                <span class="badge badge-xs badge-info">{% trans "Агентский" %}</span>
+                                            {% else %}
+                                                <span class="badge badge-xs badge-success">{% trans "Турист." %}</span>
                                             {% endif %}
+                                            <span class="text-xs text-base-content/50">{{ offer.created_at|date:"d.m.Y" }}</span>
                                         </div>
                                     </div>
-                                    
-                                    <div class="flex gap-1" x-data="offerActions('{% url 'offer_view' offer.uuid %}', '{{ offer.uuid }}')">
-                                        <button @click="copy($el)" class="btn btn-ghost btn-xs" title="Скопировать ссылку">
-                                            {% trans "Копировать" %}
-                                        </button>
-                                        <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs" title="Просмотр">
-                                            {% trans "Открыть" %}
-                                        </a>
-                                        <button @click="remove()" class="btn btn-ghost btn-xs text-error" title="Удалить">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-sm whitespace-nowrap">{{ offer.check_in|date:"d.m" }} — {{ offer.check_out|date:"d.m.y" }}</span>
+                            </td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    {% if offer.is_active %}
+                                        <span class="badge badge-sm badge-success">{% trans "Активен" %}</span>
+                                    {% else %}
+                                        <span class="badge badge-sm badge-error">{% trans "Неактивен" %}</span>
+                                    {% endif %}
+                                    {% if offer.show_countdown %}
+                                        <i class="fas fa-clock text-warning text-xs" title="{% trans 'Обратный отсчёт' %}"></i>
+                                    {% endif %}
+                                    <span class="text-xs text-base-content/50 flex items-center gap-1">
+                                        <i class="fas fa-eye"></i> {{ offer.views_count }}
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="text-right">
+                                <span class="font-bold text-sm text-primary whitespace-nowrap">
+                                    {{ offer.total_price|floatformat:0 }} {{ offer.currency }}
+                                </span>
+                                {% if offer.discount > 0 %}
+                                    <span class="badge badge-warning badge-xs ml-1">-{{ offer.discount|floatformat:0 }}%</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex items-center justify-end gap-1" x-data="offerActions('{% url 'offer_view' offer.uuid %}', '{{ offer.uuid }}')">
+                                    <button @click="copy($el)" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Копировать ссылку' %}">
+                                        <i class="fas fa-link text-xs"></i>
+                                    </button>
+                                    <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Открыть' %}">
+                                        <i class="fas fa-external-link-alt text-xs"></i>
+                                    </a>
+                                    <button @click="remove()" class="btn btn-ghost btn-xs btn-square text-error" title="{% trans 'Удалить' %}">
+                                        <i class="fas fa-trash text-xs"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Cards -->
+            <div class="md:hidden space-y-2">
+                {% for offer in offers %}
+                <div class="card bg-base-100 shadow-sm">
+                    <div class="card-body p-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <div class="flex-shrink-0">
+                                    {% if offer.image %}
+                                        <img src="{{ offer.image }}" alt="" class="w-8 h-8 rounded object-cover block">
+                                    {% else %}
+                                        <div class="w-8 h-8 rounded bg-base-300 flex items-center justify-center">
+                                            <i class="fas fa-ship text-xs text-base-content/30"></i>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="font-medium text-sm truncate">{{ offer.title_display }}</div>
+                                    <div class="text-xs text-base-content/60">
+                                        {% if offer.offer_type == 'captain' %}{% trans "Агентский" %}{% else %}{% trans "Турист." %}{% endif %}
+                                        · {{ offer.check_in|date:"d.m" }}–{{ offer.check_out|date:"d.m" }}
                                     </div>
                                 </div>
+                            </div>
+                            <div class="text-right flex-shrink-0">
+                                <div class="font-bold text-sm text-primary">{{ offer.total_price|floatformat:0 }} {{ offer.currency }}</div>
+                                {% if offer.is_active %}
+                                    <span class="badge badge-xs badge-success">{% trans "Активен" %}</span>
+                                {% else %}
+                                    <span class="badge badge-xs badge-error">{% trans "Неактивен" %}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between mt-2 border-t border-base-200 pt-2" x-data="offerActions('{% url 'offer_view' offer.uuid %}', '{{ offer.uuid }}')">
+                            <span class="text-xs text-base-content/50 flex items-center gap-1">
+                                <i class="fas fa-eye"></i> {{ offer.views_count }}
+                            </span>
+                            <div class="flex items-center gap-1">
+                                <button @click="copy($el)" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Копировать' %}">
+                                    <i class="fas fa-link text-xs"></i>
+                                </button>
+                                <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Открыть' %}">
+                                    <i class="fas fa-external-link-alt text-xs"></i>
+                                </a>
+                                <button @click="remove()" class="btn btn-ghost btn-xs btn-square text-error" title="{% trans 'Удалить' %}">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
+            </div>
+            {% else %}
+            <!-- Empty State -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body items-center text-center py-12">
+                    <div class="text-4xl text-base-content/30 mb-4">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <h2 class="text-xl font-bold mb-2">{% trans "Офферов не найдено" %}</h2>
+                    <p class="text-base-content/70 mb-4">{% trans "Создайте первый оффер для клиента" %}</p>
+                    <a href="{% url 'create_offer' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-plus"></i> {% trans "Создать оффер" %}
+                    </a>
+                </div>
             </div>
             {% endif %}
 
@@ -247,17 +308,16 @@ function offerActions(offerPath, uuid) {
         copy(buttonEl) {
             const offerUrl = `${window.location.origin}${offerPath}`;
             navigator.clipboard.writeText(offerUrl).then(() => {
-                const originalText = buttonEl.textContent.trim();
-                buttonEl.textContent = 'Скопировано';
+                const icon = buttonEl.querySelector('i');
+                const orig = icon.className;
+                icon.className = 'fas fa-check text-xs';
                 buttonEl.classList.add('btn-success');
-
                 setTimeout(() => {
-                    buttonEl.textContent = originalText;
+                    icon.className = orig;
                     buttonEl.classList.remove('btn-success');
                 }, 1200);
-            }).catch(err => {
+            }).catch(() => {
                 alert('Не удалось скопировать ссылку');
-                console.error('Copy failed:', err);
             });
         },
         remove() {

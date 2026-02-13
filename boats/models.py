@@ -159,10 +159,18 @@ class Booking(models.Model):
     # Сообщение от туриста
     message = models.TextField('Сообщение', blank=True)
     
+    # Ответственный менеджер
+    assigned_manager = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='assigned_bookings',
+        verbose_name='Ответственный менеджер'
+    )
+
     # Метаданные
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
-    
+
     class Meta:
         verbose_name = 'Бронирование'
         verbose_name_plural = 'Бронирования'

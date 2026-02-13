@@ -15,6 +15,7 @@ urlpatterns = [
     path('my-bookings/', views.my_bookings, name='my_bookings'),
     path('bookings/<int:booking_id>/delete/', views.delete_booking, name='delete_booking'),
     path('bookings/<int:booking_id>/status/', views.update_booking_status, name='update_booking_status'),
+    path('bookings/<int:booking_id>/assign/', views.assign_booking_manager, name='assign_booking_manager'),
     path('manage-boats/', views.manage_boats, name='manage_boats'),
     path('create-boat/', views.create_boat, name='create_boat'),
     
@@ -28,4 +29,9 @@ urlpatterns = [
     
     # Быстрое создание оффера
     path('boat/<str:boat_slug>/create-offer/', views.quick_create_offer, name='quick_create_offer'),
+
+    # Информационные страницы
+    path('terms/', views.terms, name='terms'),
+    path('privacy/', views.privacy, name='privacy'),
+    path('contacts/', views.contacts, name='contacts'),
 ]

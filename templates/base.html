@@ -1,7 +1,7 @@
 {% load i18n %}
 {% load static %}
 <!DOCTYPE html>
-<html lang="ru" data-theme="light">
+<html lang="ru" data-theme="winter">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -136,10 +136,9 @@
                 <div>
                     <h3 class="font-semibold mb-4">{% trans "Информация" %}</h3>
                     <nav class="flex flex-col gap-2">
-                        <a href="#" class="link link-hover">{% trans "Часто задаваемые вопросы" %}</a>
-                        <a href="#" class="link link-hover">{% trans "Условия использования" %}</a>
-                        <a href="#" class="link link-hover">{% trans "Политика конфиденциальности" %}</a>
-                        <a href="#" class="link link-hover">{% trans "Контакты" %}</a>
+                        <a href="{% url 'terms' %}" class="link link-hover">{% trans "Пользовательское соглашение" %}</a>
+                        <a href="{% url 'privacy' %}" class="link link-hover">{% trans "Политика обработки данных" %}</a>
+                        <a href="{% url 'contacts' %}" class="link link-hover">{% trans "Контакты" %}</a>
                     </nav>
                 </div>
                 

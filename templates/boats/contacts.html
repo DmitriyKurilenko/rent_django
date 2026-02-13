@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Контакты" %} - Ахой!Rent{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-4xl">
+    <h1 class="text-3xl font-bold mb-6">{% trans "Контакты" %}</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-lg">
+                    <i class="fas fa-envelope text-primary"></i>
+                    {% trans "Электронная почта" %}
+                </h2>
+                <p class="text-sm text-base-content/70">{% trans "По всем вопросам, связанным с работой сервиса" %}</p>
+                <a href="mailto:info@ahoyrent.ru" class="link link-primary">info@ahoyrent.ru</a>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-lg">
+                    <i class="fas fa-phone text-primary"></i>
+                    {% trans "Телефон" %}
+                </h2>
+                <p class="text-sm text-base-content/70">{% trans "Ежедневно с 9:00 до 21:00 (МСК)" %}</p>
+                <a href="tel:+74951234567" class="link link-primary">+7 (495) 123-45-67</a>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-lg">
+                    <i class="fab fa-telegram text-primary"></i>
+                    Telegram
+                </h2>
+                <p class="text-sm text-base-content/70">{% trans "Быстрая связь и поддержка" %}</p>
+                <a href="https://t.me/ahoyrent" class="link link-primary" target="_blank" rel="noopener">@ahoyrent</a>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-lg">
+                    <i class="fas fa-map-marker-alt text-primary"></i>
+                    {% trans "Адрес" %}
+                </h2>
+                <p class="text-sm text-base-content/70">{% trans "Юридический адрес" %}</p>
+                <p>{% trans "г. Москва, Россия" %}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow mt-6">
+        <div class="card-body">
+            <h2 class="card-title text-lg mb-4">
+                <i class="fas fa-info-circle text-primary"></i>
+                {% trans "Юридическая информация" %}
+            </h2>
+            <div class="text-sm space-y-2">
+                <p>{% trans "Сервис «Ахой!Rent» является информационным посредником и не является стороной в договорах аренды водных транспортных средств." %}</p>
+                <div class="divider my-2"></div>
+                <div class="flex flex-col gap-1">
+                    <a href="{% url 'terms' %}" class="link link-primary">{% trans "Пользовательское соглашение" %}</a>
+                    <a href="{% url 'privacy' %}" class="link link-primary">{% trans "Политика обработки персональных данных" %}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

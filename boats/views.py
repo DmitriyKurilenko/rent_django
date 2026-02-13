@@ -936,8 +936,10 @@ def my_bookings(request):
     # Все остальные роли видят только свои.
     from django.core.paginator import Paginator
     page_number = request.GET.get('page', 1)
-    if user.profile.role == 'manager':
-        bookings_qs = Booking.objects.all().select_related('offer', 'offer__created_by', 'user').order_by('-created_at')
+    base_select = ('offer', 'offer__created_by', 'user', 'assigned_manager')
+
+    if user.profile.role in ('manager', 'superadmin'):
+        bookings_qs = Booking.objects.all().select_related(*base_select).order_by('-created_at')
         author_query = request.GET.get('author_q', '').strip()
         if author_query:
             bookings_qs = bookings_qs.filter(
@@ -946,9 +948,13 @@ def my_bookings(request):
                 | Q(offer__created_by__first_name__icontains=author_query)
                 | Q(offer__created_by__last_name__icontains=author_query)
             )
+        only_mine = request.GET.get('only_mine') == '1'
+        if only_mine:
+            bookings_qs = bookings_qs.filter(assigned_manager=user)
     else:
-        bookings_qs = Booking.objects.filter(user=user).select_related('offer', 'offer__created_by', 'user').order_by('-created_at')
+        bookings_qs = Booking.objects.filter(user=user).select_related(*base_select).order_by('-created_at')
         author_query = ''
+        only_mine = False
 
     paginator = Paginator(bookings_qs, 15)
     bookings = paginator.get_page(page_number)
@@ -958,12 +964,20 @@ def my_bookings(request):
     pending_bookings = bookings_qs.filter(status='pending').count()
     confirmed_bookings = bookings_qs.filter(status='confirmed').count()
 
+    # Список менеджеров для суперадмина
+    managers = []
+    if user.profile.role == 'superadmin':
+        from accounts.models import UserProfile
+        managers = User.objects.filter(profile__role='manager').order_by('first_name', 'username')
+
     context = {
         'bookings': bookings,
         'total_bookings': total_bookings,
         'pending_bookings': pending_bookings,
         'confirmed_bookings': confirmed_bookings,
         'author_query': author_query,
+        'only_mine': only_mine,
+        'managers': managers,
     }
     return render(request, 'boats/my_bookings.html', context)
 
@@ -993,6 +1007,48 @@ def update_booking_status(request, booking_id):
             booking.offer.is_active = False
             booking.offer.save(update_fields=['is_active'])
         messages.success(request, 'Бронирование отменено. Оффер деактивирован (история сохранена).')
+    else:
+        messages.error(request, 'Некорректное действие')
+
+    if next_url:
+        return redirect(next_url)
+    return redirect('my_bookings')
+
+
+@login_required
+def assign_booking_manager(request, booking_id):
+    """Назначение ответственного менеджера на бронирование."""
+    role = request.user.profile.role
+
+    if role not in ('manager', 'superadmin'):
+        messages.error(request, 'У вас нет прав для назначения менеджера')
+        return redirect('my_bookings')
+
+    if request.method != 'POST':
+        return redirect('my_bookings')
+
+    booking = get_object_or_404(Booking, id=booking_id)
+    action = request.POST.get('action', '').strip()
+    next_url = request.POST.get('next', '')
+
+    if action == 'unassign':
+        booking.assigned_manager = None
+        booking.save(update_fields=['assigned_manager', 'updated_at'])
+        messages.success(request, 'Менеджер снят с бронирования')
+    elif action == 'assign_self':
+        booking.assigned_manager = request.user
+        booking.save(update_fields=['assigned_manager', 'updated_at'])
+        messages.success(request, 'Вы назначены ответственным')
+    elif action == 'assign' and role == 'superadmin':
+        manager_id = request.POST.get('manager_id')
+        if manager_id:
+            from accounts.models import UserProfile
+            manager = get_object_or_404(User, id=manager_id, profile__role='manager')
+            booking.assigned_manager = manager
+            booking.save(update_fields=['assigned_manager', 'updated_at'])
+            messages.success(request, f'Менеджер {manager.get_full_name() or manager.username} назначен')
+        else:
+            messages.error(request, 'Менеджер не выбран')
     else:
         messages.error(request, 'Некорректное действие')
 
@@ -1988,3 +2044,15 @@ def book_boat(request, boat_slug):
     logger.info(f'[Booking] Created direct booking {booking.id} for user {request.user.username} - boat {boat_slug}')
     messages.success(request, '✅ Бронирование создано! Ожидайте подтверждения от менеджера.')
     return redirect('my_bookings')
+
+
+def terms(request):
+    return render(request, 'boats/terms.html')
+
+
+def privacy(request):
+    return render(request, 'boats/privacy.html')
+
+
+def contacts(request):
+    return render(request, 'boats/contacts.html')
