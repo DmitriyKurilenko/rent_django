@@ -33,6 +33,7 @@ db.sqlite3-journal
 /mediafiles/
 /media/boats/boats/*
 !/media/boats/README.md
+boats/fixtures/
 
 # Environment variables
 .env
