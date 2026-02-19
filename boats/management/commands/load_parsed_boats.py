@@ -1,18 +1,20 @@
 """Management command для загрузки дампа лодок батчами (без OOM).
 
-В отличие от стандартного loaddata, этот command:
-- Читает JSON потоково (построчно), НЕ загружая весь файл в память
-- Сохраняет объекты батчами с промежуточными коммитами
-- Показывает прогресс загрузки
+Полностью потоковая загрузка:
+- Читает JSON построчно, НЕ загружая файл в память
+- Сразу сохраняет в БД батчами
+- Держит в памяти только текущий батч (~500 записей)
 
 Использование:
-    python manage.py load_parsed_boats boats/fixtures/boats_full_09.json
-    python manage.py load_parsed_boats boats/fixtures/boats_full_09.json --batch-size 500
+    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json
+    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --batch-size 500
+    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --dry-run
 """
 
 import json
 import logging
 import os
+import sys
 import time
 
 from django.core.management.base import BaseCommand, CommandError
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Загружает дамп лодок батчами (для больших фикстур)'
+    help = 'Загружает дамп лодок батчами (потоково, без OOM)'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -48,154 +50,167 @@ class Command(BaseCommand):
         batch_size = options['batch_size']
         dry_run = options['dry_run']
 
-        # Проверяем файл
         if not os.path.exists(fixture_path):
             raise CommandError(f'Файл не найден: {fixture_path}')
 
-        file_size = os.path.getsize(fixture_path)
-        file_size_mb = file_size / (1024 * 1024)
+        file_size_mb = os.path.getsize(fixture_path) / (1024 * 1024)
         self.stdout.write(self.style.SUCCESS(
             f'📂 Файл: {fixture_path} ({file_size_mb:.1f} MB)'
         ))
 
-        # --- Фаза 1: Потоковое чтение и группировка по моделям ---
-        self.stdout.write('📋 Фаза 1: Читаю записи (потоково)...')
-        phase1_start = time.time()
-
-        by_model = {}
-        total = 0
-        parse_errors = 0
-
-        try:
-            for record in self._stream_records(fixture_path):
-                model_name = record.get('model', '')
-                by_model.setdefault(model_name, []).append(record)
-                total += 1
-
-                if total % 50000 == 0:
-                    self.stdout.write(f'  ...прочитано {total} записей')
-        except Exception as e:
-            raise CommandError(f'Ошибка чтения файла: {e}')
-
-        phase1_time = time.time() - phase1_start
-        self.stdout.write(f'  Прочитано: {total} записей за {phase1_time:.0f}s')
-
-        if total == 0:
-            self.stdout.write(self.style.WARNING('Файл пуст или не содержит записей'))
-            return
-
-        # Показываем статистику по моделям
-        for model_name, items in sorted(by_model.items()):
-            self.stdout.write(f'  {model_name}: {len(items)}')
-
         if dry_run:
+            self._dry_run(fixture_path)
             return
 
-        # --- Фаза 2: Загрузка в БД ---
-        self.stdout.write(f'\n🔄 Фаза 2: Загрузка в БД (батчами по {batch_size})...')
+        self.stdout.write(f'🔄 Загрузка в БД (батчами по {batch_size})...')
+        self.stdout.write('')
 
-        # Порядок загрузки важен для FK
-        model_order = [
-            'boats.charter',
-            'boats.boat',
-            'boats.parsedboat',
-            'boats.boattechnicalspecs',
-            'boats.boatdescription',
-            'boats.boatprice',
-            'boats.boatgallery',
-            'boats.boatdetails',
-        ]
-
+        start_time = time.time()
         saved_total = 0
         errors_total = 0
-        start_time = time.time()
+        current_model = None
+        current_batch = []
+        model_saved = 0
+        model_errors = 0
+        model_count = 0
+        records_read = 0
 
-        for model_name in model_order:
-            items = by_model.get(model_name)
-            if not items:
-                continue
+        for record in self._stream_records(fixture_path):
+            records_read += 1
+            model_name = record.get('model', '')
 
-            count = len(items)
-            self.stdout.write(f'\n📦 {model_name}: {count} записей')
+            # Модель сменилась — сбрасываем батч и выводим итоги предыдущей
+            if model_name != current_model:
+                if current_batch:
+                    s, e = self._save_batch(current_batch)
+                    model_saved += s
+                    model_errors += e
 
-            saved = 0
-            errors = 0
-
-            for i in range(0, count, batch_size):
-                batch = items[i:i + batch_size]
-                batch_json = json.dumps(batch, ensure_ascii=False)
-
-                try:
-                    with transaction.atomic():
-                        objects = list(deserialize('json', batch_json))
-                        for obj in objects:
-                            try:
-                                obj.save()
-                                saved += 1
-                            except Exception as e:
-                                errors += 1
-                                if errors <= 5:
-                                    logger.warning(f'  Ошибка сохранения {obj.object}: {e}')
-                except Exception as e:
-                    errors += len(batch)
-                    logger.error(f'  Ошибка батча {i}-{i+len(batch)}: {e}')
-
-                done = min(i + batch_size, count)
-                if done % (batch_size * 10) == 0 or done == count:
-                    elapsed = time.time() - start_time
+                if current_model is not None:
                     self.stdout.write(
-                        f'  [{done}/{count}] ✅ {saved} / ❌ {errors} ({elapsed:.0f}s)'
+                        f'  ✅ {model_saved} / ❌ {model_errors} '
+                        f'(всего {model_count})'
                     )
+                    saved_total += model_saved
+                    errors_total += model_errors
 
-            # Освобождаем память после обработки модели
-            del items
-            by_model[model_name] = None
+                current_model = model_name
+                current_batch = []
+                model_saved = 0
+                model_errors = 0
+                model_count = 0
+                self.stdout.write(f'\n📦 {model_name}...')
 
-            saved_total += saved
-            errors_total += errors
+            current_batch.append(record)
+            model_count += 1
+
+            # Батч заполнен — сохраняем
+            if len(current_batch) >= batch_size:
+                s, e = self._save_batch(current_batch)
+                model_saved += s
+                model_errors += e
+                current_batch = []
+
+                # Прогресс
+                if model_count % (batch_size * 10) == 0:
+                    elapsed = time.time() - start_time
+                    rate = records_read / elapsed if elapsed > 0 else 0
+                    sys.stdout.write(
+                        f'\r  [{model_count}] ✅ {model_saved} ❌ {model_errors} '
+                        f'| {rate:.0f} rec/s'
+                    )
+                    sys.stdout.flush()
+
+        # Последний батч
+        if current_batch:
+            s, e = self._save_batch(current_batch)
+            model_saved += s
+            model_errors += e
+
+        if current_model is not None:
+            self.stdout.write(
+                f'  ✅ {model_saved} / ❌ {model_errors} '
+                f'(всего {model_count})'
+            )
+            saved_total += model_saved
+            errors_total += model_errors
 
         elapsed = time.time() - start_time
         self.stdout.write(self.style.SUCCESS(
             f'\n🏁 Загрузка завершена за {elapsed:.0f}s\n'
+            f'  Прочитано: {records_read}\n'
             f'  Сохранено: {saved_total}\n'
-            f'  Ошибок: {errors_total}\n'
-            f'  Всего: {total}'
+            f'  Ошибок: {errors_total}'
         ))
 
-    def _stream_records(self, filepath):
-        """Потоково читает JSON-массив записей построчно.
+    def _save_batch(self, batch):
+        """Сохраняет батч записей в БД. Возвращает (saved, errors)."""
+        batch_json = json.dumps(batch, ensure_ascii=False)
+        saved = 0
+        errors = 0
 
-        Формат файла (от dump_parsed_boats):
+        try:
+            with transaction.atomic():
+                for obj in deserialize('json', batch_json):
+                    try:
+                        obj.save()
+                        saved += 1
+                    except Exception as e:
+                        errors += 1
+                        if errors <= 3:
+                            logger.warning(f'Ошибка: {e}')
+        except Exception as e:
+            errors += len(batch) - saved
+            logger.error(f'Ошибка батча: {e}')
+
+        return saved, errors
+
+    def _dry_run(self, filepath):
+        """Подсчёт записей без загрузки."""
+        from collections import Counter
+        models = Counter()
+        total = 0
+        for record in self._stream_records(filepath):
+            models[record.get('model', '?')] += 1
+            total += 1
+            if total % 100000 == 0:
+                self.stdout.write(f'  ...{total}')
+
+        self.stdout.write(f'\n📋 Записей: {total}')
+        for model, count in models.most_common():
+            self.stdout.write(f'  {model}: {count}')
+
+    def _stream_records(self, filepath):
+        """Потоково читает JSON-массив построчно.
+
+        Формат от dump_parsed_boats — один JSON-объект на строку:
             [
             {"model": "boats.charter", ...},
             {"model": "boats.boat", ...}
             ]
-
-        Каждая запись — отдельная строка, возможно с запятой в начале.
         """
         with open(filepath, 'r', encoding='utf-8') as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
                 line = line.strip()
 
-                # Пропускаем скобки массива и пустые строки
-                if not line or line == '[' or line == ']':
+                if not line or line == '[' or line == ']' or line == '[{':
                     continue
 
-                # Убираем запятую в начале (формат: ,\n{...})
+                # Убираем запятую в начале или конце
                 if line.startswith(','):
                     line = line[1:].strip()
-
-                # Убираем запятую в конце
                 if line.endswith(','):
                     line = line[:-1].strip()
 
-                if not line:
+                if not line or not line.startswith('{'):
                     continue
 
                 try:
-                    record = json.loads(line)
-                    yield record
-                except json.JSONDecodeError:
-                    # Может быть многострочная запись — пробуем собрать
-                    logger.debug(f'Пропуск строки (не JSON): {line[:100]}')
-                    continue
+                    yield json.loads(line)
+                except json.JSONDecodeError as e:
+                    if line_num <= 5:
+                        self.stderr.write(
+                            f'⚠️  Строка {line_num}: не удалось распарсить '
+                            f'({len(line)} символов): {str(e)[:80]}'
+                        )
+                        self.stderr.write(f'    Начало: {line[:120]}...')
