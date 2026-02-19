@@ -11,11 +11,13 @@ from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDesc
 from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
+from django.views.decorators.cache import cache_page
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+@cache_page(60 * 30)  # 30 минут
 def home(request):
     """Главная страница"""
     form = SearchForm(request.GET or None)
@@ -541,18 +543,20 @@ def boat_detail_api(request, boat_id):
     """
     Детальная страница лодки
     URL: /ru/boat/<slug>/?check_in=2026-02-21&check_out=2026-02-28
-    
+
     Получаем данные из БД по slug
     """
     try:
+        from django.core.cache import cache
+
         logger.info(f"[Boat Detail] Loading boat: {boat_id}")
-        
+
         # Получаем даты из request
         check_in = request.GET.get('check_in', '')
         check_out = request.GET.get('check_out', '')
         has_url_dates = bool(check_in and check_out)  # Флаг - даты из URL или дефолтные
         rental_days = None
-        
+
         # Рассчитываем количество дней
         if check_in and check_out:
             try:
@@ -562,40 +566,11 @@ def boat_detail_api(request, boat_id):
                 rental_days = (check_out_date - check_in_date).days
             except (ValueError, TypeError):
                 rental_days = None
-        
+
         logger.info(f"[Boat Detail] check_in={check_in}, check_out={check_out}, days={rental_days}, has_url_dates={has_url_dates}")
-        
-        # Шаг 1: Ищем в БД по slug
-        parsed_boat = ParsedBoat.objects.filter(slug=boat_id).first()
-        
-        if not parsed_boat:
-            logger.info(f"[Boat Detail] Not in DB, parsing: {boat_id}")
-            
-            # Парсим через парсер (save_to_db=True сохранит в БД)
-            boat_url = f'https://www.boataround.com/ru/yachta/{boat_id}/'
-            boat_data_raw = parse_boataround_url(boat_url, save_to_db=True)
-            
-            if not boat_data_raw:
-                logger.error(f"[Boat Detail] Failed to parse boat: {boat_id}")
-                return render(request, 'boats/detail.html', {
-                    'boat': None,
-                    'error': 'Лодка не найдена',
-                })
-            
-            # Переполучаем ParsedBoat из БД
-            parsed_boat = ParsedBoat.objects.filter(slug=boat_id).first()
-            if not parsed_boat:
-                logger.error(f"[Boat Detail] ParsedBoat not found after parsing: {boat_id}")
-                return render(request, 'boats/detail.html', {
-                    'boat': None,
-                    'error': 'Ошибка при сохранении данных',
-                })
-            
-            logger.info(f"[Boat Detail] Parsed and cached: {boat_id}")
-        
+
         # Получаем текущий язык
         current_lang = get_language()
-        # Преобразуем язык в формат БД (ru_RU, en_EN, de_DE и т.д.)
         lang_map = {
             'ru': 'ru_RU',
             'en': 'en_EN',
@@ -604,183 +579,207 @@ def boat_detail_api(request, boat_id):
             'fr': 'fr_FR',
         }
         db_lang = lang_map.get(current_lang, 'ru_RU')
-        
-        # Получаем описание на текущем языке
-        description = parsed_boat.descriptions.filter(language=db_lang).first()
-        if not description:
-            description = parsed_boat.descriptions.filter(language='ru_RU').first()
-        
-        # ВСЕГДА получаем цену из API (используем дефолтные даты если не указаны)
-        from boats.boataround_api import BoataroundAPI
 
-        # Автопривязка чартера: если у лодки нет charter, пробуем подтянуть из search API по slug
-        if not parsed_boat.charter:
-            try:
-                from boats.helpers import get_or_create_charter
-                search_boat = BoataroundAPI.search_by_slug(parsed_boat.slug)
-                if search_boat:
-                    charter_obj = get_or_create_charter(
-                        search_boat.get('charter'),
-                        search_boat.get('charter_id'),
-                        search_boat.get('charter_logo'),
-                    )
-                    if charter_obj:
-                        parsed_boat.charter = charter_obj
-                        parsed_boat.save(update_fields=['charter'])
-                        logger.info(f"[Boat Detail] Auto-linked charter for {parsed_boat.slug}: {charter_obj.name} ({charter_obj.commission}%)")
-            except Exception as charter_err:
-                logger.warning(f"[Boat Detail] Failed to auto-link charter for {parsed_boat.slug}: {charter_err}")
-        
-        # Для API используем даты из URL или дефолтные
+        # --- Кэшированные данные лодки (БД, без цен) ---
+        boat_cache_key = f'boat_data:{boat_id}:{db_lang}'
+        boat_static = cache.get(boat_cache_key)
+
+        if not boat_static:
+            # Шаг 1: Ищем в БД по slug
+            parsed_boat = ParsedBoat.objects.filter(slug=boat_id).first()
+
+            if not parsed_boat:
+                logger.info(f"[Boat Detail] Not in DB, parsing: {boat_id}")
+
+                # Парсим через парсер (save_to_db=True сохранит в БД)
+                boat_url = f'https://www.boataround.com/ru/yachta/{boat_id}/'
+                boat_data_raw = parse_boataround_url(boat_url, save_to_db=True)
+
+                if not boat_data_raw:
+                    logger.error(f"[Boat Detail] Failed to parse boat: {boat_id}")
+                    return render(request, 'boats/detail.html', {
+                        'boat': None,
+                        'error': 'Лодка не найдена',
+                    })
+
+                # Переполучаем ParsedBoat из БД
+                parsed_boat = ParsedBoat.objects.filter(slug=boat_id).first()
+                if not parsed_boat:
+                    logger.error(f"[Boat Detail] ParsedBoat not found after parsing: {boat_id}")
+                    return render(request, 'boats/detail.html', {
+                        'boat': None,
+                        'error': 'Ошибка при сохранении данных',
+                    })
+
+                logger.info(f"[Boat Detail] Parsed and cached: {boat_id}")
+
+            # Автопривязка чартера
+            from boats.boataround_api import BoataroundAPI
+            if not parsed_boat.charter:
+                try:
+                    from boats.helpers import get_or_create_charter
+                    search_boat = BoataroundAPI.search_by_slug(parsed_boat.slug)
+                    if search_boat:
+                        charter_obj = get_or_create_charter(
+                            search_boat.get('charter'),
+                            search_boat.get('charter_id'),
+                            search_boat.get('charter_logo'),
+                        )
+                        if charter_obj:
+                            parsed_boat.charter = charter_obj
+                            parsed_boat.save(update_fields=['charter'])
+                            logger.info(f"[Boat Detail] Auto-linked charter for {parsed_boat.slug}: {charter_obj.name} ({charter_obj.commission}%)")
+                except Exception as charter_err:
+                    logger.warning(f"[Boat Detail] Failed to auto-link charter for {parsed_boat.slug}: {charter_err}")
+
+            # Получаем описание на текущем языке
+            description = parsed_boat.descriptions.filter(language=db_lang).first()
+            if not description:
+                description = parsed_boat.descriptions.filter(language='ru_RU').first()
+
+            gallery = parsed_boat.gallery.all()
+
+            details = parsed_boat.details.filter(language=db_lang).first()
+            if not details:
+                details = parsed_boat.details.filter(language='ru_RU').first()
+
+            tech_specs = parsed_boat.technical_specs
+
+            boat_static = {
+                'name': description.title if description else 'Неизвестная лодка',
+                'title': description.title if description else '',
+                'description': description.description if description else '',
+                'location': description.location if description else '',
+                'marina': description.marina if description else '',
+                'country': description.country if description else '',
+                'region': description.region if description else '',
+                'city': description.city if description else '',
+
+                'manufacturer': parsed_boat.manufacturer,
+                'model': parsed_boat.model,
+                'year': parsed_boat.year,
+                'length': tech_specs.length if tech_specs else None,
+                'beam': tech_specs.beam if tech_specs else None,
+                'draft': tech_specs.draft if tech_specs else None,
+                'cabins': tech_specs.cabins if tech_specs else None,
+                'berths': tech_specs.berths if tech_specs else None,
+                'toilets': tech_specs.toilets if tech_specs else None,
+                'fuel_capacity': tech_specs.fuel_capacity if tech_specs else None,
+                'water_capacity': tech_specs.water_capacity if tech_specs else None,
+                'max_speed': tech_specs.max_speed if tech_specs else None,
+                'engine_power': tech_specs.engine_power if tech_specs else None,
+                'number_engines': tech_specs.number_engines if tech_specs else None,
+                'engine_type': tech_specs.engine_type if tech_specs else '',
+                'fuel_type': tech_specs.fuel_type if tech_specs else '',
+
+                'images': [g.cdn_url for g in gallery],
+                'gallery': [g.cdn_url for g in gallery],
+
+                'extras': details.extras if details else [],
+                'additional_services': details.additional_services if details else [],
+                'delivery_extras': details.delivery_extras if details else [],
+                'not_included': details.not_included if details else [],
+                'cockpit': details.cockpit if details else [],
+                'entertainment': details.entertainment if details else [],
+                'equipment': details.equipment if details else [],
+
+                'slug': parsed_boat.slug,
+                'boat_id': parsed_boat.boat_id,
+                '_charter_commission': parsed_boat.charter.commission if parsed_boat.charter else 0,
+            }
+
+            cache.set(boat_cache_key, boat_static, 60 * 60)  # 1 час
+            logger.info(f"[Boat Detail] Cached boat data for {boat_id}")
+        else:
+            logger.info(f"[Boat Detail] Using cached data for {boat_id}")
+
+        # --- Цены: всегда из API (зависят от дат) ---
         api_check_in = check_in
         api_check_out = check_out
-        
+
         if not api_check_in or not api_check_out:
-            # Генерируем дефолтные даты: +7 дней от сегодня на неделю
             from datetime import date, timedelta
             today = date.today()
             api_check_in = (today + timedelta(days=7)).strftime('%Y-%m-%d')
             api_check_out = (today + timedelta(days=14)).strftime('%Y-%m-%d')
-            logger.info(f"[Boat Detail] No dates provided, using defaults: check_in={api_check_in}, check_out={api_check_out}")
-        
-        logger.info(f"[Boat Detail] Calling price API for slug={parsed_boat.slug}, check_in={api_check_in}, check_out={api_check_out}")
-        price_data = BoataroundAPI.get_price(
-            slug=parsed_boat.slug,
-            check_in=api_check_in,
-            check_out=api_check_out,
-            currency='EUR',
-            lang=db_lang
-        )
-        logger.info(f"[Boat Detail] Price API response: {price_data}")
-        
-        price = 0
-        discount = 0
-        total_price = 0
-        if price_data:
-            base_price = float(price_data.get('price', 0))
-            discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
-            additional_discount = float(price_data.get('additional_discount', 0))
-            
-            # Используем discount_without_additionalExtra для отображения (это правильная скидка)
-            discount = discount_without_extra
-            
-            # Рассчитываем финальную цену с учётом всех скидок и комиссии
-            from boats.helpers import calculate_final_price_with_discounts
-            total_price = calculate_final_price_with_discounts(
-                base_price, 
-                discount_without_extra, 
-                additional_discount, 
-                parsed_boat.charter
+
+        # Кэшируем цену по slug+даты на 15 минут
+        price_cache_key = f'boat_price:{boat_id}:{api_check_in}:{api_check_out}'
+        price_info = cache.get(price_cache_key)
+
+        if not price_info:
+            from boats.boataround_api import BoataroundAPI
+            price_data = BoataroundAPI.get_price(
+                slug=boat_static['slug'],
+                check_in=api_check_in,
+                check_out=api_check_out,
+                currency='EUR',
+                lang=db_lang
             )
-            
-            price = base_price  # Сохраняем базовую цену
-            logger.info(f"[Boat Detail] Calculated prices - base: {base_price}, discount_wo_extra: {discount_without_extra}%, additional: {additional_discount}%, charter_commission: {parsed_boat.charter.commission if parsed_boat.charter else 0}%, final: {total_price}")
-        else:
-            logger.error(f"[Boat Detail] API returned no price data!")
-        
-        '''# Если цены нет в API, получаем из БД
-        if not price_per_day:
-            price = parsed_boat.prices.filter(currency='EUR').first()
-            if price:
-                price_per_day = float(price.price_per_day)
-                total_price = price_per_day * rental_days if rental_days else 0'''
-        
-        # Получаем галерею
-        gallery = parsed_boat.gallery.all()
-        
-        # Получаем детали на текущем языке
-        details = parsed_boat.details.filter(language=db_lang).first()
-        if not details:
-            details = parsed_boat.details.filter(language='ru_RU').first()
-        
-        # Получаем технические спецификации
-        tech_specs = parsed_boat.technical_specs
-        
-        # Собираем данные для шаблона
-        old_price = 0
-        discount_percent = 0
-        try:
-            if price and total_price and float(price) > float(total_price):
-                old_price = float(price)
-                discount_percent = round((float(price) - float(total_price)) / float(price) * 100)
-        except (ValueError, TypeError, ZeroDivisionError):
+
+            price = 0
+            discount = 0
+            total_price = 0
+            if price_data:
+                base_price = float(price_data.get('price', 0))
+                discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
+                additional_discount = float(price_data.get('additional_discount', 0))
+                discount = discount_without_extra
+
+                from boats.helpers import calculate_final_price_with_discounts
+
+                # Используем сохранённую комиссию чартера
+                class _Charter:
+                    commission = boat_static.get('_charter_commission', 0)
+
+                total_price = calculate_final_price_with_discounts(
+                    base_price, discount_without_extra, additional_discount,
+                    _Charter() if _Charter.commission else None
+                )
+                price = base_price
+
             old_price = 0
             discount_percent = 0
+            try:
+                if price and total_price and float(price) > float(total_price):
+                    old_price = float(price)
+                    discount_percent = round((float(price) - float(total_price)) / float(price) * 100)
+            except (ValueError, TypeError, ZeroDivisionError):
+                pass
 
-        boat_dict = {
-            'name': description.title if description else 'Неизвестная лодка',
-            'title': description.title if description else '',
-            'description': description.description if description else '',
-            'location': description.location if description else '',
-            'marina': description.marina if description else '',
-            'country': description.country if description else '',
-            'region': description.region if description else '',
-            'city': description.city if description else '',
-            
-            # Технические спецификации
-            'manufacturer': parsed_boat.manufacturer,
-            'model': parsed_boat.model,
-            'year': parsed_boat.year,
-            'length': tech_specs.length if tech_specs else None,
-            'beam': tech_specs.beam if tech_specs else None,
-            'draft': tech_specs.draft if tech_specs else None,
-            'cabins': tech_specs.cabins if tech_specs else None,
-            'berths': tech_specs.berths if tech_specs else None,
-            'toilets': tech_specs.toilets if tech_specs else None,
-            'fuel_capacity': tech_specs.fuel_capacity if tech_specs else None,
-            'water_capacity': tech_specs.water_capacity if tech_specs else None,
-            'max_speed': tech_specs.max_speed if tech_specs else None,
-            'engine_power': tech_specs.engine_power if tech_specs else None,
-            'number_engines': tech_specs.number_engines if tech_specs else None,
-            'engine_type': tech_specs.engine_type if tech_specs else '',
-            'fuel_type': tech_specs.fuel_type if tech_specs else '',
-            
-            # Цены
-            'price': price,
-            'discount': discount,
-            'total_price': total_price,
-            'old_price': old_price,
-            'discount_percent': discount_percent,
-            'currency': 'EUR',
-            
-            # Фото
-            'images': [g.cdn_url for g in gallery],
-            'gallery': [g.cdn_url for g in gallery],
-            
-            # Услуги и детали
-            'extras': details.extras if details else [],
-            'additional_services': details.additional_services if details else [],
-            'delivery_extras': details.delivery_extras if details else [],
-            'not_included': details.not_included if details else [],
-            'cockpit': details.cockpit if details else [],
-            'entertainment': details.entertainment if details else [],
-            'equipment': details.equipment if details else [],
-            
-            # Идентификация
-            'slug': parsed_boat.slug,
-            'boat_id': parsed_boat.boat_id,
-        }
-        
+            price_info = {
+                'price': price,
+                'discount': discount,
+                'total_price': total_price,
+                'old_price': old_price,
+                'discount_percent': discount_percent,
+                'currency': 'EUR',
+            }
+            cache.set(price_cache_key, price_info, 60 * 15)  # 15 минут
+
+        # Собираем boat_dict из кэшированных данных + цены
+        boat_dict = {**boat_static, **price_info}
+        boat_dict.pop('_charter_commission', None)
+
         # Передаем все в контекст
         context = {
             'boat': boat_dict,
-            'check_in': check_in if has_url_dates else '',  # Передаем только если были в URL
-            'check_out': check_out if has_url_dates else '',  # Передаем только если были в URL
+            'check_in': check_in if has_url_dates else '',
+            'check_out': check_out if has_url_dates else '',
             'rental_days': rental_days,
             'current_language': current_lang,
         }
-        
-        # Проверяем, добавлена ли лодка в избранное
+
+        # Избранное — всегда из БД (персональное, не кэшируем)
         if request.user.is_authenticated:
             context['is_favorite'] = Favorite.objects.filter(
-                user=request.user, 
-                boat_slug=parsed_boat.slug
+                user=request.user,
+                boat_slug=boat_static['slug']
             ).exists()
         else:
             context['is_favorite'] = False
-        
+
         logger.info(f"[Boat Detail] Rendering: {boat_dict.get('name', 'Unknown')}")
-        logger.info(f"[Boat Detail] Context prices - price: {boat_dict.get('price')}, discount: {boat_dict.get('discount')}, total_price: {boat_dict.get('total_price')}")
         return render(request, 'boats/detail.html', context)
         
     except Exception as e:

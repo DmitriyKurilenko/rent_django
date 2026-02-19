@@ -182,3 +182,14 @@ CELERY_RESULT_EXPIRES = 60 * 60 * 24  # 24 hours
 # Celery Beat Schedule - автоматические задачи НЕ ИСПОЛЬЗУЮТСЯ (пока)
 # Используем только для синхронного кэширования
 CELERY_BEAT_SCHEDULE = {}
+
+# =============================================================================
+# CACHE (Redis, та же инстанция что и Celery, но БД /1)
+# =============================================================================
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': config('REDIS_CACHE_URL', default='redis://redis:6379/1'),
+    }
+}
