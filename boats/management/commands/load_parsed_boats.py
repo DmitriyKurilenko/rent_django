@@ -2,12 +2,14 @@
 
 Полностью потоковая загрузка:
 - Читает JSON построчно, НЕ загружая файл в память
-- Сразу сохраняет в БД батчами
-- Держит в памяти только текущий батч (~500 записей)
+- Сохраняет батчами в одной транзакции (быстро, мало нагрузки на БД)
+- При ошибке батча — пересохраняет поштучно (fallback)
+- Пауза между батчами чтобы не перегружать БД
+- Retry при потере соединения с БД
 
 Использование:
     python manage.py load_parsed_boats boats/fixtures/boats_full_02.json
-    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --batch-size 500
+    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --batch-size 200
     python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --dry-run
 """
 
@@ -19,9 +21,12 @@ import time
 
 from django.core.management.base import BaseCommand, CommandError
 from django.core.serializers import deserialize
-from django.db import transaction
+from django.db import connection, transaction
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 5
+RETRY_DELAY = 10  # секунд
 
 
 class Command(BaseCommand):
@@ -36,8 +41,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--batch-size',
             type=int,
-            default=500,
-            help='Размер батча (default: 500)',
+            default=200,
+            help='Размер батча (default: 200)',
         )
         parser.add_argument(
             '--dry-run',
@@ -152,20 +157,58 @@ class Command(BaseCommand):
             f'  Ошибок: {errors_total}'
         ))
 
+    def _ensure_connection(self):
+        """Проверяет соединение с БД, при необходимости ждёт и переподключается."""
+        for attempt in range(MAX_RETRIES):
+            try:
+                connection.ensure_connection()
+                return True
+            except Exception:
+                if attempt < MAX_RETRIES - 1:
+                    wait = RETRY_DELAY * (attempt + 1)
+                    self.stderr.write(
+                        f'⏳ БД недоступна, жду {wait}s (попытка {attempt + 1}/{MAX_RETRIES})...'
+                    )
+                    time.sleep(wait)
+                    connection.close()
+        return False
+
     def _save_batch(self, batch):
-        """Сохраняет батч записей в БД. Возвращает (saved, errors, skipped)."""
+        """Сохраняет батч в одной транзакции. При ошибке — fallback поштучно."""
         batch_json = json.dumps(batch, ensure_ascii=False)
         saved = 0
         errors = 0
         skipped = 0
 
+        # Проверяем соединение с БД
+        if not self._ensure_connection():
+            self.stderr.write('❌ Не удалось подключиться к БД!')
+            return 0, len(batch), 0
+
         try:
             objects = list(deserialize('json', batch_json))
         except Exception as e:
-            logger.error(f'Ошибка десериализации батча: {e}')
+            logger.error(f'Ошибка десериализации: {e}')
             return 0, len(batch), 0
 
+        # Попытка 1: весь батч в одной транзакции (быстро)
+        try:
+            with transaction.atomic():
+                for obj in objects:
+                    obj.save()
+                    saved += 1
+            # Пауза между батчами — даём БД отдышаться
+            time.sleep(0.05)
+            return saved, 0, 0
+        except Exception:
+            # Батч упал — откат. Переходим к поштучному сохранению
+            saved = 0
+
+        # Попытка 2: поштучно с savepoint (медленно, но надёжно)
         for obj in objects:
+            if not self._ensure_connection():
+                errors += len(objects) - saved - skipped - errors
+                break
             try:
                 with transaction.atomic():
                     obj.save()
@@ -174,6 +217,8 @@ class Command(BaseCommand):
                 err_msg = str(e)
                 if 'duplicate key' in err_msg or 'already exists' in err_msg:
                     skipped += 1
+                elif 'foreign key' in err_msg or 'not present' in err_msg:
+                    skipped += 1  # FK нарушение — родитель не загружен, пропускаем
                 else:
                     errors += 1
                     if errors <= 3:
