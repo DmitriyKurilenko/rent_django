@@ -68,10 +68,12 @@ class Command(BaseCommand):
         start_time = time.time()
         saved_total = 0
         errors_total = 0
+        skipped_total = 0
         current_model = None
         current_batch = []
         model_saved = 0
         model_errors = 0
+        model_skipped = 0
         model_count = 0
         records_read = 0
 
@@ -82,22 +84,25 @@ class Command(BaseCommand):
             # Модель сменилась — сбрасываем батч и выводим итоги предыдущей
             if model_name != current_model:
                 if current_batch:
-                    s, e = self._save_batch(current_batch)
+                    s, e, sk = self._save_batch(current_batch)
                     model_saved += s
                     model_errors += e
+                    model_skipped += sk
 
                 if current_model is not None:
                     self.stdout.write(
-                        f'  ✅ {model_saved} / ❌ {model_errors} '
+                        f'  ✅ {model_saved} / ⏭️  {model_skipped} дубл. / ❌ {model_errors} '
                         f'(всего {model_count})'
                     )
                     saved_total += model_saved
                     errors_total += model_errors
+                    skipped_total += model_skipped
 
                 current_model = model_name
                 current_batch = []
                 model_saved = 0
                 model_errors = 0
+                model_skipped = 0
                 model_count = 0
                 self.stdout.write(f'\n📦 {model_name}...')
 
@@ -106,9 +111,10 @@ class Command(BaseCommand):
 
             # Батч заполнен — сохраняем
             if len(current_batch) >= batch_size:
-                s, e = self._save_batch(current_batch)
+                s, e, sk = self._save_batch(current_batch)
                 model_saved += s
                 model_errors += e
+                model_skipped += sk
                 current_batch = []
 
                 # Прогресс
@@ -116,54 +122,64 @@ class Command(BaseCommand):
                     elapsed = time.time() - start_time
                     rate = records_read / elapsed if elapsed > 0 else 0
                     sys.stdout.write(
-                        f'\r  [{model_count}] ✅ {model_saved} ❌ {model_errors} '
-                        f'| {rate:.0f} rec/s'
+                        f'\r  [{model_count}] ✅ {model_saved} ⏭️  {model_skipped} '
+                        f'❌ {model_errors} | {rate:.0f} rec/s'
                     )
                     sys.stdout.flush()
 
         # Последний батч
         if current_batch:
-            s, e = self._save_batch(current_batch)
+            s, e, sk = self._save_batch(current_batch)
             model_saved += s
             model_errors += e
+            model_skipped += sk
 
         if current_model is not None:
             self.stdout.write(
-                f'  ✅ {model_saved} / ❌ {model_errors} '
+                f'  ✅ {model_saved} / ⏭️  {model_skipped} дубл. / ❌ {model_errors} '
                 f'(всего {model_count})'
             )
             saved_total += model_saved
             errors_total += model_errors
+            skipped_total += model_skipped
 
         elapsed = time.time() - start_time
         self.stdout.write(self.style.SUCCESS(
             f'\n🏁 Загрузка завершена за {elapsed:.0f}s\n'
             f'  Прочитано: {records_read}\n'
             f'  Сохранено: {saved_total}\n'
+            f'  Дубликатов: {skipped_total}\n'
             f'  Ошибок: {errors_total}'
         ))
 
     def _save_batch(self, batch):
-        """Сохраняет батч записей в БД. Возвращает (saved, errors)."""
+        """Сохраняет батч записей в БД. Возвращает (saved, errors, skipped)."""
         batch_json = json.dumps(batch, ensure_ascii=False)
         saved = 0
         errors = 0
+        skipped = 0
 
         try:
-            with transaction.atomic():
-                for obj in deserialize('json', batch_json):
-                    try:
-                        obj.save()
-                        saved += 1
-                    except Exception as e:
-                        errors += 1
-                        if errors <= 3:
-                            logger.warning(f'Ошибка: {e}')
+            objects = list(deserialize('json', batch_json))
         except Exception as e:
-            errors += len(batch) - saved
-            logger.error(f'Ошибка батча: {e}')
+            logger.error(f'Ошибка десериализации батча: {e}')
+            return 0, len(batch), 0
 
-        return saved, errors
+        for obj in objects:
+            try:
+                with transaction.atomic():
+                    obj.save()
+                    saved += 1
+            except Exception as e:
+                err_msg = str(e)
+                if 'duplicate key' in err_msg or 'already exists' in err_msg:
+                    skipped += 1
+                else:
+                    errors += 1
+                    if errors <= 3:
+                        logger.warning(f'Ошибка: {e}')
+
+        return saved, errors, skipped
 
     def _dry_run(self, filepath):
         """Подсчёт записей без загрузки."""
