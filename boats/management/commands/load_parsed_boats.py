@@ -1,8 +1,7 @@
-"""
-Management command для загрузки дампа лодок батчами (без OOM).
+"""Management command для загрузки дампа лодок батчами (без OOM).
 
 В отличие от стандартного loaddata, этот command:
-- Читает JSON потоково (ijson), не загружая весь файл в память
+- Читает JSON потоково (построчно), НЕ загружая весь файл в память
 - Сохраняет объекты батчами с промежуточными коммитами
 - Показывает прогресс загрузки
 
@@ -13,11 +12,12 @@ Management command для загрузки дампа лодок батчами 
 
 import json
 import logging
+import os
 import time
 
 from django.core.management.base import BaseCommand, CommandError
 from django.core.serializers import deserialize
-from django.db import connection, transaction
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -48,27 +48,51 @@ class Command(BaseCommand):
         batch_size = options['batch_size']
         dry_run = options['dry_run']
 
-        self.stdout.write(self.style.SUCCESS(f'📂 Читаю {fixture_path}...'))
+        # Проверяем файл
+        if not os.path.exists(fixture_path):
+            raise CommandError(f'Файл не найден: {fixture_path}')
+
+        file_size = os.path.getsize(fixture_path)
+        file_size_mb = file_size / (1024 * 1024)
+        self.stdout.write(self.style.SUCCESS(
+            f'📂 Файл: {fixture_path} ({file_size_mb:.1f} MB)'
+        ))
+
+        # --- Фаза 1: Потоковое чтение и группировка по моделям ---
+        self.stdout.write('📋 Фаза 1: Читаю записи (потоково)...')
+        phase1_start = time.time()
+
+        by_model = {}
+        total = 0
+        parse_errors = 0
 
         try:
-            with open(fixture_path, 'r', encoding='utf-8') as f:
-                # Потоковый парсинг: json.load загрузит файл, но мы обработаем батчами
-                # Для 750MB это ~1-2GB RAM (одноразово), но не 5GB как loaddata
-                data = json.load(f)
-        except FileNotFoundError:
-            raise CommandError(f'Файл не найден: {fixture_path}')
-        except json.JSONDecodeError as e:
-            raise CommandError(f'Ошибка парсинга JSON: {e}')
+            for record in self._stream_records(fixture_path):
+                model_name = record.get('model', '')
+                by_model.setdefault(model_name, []).append(record)
+                total += 1
 
-        total = len(data)
-        self.stdout.write(f'📋 Записей в фикстуре: {total}')
+                if total % 50000 == 0:
+                    self.stdout.write(f'  ...прочитано {total} записей')
+        except Exception as e:
+            raise CommandError(f'Ошибка чтения файла: {e}')
+
+        phase1_time = time.time() - phase1_start
+        self.stdout.write(f'  Прочитано: {total} записей за {phase1_time:.0f}s')
+
+        if total == 0:
+            self.stdout.write(self.style.WARNING('Файл пуст или не содержит записей'))
+            return
+
+        # Показываем статистику по моделям
+        for model_name, items in sorted(by_model.items()):
+            self.stdout.write(f'  {model_name}: {len(items)}')
 
         if dry_run:
-            from collections import Counter
-            models = Counter(item['model'] for item in data)
-            for model, count in models.most_common():
-                self.stdout.write(f'  {model}: {count}')
             return
+
+        # --- Фаза 2: Загрузка в БД ---
+        self.stdout.write(f'\n🔄 Фаза 2: Загрузка в БД (батчами по {batch_size})...')
 
         # Порядок загрузки важен для FK
         model_order = [
@@ -81,15 +105,6 @@ class Command(BaseCommand):
             'boats.boatgallery',
             'boats.boatdetails',
         ]
-
-        # Группируем по моделям
-        by_model = {}
-        for item in data:
-            model_name = item['model']
-            by_model.setdefault(model_name, []).append(item)
-
-        # Освобождаем память от исходного списка
-        del data
 
         saved_total = 0
         errors_total = 0
@@ -146,3 +161,41 @@ class Command(BaseCommand):
             f'  Ошибок: {errors_total}\n'
             f'  Всего: {total}'
         ))
+
+    def _stream_records(self, filepath):
+        """Потоково читает JSON-массив записей построчно.
+
+        Формат файла (от dump_parsed_boats):
+            [
+            {"model": "boats.charter", ...},
+            {"model": "boats.boat", ...}
+            ]
+
+        Каждая запись — отдельная строка, возможно с запятой в начале.
+        """
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+
+                # Пропускаем скобки массива и пустые строки
+                if not line or line == '[' or line == ']':
+                    continue
+
+                # Убираем запятую в начале (формат: ,\n{...})
+                if line.startswith(','):
+                    line = line[1:].strip()
+
+                # Убираем запятую в конце
+                if line.endswith(','):
+                    line = line[:-1].strip()
+
+                if not line:
+                    continue
+
+                try:
+                    record = json.loads(line)
+                    yield record
+                except json.JSONDecodeError:
+                    # Может быть многострочная запись — пробуем собрать
+                    logger.debug(f'Пропуск строки (не JSON): {line[:100]}')
+                    continue
