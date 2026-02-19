@@ -39,3 +39,6 @@ COPY --from=assets /app/static/css/styles.css /app/static/css/styles.css
 RUN mkdir -p /app/staticfiles /app/mediafiles /app/media/boats
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')" || exit 1

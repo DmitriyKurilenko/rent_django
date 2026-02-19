@@ -4,7 +4,12 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.conf.urls.i18n import i18n_patterns
 from django.contrib.sitemaps.views import sitemap
+from django.http import JsonResponse
 from boats.sitemaps import BoatSitemap, StaticSitemap
+
+
+def health_check(request):
+    return JsonResponse({'status': 'ok'})
 
 # Sitemaps dictionary
 sitemaps = {
@@ -14,6 +19,7 @@ sitemaps = {
 
 # Non-i18n patterns
 urlpatterns = [
+    path('health/', health_check),
     path('admin/', admin.site.urls),
     path('i18n/', include('django.conf.urls.i18n')),  # Language switcher
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),

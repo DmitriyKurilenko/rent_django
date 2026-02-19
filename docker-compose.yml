@@ -51,6 +51,7 @@ services:
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-False}
       - CSRF_COOKIE_SECURE=${CSRF_COOKIE_SECURE:-False}
       - SECURE_HSTS_SECONDS=${SECURE_HSTS_SECONDS:-0}
+      - REDIS_CACHE_URL=redis://redis:6379/1
     depends_on:
       db:
         condition: service_healthy
