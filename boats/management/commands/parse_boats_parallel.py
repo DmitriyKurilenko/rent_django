@@ -375,7 +375,14 @@ class Command(BaseCommand):
 
                 if total_pages is None:
                     try:
-                        total_pages = int(results.get('totalPages') or 1)
+                        # API может игнорировать наш limit и отдавать свой (напр. 18)
+                        # Считаем totalPages по реальному кол-ву лодок на странице
+                        actual_per_page = len(results.get('boats', []))
+                        total_boats = results.get('total', 0)
+                        if actual_per_page > 0 and total_boats > 0:
+                            total_pages = (total_boats + actual_per_page - 1) // actual_per_page
+                        else:
+                            total_pages = int(results.get('totalPages') or 1)
                     except Exception:
                         total_pages = 1
 

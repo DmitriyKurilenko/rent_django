@@ -277,8 +277,10 @@ class BoataroundAPI:
                             # Используем максимальное значение
                             total = max(total, total_boats, len(boats))
                             
-                            # Вычисляем totalPages
-                            total_pages = (total + limit - 1) // limit if total > 0 else 1
+                            # Вычисляем totalPages по реальному кол-ву лодок на странице
+                            # API может игнорировать наш limit и отдавать свой (напр. 18)
+                            actual_per_page = len(boats) if boats else limit
+                            total_pages = (total + actual_per_page - 1) // actual_per_page if total > 0 else 1
                             
                             logger.info(f"[Search] FINAL: boats={len(boats)}, total={total}, pages={total_pages}")
                             
