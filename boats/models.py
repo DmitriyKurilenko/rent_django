@@ -359,7 +359,11 @@ class Offer(models.Model):
     original_price = models.DecimalField('Оригинальная цена', max_digits=10, decimal_places=2, null=True, blank=True)
     discount = models.DecimalField('Скидка', max_digits=10, decimal_places=2, default=0)
     currency = models.CharField('Валюта', max_length=3, default='EUR')
-    
+    price_adjustment = models.DecimalField(
+        'Корректировка цены', max_digits=10, decimal_places=2, default=0,
+        help_text='Положительное значение — наценка, отрицательное — скидка'
+    )
+
     # Дополнительная информация
     title = models.CharField('Заголовок', max_length=300, blank=True)
     description = models.TextField('Описание', blank=True)
@@ -454,10 +458,13 @@ class ParsedBoat(models.Model):
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
     
+    # Превью на CDN (для быстрой загрузки в поиске)
+    preview_cdn_url = models.URLField('Превью на CDN', max_length=500, blank=True, default='')
+
     # Статистика
     parse_count = models.IntegerField('Раз парсили', default=1)
     last_parse_success = models.BooleanField('Последний парсинг успешен', default=True)
-    
+
     class Meta:
         verbose_name = 'Лодка (базовая информация)'
         verbose_name_plural = 'Лодки (базовая информация)'

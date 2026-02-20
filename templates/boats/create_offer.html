@@ -128,6 +128,19 @@
                             {% endif %}
                         </div>
 
+                        <!-- Price Adjustment -->
+                        <div class="form-control">
+                            <label class="label" for="price_adjustment">
+                                <span class="label-text font-semibold">{% trans "Корректировка цены (€)" %}</span>
+                            </label>
+                            <input id="price_adjustment" name="price_adjustment" type="number" step="0.01"
+                                x-model="form.price_adjustment" placeholder="0.00"
+                                class="input input-bordered input-sm">
+                            <label class="label">
+                                <span class="label-text-alt text-xs">{% trans "Положительное — наценка, отрицательное — скидка" %}</span>
+                            </label>
+                        </div>
+
                         <!-- Notes -->
                         <div class="form-control">
                             <label class="label" for="offer_notes">
@@ -179,6 +192,7 @@ function offerForm() {
             show_countdown: true,
             force_refresh: false,
             has_meal: false,
+            price_adjustment: 0,
             notes: ''
         },
         errors: {},
@@ -342,6 +356,7 @@ function offerForm() {
                 if (this.form.offer_type === 'tourist') {
                     formData.append('has_meal', this.form.has_meal ? 'on' : '');
                 }
+                formData.append('price_adjustment', this.form.price_adjustment || '0');
                 formData.append('notes', this.form.notes);
                 
                 const response = await fetch('{% url "create_offer" %}', {

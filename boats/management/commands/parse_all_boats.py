@@ -122,7 +122,7 @@ class Command(BaseCommand):
                     results = BoataroundAPI.search(
                         destination=dest,
                         page=page,
-                        limit=50,  # Максимум на странице
+                        limit=18,
                         lang='en_EN'
                     )
                     

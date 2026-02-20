@@ -113,7 +113,7 @@ class OfferForm(forms.ModelForm):
     
     class Meta:
         model = Offer
-        fields = ['source_url', 'offer_type', 'branding_mode', 'check_in', 'check_out', 'title', 'description', 'show_countdown', 'notes', 'has_meal']
+        fields = ['source_url', 'offer_type', 'branding_mode', 'check_in', 'check_out', 'title', 'description', 'show_countdown', 'notes', 'has_meal', 'price_adjustment']
         widgets = {
             'offer_type': forms.RadioSelect(),
             'branding_mode': forms.Select(),
@@ -136,6 +136,10 @@ class OfferForm(forms.ModelForm):
                 'rows': 2,
                 'placeholder': 'Внутренние заметки (не видны клиенту)'
             }),
+            'price_adjustment': forms.NumberInput(attrs={
+                'step': '0.01',
+                'placeholder': '0.00',
+            }),
         }
         labels = {
             'source_url': 'Ссылка с boataround.com',
@@ -148,6 +152,7 @@ class OfferForm(forms.ModelForm):
             'show_countdown': 'Показать таймер обратного отсчета',
             'notes': 'Заметки (только для вас)',
             'has_meal': 'Включено питание (только для туристических офферов)',
+            'price_adjustment': 'Корректировка цены (€)',
         }
         help_texts = {
             'source_url': 'Вставьте полную ссылку с датами заезда и выезда',
@@ -157,6 +162,7 @@ class OfferForm(forms.ModelForm):
             'check_out': 'Дата окончания аренды',
             'show_countdown': 'Таймер создает эффект срочности',
             'has_meal': 'При включении добавляется стоимость питания к базовой цене',
+            'price_adjustment': 'Положительное — наценка, отрицательное — скидка',
         }
     
     def __init__(self, *args, user=None, **kwargs):

@@ -295,11 +295,12 @@ class BoataroundAPI:
                 # Прямой массив лодок
                 if isinstance(data, list):
                     logger.info(f"[Search] Got {len(data)} boats (direct array)")
+                    actual_count = len(data)
                     return {
                         'boats': data[:limit],
-                        'total': len(data),
+                        'total': actual_count,
                         'page': page,
-                        'totalPages': (len(data) + limit - 1) // limit,
+                        'totalPages': 1,  # Прямой массив = одна страница
                         'filters': {}
                     }
                 
@@ -323,21 +324,15 @@ class BoataroundAPI:
                 else:
                     total = len(boats)
                 
-                # Ищем totalPages
-                total_pages = 1
-                if 'totalPages' in data:
-                    total_pages = data['totalPages']
-                elif 'pages' in data:
-                    total_pages = data['pages']
-                elif total > 0 and limit > 0:
-                    # API может не возвращать totalPages, считаем сами
-                    total_pages = (total + limit - 1) // limit
-                
-                # ВАЖНО: Если получили меньше лодок чем total, значит есть ещё страницы
-                if len(boats) < total and limit > 0:
-                    total_pages = max(total_pages, (total + limit - 1) // limit)
-                
-                logger.info(f"[Search] Parsed: boats={len(boats)}, total={total}, pages={total_pages}, calculated={(total + limit - 1) // limit if limit > 0 else 1}")
+                # Считаем totalPages по реальному кол-ву лодок на странице
+                # API может игнорировать наш limit и отдавать свой (напр. 18)
+                actual_per_page = len(boats) if boats else limit
+                if total > 0 and actual_per_page > 0:
+                    total_pages = (total + actual_per_page - 1) // actual_per_page
+                else:
+                    total_pages = 1
+
+                logger.info(f"[Search] Parsed: boats={len(boats)}, total={total}, pages={total_pages}, actual_per_page={actual_per_page}")
                 if boats and len(boats) > 0:
                     logger.info(f"[Search] First boat keys: {list(boats[0].keys())}")
                 

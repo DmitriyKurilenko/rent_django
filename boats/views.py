@@ -150,17 +150,31 @@ def boat_search(request):
         
         # Форматируем данные лодок и кэшируем их
         from boats.helpers import save_to_cache
-        from boats.models import Favorite
-        
+        from boats.models import Favorite, ParsedBoat
+
         boats = []
         # Получаем список избранных для текущего пользователя (если авторизован)
         favorite_slugs = set()
         if request.user.is_authenticated:
             favorite_slugs = set(Favorite.objects.filter(user=request.user).values_list('boat_slug', flat=True))
-        
-        for boat in search_results.get('boats', []):
+
+        # CDN-превью: один запрос на всю страницу
+        api_boats = search_results.get('boats', [])
+        boat_ids = [str(b.get('_id') or b.get('id')) for b in api_boats if b.get('_id') or b.get('id')]
+        preview_map = dict(
+            ParsedBoat.objects.filter(boat_id__in=boat_ids, preview_cdn_url__gt='')
+            .values_list('boat_id', 'preview_cdn_url')
+        ) if boat_ids else {}
+
+        for boat in api_boats:
             try:
                 formatted_boat = format_boat_data(boat)
+
+                # Подменяем картинку на CDN-превью если есть
+                bid = str(boat.get('_id') or boat.get('id', ''))
+                cdn_preview = preview_map.get(bid)
+                if cdn_preview:
+                    formatted_boat['image'] = cdn_preview
 
                 # Стабилизируем цену в выдаче по slug+датам (чтобы не прыгала при refresh)
                 if check_in and check_out and formatted_boat.get('slug'):
@@ -1531,8 +1545,15 @@ def create_offer(request):
                 offer.discount = api_discount
                 offer.has_meal = False
             
+            # Корректировка цены (наценка или скидка)
+            price_adjustment = form.cleaned_data.get('price_adjustment') or 0
+            if price_adjustment:
+                offer.price_adjustment = price_adjustment
+                offer.total_price += price_adjustment
+                logger.info(f'[Create Offer] Price adjustment: {price_adjustment}, adjusted total: {offer.total_price}')
+
             logger.info(f'[Create Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}')
-            
+
             offer.currency = boat_data.get('currency', 'EUR')
             
             # Заголовок

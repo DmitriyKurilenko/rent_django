@@ -80,11 +80,12 @@ Quick deployment scripts:
 
 ### 📊 Data Operations
 Bulk boat parsing and image management:
-- **[../BOAT_PARSING_GUIDE.md](../BOAT_PARSING_GUIDE.md)** - Complete boat parsing workflow
-  - Test parsing: 5 boats in 30 seconds
-  - Production parsing: ~28,000 boats in 15-20 hours
-  - Image upload to S3
-  - Progress monitoring
+- **Management commands:**
+  - `parse_boats_parallel` — параллельный парсинг HTML + автоматическая загрузка thumb-превью на CDN
+  - `cache_previews` — массовая загрузка thumb-превью на CDN из API (без полного парсинга)
+  - `dump_parsed_boats --split` — экспорт в JSON по частям (для переноса на сервер)
+  - `load_parsed_boats` — потоковая загрузка fixture (экономит RAM на VPS)
+  - `upload_existing_images_to_s3` — загрузка полной галереи в S3
 
 ### ⚙️ Configuration
 Environment and infrastructure setup:
@@ -175,9 +176,10 @@ docs/
 3. Verify: [../DEPLOYMENT_CHECKLIST_FINAL.md](../DEPLOYMENT_CHECKLIST_FINAL.md)
 
 ### Step 4: Populate Data
-1. Parse boats: `python manage.py parse_all_boats --async` (~15-20 hours)
-2. Upload images: `python manage.py upload_existing_images_to_s3`
-3. Monitor: `tail -f logs/celery.log`
+1. Parse boats: `python manage.py parse_boats_parallel --workers 5` (парсинг HTML + загрузка thumb-превью на CDN)
+2. Or load from fixture: `python manage.py load_parsed_boats boats/fixtures/split/`
+3. Upload CDN previews (без полного парсинга): `python manage.py cache_previews --workers 5`
+4. Upload full gallery to S3: `python manage.py upload_existing_images_to_s3`
 
 ### Step 5: Monitor & Maintain
 - Daily: Check error logs
@@ -219,7 +221,7 @@ Internet
   ↓
 Nginx (SSL/TLS, reverse proxy)
   ↓
-Gunicorn (WSGI app server, 4+ workers)
+Gunicorn (WSGI app server, 2 workers + 2 threads)
   ↓
 Django Application
   ├─ boats/ (core app with dual API integration)
@@ -227,14 +229,15 @@ Django Application
   └─ templates/ (Alpine.js-driven UI)
     ↓
 PostgreSQL (Django ORM, ParsedBoat model)
-Redis (Celery broker, cache)
+Redis (Celery broker + Django cache, DB 0/1)
   ↓
 Celery Worker (async parsing, image download)
   ↓
 parser.py (HTML scraper via BeautifulSoup)
   ↓
-S3 (main_img backup images)
-boataround.com CDN (thumb images - free)
+VK Cloud S3 (gallery images + thumb previews)
+  ↓
+CDN cdn2.prvms.ru (раздача изображений)
 ```
 
 **Key Characteristic**: Dual-layer integration (JSON API + HTML parser) with local caching enables offline-first experience.
@@ -245,7 +248,7 @@ boataround.com CDN (thumb images - free)
 
 - ✅ SSL/TLS with automatic renewal (Let's Encrypt)
 - ✅ PostgreSQL with authentication
-- ✅ Redis with no auth (internal only)
+- ✅ Redis with password auth in production (internal network)
 - ✅ UFW firewall (SSH, HTTP, HTTPS only)
 - ✅ CSRF protection, secure cookies, HSTS headers
 - ✅ AWS S3 public-read images (appropriate for public boat listings)

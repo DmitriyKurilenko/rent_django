@@ -1,12 +1,21 @@
 """
 Management command для параллельного парсинга лодок с boataround.com
 
+Фазы:
+    1. Сбор slug'ов через поисковый API (с кэшированием в /tmp)
+       Также собирает thumb URL для каждой лодки
+    2. Параллельный парсинг HTML-страниц каждой лодки
+       После парсинга загружает thumb-превью на CDN (S3) и сохраняет
+       CDN URL в ParsedBoat.preview_cdn_url
+    3. Итоговый отчёт со статистикой
+
 Использование:
     python manage.py parse_boats_parallel --destination turkey --workers 5
     python manage.py parse_boats_parallel --destination turkey --workers 15 --skip-existing
     python manage.py parse_boats_parallel --destination turkey --workers 5 --verbose
     python manage.py parse_boats_parallel --destination turkey --no-cache  # без кэша slug'ов
     python manage.py parse_boats_parallel --destination turkey --cache-ttl 48  # кэш на 48 часов
+    python manage.py parse_boats_parallel  # все лодки без фильтра
 """
 
 import json
@@ -20,7 +29,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from boats.boataround_api import BoataroundAPI
-from boats.parser import parse_boataround_url
+from boats.parser import parse_boataround_url, download_and_save_image
 from boats.models import ParsedBoat
 from django import db
 
@@ -128,8 +137,9 @@ class Command(BaseCommand):
                 search_stats['cache'] = True
                 self.stdout.write(f'   ⚡ Загружено из кэша: {len(all_slugs)} slug\'ов')
 
+        thumb_map = {}  # slug → thumb URL
         if all_slugs is None:
-            all_slugs, search_stats = self._fetch_all_slugs(
+            all_slugs, search_stats, thumb_map = self._fetch_all_slugs(
                 destination, max_pages
             )
             # Сохраняем в кэш если не --no-cache
@@ -190,6 +200,11 @@ class Command(BaseCommand):
                 url = f'https://www.boataround.com/ru/yachta/{slug}/'
                 result = parse_boataround_url(url, save_to_db=True)
                 if result:
+                    # Загружаем превью из thumb API на CDN
+                    thumb_url = thumb_map.get(slug)
+                    if thumb_url:
+                        self._save_preview(slug, thumb_url)
+
                     return (slug, True, {
                         'photos': len(result.get('pictures', [])),
                         'extras': len(result.get('extras', [])),
@@ -330,9 +345,14 @@ class Command(BaseCommand):
 
         Если destination задан — ищем по нему.
         Если нет — запрос без параметра destinations, API отдаёт весь каталог.
+
+        Returns:
+            tuple: (slugs, search_stats, thumb_map)
+                thumb_map: {slug: thumb_url} для загрузки превью на CDN
         """
         slugs = []
         seen = set()
+        thumb_map = {}  # slug → thumb URL из API
         search_stats = {'pages_scanned': 0, 'skipped_existing': 0, 'cache': False}
 
         from boats.boataround_api import format_boat_data
@@ -350,7 +370,7 @@ class Command(BaseCommand):
                 results = BoataroundAPI.search(
                     destination=destination,  # None = без фильтра
                     page=page,
-                    limit=50,
+                    limit=18,
                     lang='en_EN'
                 )
 
@@ -373,18 +393,15 @@ class Command(BaseCommand):
                     slugs.append(boat_slug)
                     count += 1
 
+                    # Сохраняем thumb для загрузки превью на CDN
+                    thumb = boat.get('thumb') or boat.get('main_img', '')
+                    if thumb and thumb.strip():
+                        thumb_map[boat_slug] = thumb.strip()
+
+                # totalPages уже пересчитан в BoataroundAPI.search()
+                # по фактическому кол-ву лодок на странице
                 if total_pages is None:
-                    try:
-                        # API может игнорировать наш limit и отдавать свой (напр. 18)
-                        # Считаем totalPages по реальному кол-ву лодок на странице
-                        actual_per_page = len(results.get('boats', []))
-                        total_boats = results.get('total', 0)
-                        if actual_per_page > 0 and total_boats > 0:
-                            total_pages = (total_boats + actual_per_page - 1) // actual_per_page
-                        else:
-                            total_pages = int(results.get('totalPages') or 1)
-                    except Exception:
-                        total_pages = 1
+                    total_pages = int(results.get('totalPages') or 1)
 
                 effective_total_pages = total_pages
                 if max_pages and isinstance(max_pages, int) and max_pages > 0:
@@ -406,4 +423,23 @@ class Command(BaseCommand):
 
         self.stdout.write(f'\r   🔍 {label}... {count} лодок ({page} стр.)' + ' ' * 20)
 
-        return slugs, search_stats
+        return slugs, search_stats, thumb_map
+
+    @staticmethod
+    def _save_preview(slug: str, thumb_url: str):
+        """Скачивает thumb и сохраняет CDN URL как preview_cdn_url."""
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(thumb_url)
+            image_path = parsed.path.lstrip('/')
+            if not image_path.startswith('boats/'):
+                return
+
+            cdn_url = download_and_save_image(image_path)
+            if cdn_url:
+                ParsedBoat.objects.filter(slug=slug).update(
+                    preview_cdn_url=cdn_url
+                )
+        except Exception as e:
+            logger.warning(f"Failed to save preview for {slug}: {e}")

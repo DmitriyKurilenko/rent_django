@@ -154,3 +154,4 @@ service-account.json
 # CI/CD
 .github/workflows/*.yml
 !.github/workflows/example.yml
+thumbs_cache.json
