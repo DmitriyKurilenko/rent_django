@@ -970,22 +970,28 @@ def my_bookings(request):
     bookings = paginator.get_page(page_number)
 
     # Предзагрузка превью для всех бронирований страницы (1 запрос вместо N)
-    boat_ids = set()
+    import re
+    slug_pattern = re.compile(r'/(?:boat|yachta)/([^/?#]+)')
+    booking_slugs = {}
     for b in bookings:
-        if b.offer and b.offer.boat_data:
-            bid = b.offer.boat_data.get('boat_id', '')
-            if bid:
-                boat_ids.add(bid)
-    preview_map = dict(
-        ParsedBoat.objects.filter(boat_id__in=list(boat_ids), preview_cdn_url__gt='')
-        .values_list('boat_id', 'preview_cdn_url')
-    ) if boat_ids else {}
+        if b.offer and b.offer.source_url:
+            m = slug_pattern.search(b.offer.source_url)
+            if m:
+                booking_slugs[b.pk] = m.group(1).rstrip('/')
+    valid_slugs = list(set(booking_slugs.values()))
+    preview_map = {}
+    if valid_slugs:
+        preview_map = dict(
+            ParsedBoat.objects.filter(slug__in=valid_slugs)
+            .exclude(preview_cdn_url='')
+            .exclude(preview_cdn_url__isnull=True)
+            .values_list('slug', 'preview_cdn_url')
+        )
+        logger.info(f'[Bookings] Slugs: {valid_slugs[:5]}... Preview found: {len(preview_map)}/{len(valid_slugs)}')
 
     for b in bookings:
-        bid = ''
-        if b.offer and b.offer.boat_data:
-            bid = b.offer.boat_data.get('boat_id', '')
-        b._cached_preview = preview_map.get(bid)
+        slug = booking_slugs.get(b.pk)
+        b._cached_preview = preview_map.get(slug) if slug else None
 
     # Статистика
     total_bookings = bookings_qs.count()
@@ -1310,15 +1316,20 @@ def offers_list(request):
     slug_pattern = re.compile(r'/(?:boat|yachta)/([^/?#]+)')
     offer_slugs = []
     for offer in page_obj:
-        m = slug_pattern.search(offer.source_url)
-        offer_slugs.append(m.group(1) if m else None)
+        m = slug_pattern.search(offer.source_url or '')
+        offer_slugs.append(m.group(1).rstrip('/') if m else None)
 
     # Один запрос на все превью страницы
     valid_slugs = [s for s in offer_slugs if s]
-    preview_map = dict(
-        ParsedBoat.objects.filter(slug__in=valid_slugs, preview_cdn_url__gt='')
-        .values_list('slug', 'preview_cdn_url')
-    ) if valid_slugs else {}
+    preview_map = {}
+    if valid_slugs:
+        preview_map = dict(
+            ParsedBoat.objects.filter(slug__in=valid_slugs)
+            .exclude(preview_cdn_url='')
+            .exclude(preview_cdn_url__isnull=True)
+            .values_list('slug', 'preview_cdn_url')
+        )
+        logger.info(f'[Offers] Slugs: {valid_slugs[:5]}... Preview found: {len(preview_map)}/{len(valid_slugs)}')
 
     offers_with_data = []
     for offer, slug in zip(page_obj, offer_slugs):

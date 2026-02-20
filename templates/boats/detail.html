@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load boat_filters %}
+{% load l10n %}
 
 {% block title %}{{ boat.name }} - Ахой!Rent{% endblock %}
 
@@ -586,7 +587,7 @@
     rentalDays: {{ rental_days|default:0 }},
     offerType: 'captain',
     priceAdjustment: 0,
-    basePrice: {{ boat.total_price|default:'0' }},
+    basePrice: {{ boat.total_price|default:"0"|unlocalize }},
     get adjustedPrice() {
         return Math.max(0, this.basePrice + parseFloat(this.priceAdjustment || 0));
     },

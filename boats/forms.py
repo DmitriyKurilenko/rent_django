@@ -113,7 +113,7 @@ class OfferForm(forms.ModelForm):
     
     class Meta:
         model = Offer
-        fields = ['source_url', 'offer_type', 'branding_mode', 'check_in', 'check_out', 'title', 'description', 'show_countdown', 'notes', 'has_meal', 'price_adjustment']
+        fields = ['source_url', 'offer_type', 'branding_mode', 'check_in', 'check_out', 'title', 'show_countdown', 'notes', 'has_meal', 'price_adjustment']
         widgets = {
             'offer_type': forms.RadioSelect(),
             'branding_mode': forms.Select(),
@@ -127,10 +127,6 @@ class OfferForm(forms.ModelForm):
             }),
             'title': forms.TextInput(attrs={
                 'placeholder': 'Например: Роскошная яхта на Кипре'
-            }),
-            'description': forms.Textarea(attrs={
-                'rows': 3,
-                'placeholder': 'Дополнительное описание (опционально)'
             }),
             'notes': forms.Textarea(attrs={
                 'rows': 2,
@@ -148,7 +144,6 @@ class OfferForm(forms.ModelForm):
             'check_in': 'Дата заезда',
             'check_out': 'Дата выезда',
             'title': 'Заголовок оффера',
-            'description': 'Описание',
             'show_countdown': 'Показать таймер обратного отсчета',
             'notes': 'Заметки (только для вас)',
             'has_meal': 'Включено питание (только для туристических офферов)',

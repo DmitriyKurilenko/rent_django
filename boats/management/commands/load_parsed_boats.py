@@ -165,6 +165,9 @@ class Command(BaseCommand):
             errors_total += model_errors
             skipped_total += model_skipped
 
+        # Сброс sequences после загрузки с явными ID
+        self._reset_sequences()
+
         elapsed = time.time() - start_time
         self.stdout.write(self.style.SUCCESS(
             f'\n🏁 Загрузка завершена за {elapsed:.0f}s\n'
@@ -323,6 +326,29 @@ class Command(BaseCommand):
                         logger.warning(f'Ошибка: {e}')
 
         return saved, updated, errors, skipped
+
+    def _reset_sequences(self):
+        """Сбрасывает PostgreSQL sequences для всех таблиц boats_*."""
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT c.relname
+                    FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relkind = 'r' AND n.nspname = 'public' AND c.relname LIKE 'boats_%%'
+                """)
+                tables = [row[0] for row in cursor.fetchall()]
+                reset_count = 0
+                for table in tables:
+                    cursor.execute(f"SELECT pg_get_serial_sequence('{table}', 'id')")
+                    seq = cursor.fetchone()[0]
+                    if seq:
+                        cursor.execute(f"SELECT setval('{seq}', COALESCE((SELECT MAX(id) FROM {table}), 1))")
+                        reset_count += 1
+                if reset_count:
+                    self.stdout.write(f'🔧 Sequences сброшены для {reset_count} таблиц')
+        except Exception as e:
+            self.stderr.write(f'⚠️  Не удалось сбросить sequences: {e}')
 
     def _dry_run(self, filepath):
         """Подсчёт записей без загрузки."""

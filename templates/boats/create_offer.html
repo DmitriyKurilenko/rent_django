@@ -98,17 +98,6 @@
                                 class="input input-bordered input-sm" maxlength="300">
                         </div>
 
-                        <!-- Description -->
-                        <div class="form-control">
-                            <label class="label" for="offer_description">
-                                <span class="label-text font-semibold">{% trans "Описание" %}</span>
-                                <span class="label-text-alt text-xs" x-show="form.description.length > 0">
-                                    <span x-text="form.description.length"></span>/1000</span>
-                            </label>
-                            <textarea id="offer_description" name="description" x-model="form.description" rows="2" placeholder="{% trans 'Дополнительное описание' %}"
-                                class="textarea textarea-bordered textarea-sm" maxlength="1000"></textarea>
-                        </div>
-
                         <!-- Checkboxes -->
                         <div class="flex flex-col gap-3 pt-2">
                             <label class="label cursor-pointer justify-start gap-2">
@@ -186,7 +175,6 @@ function offerForm() {
         form: {
             source_url: '',
             title: '',
-            description: '',
             offer_type: '{% if user.profile.can_create_tourist_offers and user.profile.can_create_captain_offers %}tourist{% elif user.profile.can_create_captain_offers %}captain{% else %}tourist{% endif %}',
             branding_mode: 'default',
             show_countdown: true,
@@ -346,7 +334,6 @@ function offerForm() {
                 formData.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
                 formData.append('source_url', this.form.source_url);
                 formData.append('title', this.form.title);
-                formData.append('description', this.form.description);
                 formData.append('offer_type', this.form.offer_type);
                 formData.append('branding_mode', this.form.branding_mode);
                 formData.append('check_in', this.formatDateForInput(this.urlInfo.checkIn));
