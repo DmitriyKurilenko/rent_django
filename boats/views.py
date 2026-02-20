@@ -1921,8 +1921,14 @@ def quick_create_offer(request, boat_slug):
             offer.discount = api_discount
             offer.has_meal = False
         
-        logger.info(f'[Quick Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}')
-        
+        # Корректировка цены
+        price_adjustment = float(request.POST.get('price_adjustment', 0) or 0)
+        if price_adjustment:
+            offer.price_adjustment = price_adjustment
+            offer.total_price = float(offer.total_price) + price_adjustment
+
+        logger.info(f'[Quick Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}, adjustment: {price_adjustment}')
+
         offer.currency = boat_data.get('currency', 'EUR')
         offer.title = boat_data.get('title', f'Аренда яхты {boat_slug}')
         
