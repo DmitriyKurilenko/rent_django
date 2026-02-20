@@ -151,26 +151,17 @@ backup_database() {
 
 build_images() {
     print_info "Building Docker images (including Tailwind+DaisyUI CSS)..."
-    compose_cmd build --no-cache
+    compose_cmd build
     print_success "Images built successfully"
 }
 
-migrate_database() {
-    print_info "Running database migrations..."
-    compose_cmd run --rm web python manage.py migrate --noinput
-    print_success "Migrations completed"
-}
-
-collect_static() {
-    print_info "Collecting static files..."
-    compose_cmd run --rm web python manage.py collectstatic --noinput
-    print_success "Static files collected"
-}
-
-check_deploy() {
-    print_info "Running deployment checks..."
-    compose_cmd run --rm web python manage.py check --deploy
-    print_success "Deployment checks passed"
+prepare_app() {
+    print_info "Running migrations, collecting static, deploy check..."
+    compose_cmd run --rm web sh -c "\
+        python manage.py migrate --noinput && \
+        python manage.py collectstatic --noinput && \
+        python manage.py check --deploy"
+    print_success "App preparation completed"
 }
 
 validate_compose() {
@@ -284,14 +275,8 @@ main() {
     # Step 4: Build images
     build_images
     
-    # Step 5: Run migrations
-    migrate_database
-    
-    # Step 6: Collect static files
-    collect_static
-    
-    # Step 7: Run deployment checks
-    check_deploy
+    # Step 5: Migrate + collectstatic + check (one container)
+    prepare_app
     
     # Step 8: Restart services
     restart_services

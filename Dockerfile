@@ -23,6 +23,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     gettext \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка Python зависимостей
@@ -40,5 +41,5 @@ RUN mkdir -p /app/staticfiles /app/mediafiles /app/media/boats
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=30s \
+    CMD curl -sf http://localhost:8000/health/ || exit 1
