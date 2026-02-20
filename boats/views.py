@@ -1395,31 +1395,41 @@ def create_offer(request):
             if not slug:
                 return ajax_error('Не удалось извлечь информацию о лодке из URL. Проверьте формат URL.', form=form)
             
-            # Получаем данные из новой структуры
-            from boats.helpers import get_offer_boat_data
-            boat_data = get_offer_boat_data(slug)
-            
-            # Убеждаемся что boat_data это словарь
-            if not isinstance(boat_data, dict):
-                boat_data = {}
-            
-            # Если лодка не в DB, пытаемся распарсить её
-            if not boat_data:
+            # Сначала берём данные из БД
+            parsed_boat = ParsedBoat.objects.filter(slug=slug).first()
+
+            if parsed_boat:
+                desc = parsed_boat.descriptions.filter(language='ru_RU').first()
+                tech = parsed_boat.technical_specs
+                boat_data = {
+                    'title': desc.title if desc else parsed_boat.model or slug,
+                    'slug': parsed_boat.slug,
+                    'boat_id': parsed_boat.boat_id,
+                    'manufacturer': parsed_boat.manufacturer,
+                    'model': parsed_boat.model,
+                    'year': parsed_boat.year,
+                    'location': desc.location if desc else '',
+                    'country': desc.country if desc else '',
+                    'cabins': tech.cabins if tech else None,
+                    'berths': tech.berths if tech else None,
+                    'length': tech.length if tech else None,
+                    'images': list(parsed_boat.gallery.values_list('cdn_url', flat=True)[:5]),
+                }
+                logger.info(f'[Create Offer] Boat data from DB for {slug}')
+            else:
+                # Лодки нет в БД — парсим
                 from boats.parser import parse_boataround_url
                 import traceback
                 try:
-                    messages.info(request, 'Парсим данные о лодке...')
+                    logger.info(f'[Create Offer] Boat not in DB, parsing {slug}')
                     url = f'https://www.boataround.com/ru/yachta/{slug}/'
                     boat_data = parse_boataround_url(url, save_to_db=True)
                     if not boat_data:
                         return ajax_error('Не удалось загрузить данные о лодке с сайта', form=form)
-                    messages.success(request, '✓ Лодка успешно добавлена в систему')
                 except Exception as e:
                     error_msg = f'Ошибка парсинга: {str(e)}\n{traceback.format_exc()}'
                     logger.error(error_msg)
                     return ajax_error(f'Ошибка парсинга: {str(e)}', form=form)
-            else:
-                messages.info(request, '✓ Данные лодки загружены')
             
             # Извлекаем даты из source_url или формы
             import re
@@ -1803,18 +1813,33 @@ def quick_create_offer(request, boat_slug):
     try:
         # Формируем source_url
         source_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/?checkIn={check_in}&checkOut={check_out}&currency=EUR'
-        
-        # Используем существующую логику из create_offer
-        from boats.helpers import get_offer_boat_data
-        boat_data = get_offer_boat_data(boat_slug)
-        
-        if not isinstance(boat_data, dict):
-            boat_data = {}
-        
-        # Если лодка не в DB, парсим
-        if not boat_data:
+
+        # Сначала берём данные из БД (ParsedBoat) — быстро и без API
+        from boats.models import ParsedBoat as PB
+        parsed_boat = PB.objects.filter(slug=boat_slug).first()
+
+        if parsed_boat:
+            desc = parsed_boat.descriptions.filter(language='ru_RU').first()
+            tech = parsed_boat.technical_specs
+            boat_data = {
+                'title': desc.title if desc else parsed_boat.model or boat_slug,
+                'slug': parsed_boat.slug,
+                'boat_id': parsed_boat.boat_id,
+                'manufacturer': parsed_boat.manufacturer,
+                'model': parsed_boat.model,
+                'year': parsed_boat.year,
+                'location': desc.location if desc else '',
+                'country': desc.country if desc else '',
+                'cabins': tech.cabins if tech else None,
+                'berths': tech.berths if tech else None,
+                'length': tech.length if tech else None,
+                'images': list(parsed_boat.gallery.values_list('cdn_url', flat=True)[:5]),
+            }
+            logger.info(f'[Quick Offer] Boat data from DB for {boat_slug}')
+        else:
+            # Лодки нет в БД — парсим
             from boats.parser import parse_boataround_url
-            logger.info(f'Парсим лодку {boat_slug}')
+            logger.info(f'[Quick Offer] Boat not in DB, parsing {boat_slug}')
             boat_data = parse_boataround_url(f'https://www.boataround.com/ru/yachta/{boat_slug}/', save_to_db=True)
             if not boat_data:
                 messages.error(request, 'Не удалось загрузить данные лодки')
