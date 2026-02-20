@@ -17,7 +17,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@cache_page(60 * 30)  # 30 минут
 def home(request):
     """Главная страница"""
     form = SearchForm(request.GET or None)
