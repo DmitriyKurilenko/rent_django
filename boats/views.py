@@ -1323,13 +1323,14 @@ def offers_list(request):
     valid_slugs = [s for s in offer_slugs if s]
     preview_map = {}
     if valid_slugs:
-        preview_map = dict(
+        # Диагностика: проверяем что лодки вообще есть в БД
+        existing = list(
             ParsedBoat.objects.filter(slug__in=valid_slugs)
-            .exclude(preview_cdn_url='')
-            .exclude(preview_cdn_url__isnull=True)
             .values_list('slug', 'preview_cdn_url')
         )
-        logger.info(f'[Offers] Slugs: {valid_slugs[:5]}... Preview found: {len(preview_map)}/{len(valid_slugs)}')
+        logger.info(f'[Offers] DB lookup for slugs {valid_slugs[:3]}: {existing[:3]}')
+        preview_map = {slug: url for slug, url in existing if url}
+        logger.info(f'[Offers] Preview found: {len(preview_map)}/{len(valid_slugs)}')
 
     offers_with_data = []
     for offer, slug in zip(page_obj, offer_slugs):
@@ -1475,7 +1476,6 @@ def create_offer(request):
             api_discount = discount_without_extra
             
             # Рассчитываем финальную цену с учётом всех скидок и комиссии
-            from boats.models import ParsedBoat
             from boats.helpers import calculate_final_price_with_discounts
             try:
                 parsed_boat = ParsedBoat.objects.get(slug=slug)
@@ -1815,8 +1815,7 @@ def quick_create_offer(request, boat_slug):
         source_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/?checkIn={check_in}&checkOut={check_out}&currency=EUR'
 
         # Сначала берём данные из БД (ParsedBoat) — быстро и без API
-        from boats.models import ParsedBoat as PB
-        parsed_boat = PB.objects.filter(slug=boat_slug).first()
+        parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
 
         if parsed_boat:
             desc = parsed_boat.descriptions.filter(language='ru_RU').first()
@@ -1872,7 +1871,6 @@ def quick_create_offer(request, boat_slug):
         api_discount = discount_without_extra
         
         # Рассчитываем финальную цену с учётом всех скидок и комиссии
-        from boats.models import ParsedBoat
         from boats.helpers import calculate_final_price_with_discounts
         try:
             parsed_boat = ParsedBoat.objects.get(slug=boat_slug)
