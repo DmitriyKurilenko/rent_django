@@ -944,6 +944,19 @@ class BoataroundAPI:
 
 
 
+_charter_cache = {}
+_charter_cache_loaded = False
+
+def _get_charter(charter_id: str):
+    """Получает чартер из in-memory кэша (загружает все чартеры при первом вызове)."""
+    global _charter_cache, _charter_cache_loaded
+    if not _charter_cache_loaded:
+        from boats.models import Charter
+        _charter_cache = {c.charter_id: c for c in Charter.objects.all()}
+        _charter_cache_loaded = True
+    return _charter_cache.get(str(charter_id))
+
+
 def format_boat_data(boat: Dict) -> Dict:
     """
     Форматирование данных лодки из API для отображения в шаблоне
@@ -1134,14 +1147,8 @@ def format_boat_data(boat: Dict) -> Dict:
         elif isinstance(params_charter, str):
             charter_info = params_charter
 
-    # Единый расчёт цены через helper (как на detail)
-    charter_obj = None
-    try:
-        if charter_info:
-            from boats.helpers import get_or_create_charter
-            charter_obj = get_or_create_charter(charter_info, charter_id_raw, charter_logo)
-    except Exception as charter_err:
-        logger.debug(f"[format_boat_data] Charter resolve error: {charter_err}")
+    # Чартер для расчёта комиссии (из in-memory кэша)
+    charter_obj = _get_charter(charter_id_raw) if charter_id_raw else None
 
     # Для search API используем totalPrice как более стабильный источник
     # (в API поле discount может "прыгать" при одинаковых параметрах)

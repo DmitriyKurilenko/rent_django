@@ -10,6 +10,7 @@
 Использование:
     python manage.py load_parsed_boats boats/fixtures/boats_full_02.json
     python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --batch-size 200
+    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --skip-existing
     python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --dry-run
 """
 
@@ -45,6 +46,11 @@ class Command(BaseCommand):
             help='Размер батча (default: 200)',
         )
         parser.add_argument(
+            '--skip-existing',
+            action='store_true',
+            help='Пропускать существующие записи (по умолчанию — перезаписывать)',
+        )
+        parser.add_argument(
             '--dry-run',
             action='store_true',
             help='Только подсчитать записи, не загружать',
@@ -54,6 +60,7 @@ class Command(BaseCommand):
         fixture_path = options['fixture']
         batch_size = options['batch_size']
         dry_run = options['dry_run']
+        self.skip_existing = options['skip_existing']
 
         if not os.path.exists(fixture_path):
             raise CommandError(f'Файл не найден: {fixture_path}')
@@ -62,6 +69,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'📂 Файл: {fixture_path} ({file_size_mb:.1f} MB)'
         ))
+        if self.skip_existing:
+            self.stdout.write('  Режим: пропуск существующих (--skip-existing)')
+        else:
+            self.stdout.write('  Режим: перезапись существующих')
 
         if dry_run:
             self._dry_run(fixture_path)
@@ -72,11 +83,13 @@ class Command(BaseCommand):
 
         start_time = time.time()
         saved_total = 0
+        updated_total = 0
         errors_total = 0
         skipped_total = 0
         current_model = None
         current_batch = []
         model_saved = 0
+        model_updated = 0
         model_errors = 0
         model_skipped = 0
         model_count = 0
@@ -89,23 +102,25 @@ class Command(BaseCommand):
             # Модель сменилась — сбрасываем батч и выводим итоги предыдущей
             if model_name != current_model:
                 if current_batch:
-                    s, e, sk = self._save_batch(current_batch)
+                    s, u, e, sk = self._save_batch(current_batch)
                     model_saved += s
+                    model_updated += u
                     model_errors += e
                     model_skipped += sk
 
                 if current_model is not None:
-                    self.stdout.write(
-                        f'  ✅ {model_saved} / ⏭️  {model_skipped} дубл. / ❌ {model_errors} '
-                        f'(всего {model_count})'
+                    self._print_model_stats(
+                        model_saved, model_updated, model_skipped, model_errors, model_count
                     )
                     saved_total += model_saved
+                    updated_total += model_updated
                     errors_total += model_errors
                     skipped_total += model_skipped
 
                 current_model = model_name
                 current_batch = []
                 model_saved = 0
+                model_updated = 0
                 model_errors = 0
                 model_skipped = 0
                 model_count = 0
@@ -116,8 +131,9 @@ class Command(BaseCommand):
 
             # Батч заполнен — сохраняем
             if len(current_batch) >= batch_size:
-                s, e, sk = self._save_batch(current_batch)
+                s, u, e, sk = self._save_batch(current_batch)
                 model_saved += s
+                model_updated += u
                 model_errors += e
                 model_skipped += sk
                 current_batch = []
@@ -127,35 +143,43 @@ class Command(BaseCommand):
                     elapsed = time.time() - start_time
                     rate = records_read / elapsed if elapsed > 0 else 0
                     sys.stdout.write(
-                        f'\r  [{model_count}] ✅ {model_saved} ⏭️  {model_skipped} '
-                        f'❌ {model_errors} | {rate:.0f} rec/s'
+                        f'\r  [{model_count}] ✅ {model_saved} 🔄 {model_updated} '
+                        f'⏭️  {model_skipped} ❌ {model_errors} | {rate:.0f} rec/s'
                     )
                     sys.stdout.flush()
 
         # Последний батч
         if current_batch:
-            s, e, sk = self._save_batch(current_batch)
+            s, u, e, sk = self._save_batch(current_batch)
             model_saved += s
+            model_updated += u
             model_errors += e
             model_skipped += sk
 
         if current_model is not None:
-            self.stdout.write(
-                f'  ✅ {model_saved} / ⏭️  {model_skipped} дубл. / ❌ {model_errors} '
-                f'(всего {model_count})'
+            self._print_model_stats(
+                model_saved, model_updated, model_skipped, model_errors, model_count
             )
             saved_total += model_saved
+            updated_total += model_updated
             errors_total += model_errors
             skipped_total += model_skipped
 
         elapsed = time.time() - start_time
         self.stdout.write(self.style.SUCCESS(
             f'\n🏁 Загрузка завершена за {elapsed:.0f}s\n'
-            f'  Прочитано: {records_read}\n'
-            f'  Сохранено: {saved_total}\n'
-            f'  Дубликатов: {skipped_total}\n'
-            f'  Ошибок: {errors_total}'
+            f'  Прочитано:   {records_read}\n'
+            f'  Новых:       {saved_total}\n'
+            f'  Обновлено:   {updated_total}\n'
+            f'  Пропущено:   {skipped_total}\n'
+            f'  Ошибок:      {errors_total}'
         ))
+
+    def _print_model_stats(self, saved, updated, skipped, errors, total):
+        self.stdout.write(
+            f'  ✅ {saved} новых / 🔄 {updated} обн. / ⏭️  {skipped} пропущ. / '
+            f'❌ {errors} ош. (всего {total})'
+        )
 
     def _ensure_connection(self):
         """Проверяет соединение с БД, при необходимости ждёт и переподключается."""
@@ -174,57 +198,131 @@ class Command(BaseCommand):
         return False
 
     def _save_batch(self, batch):
-        """Сохраняет батч в одной транзакции. При ошибке — fallback поштучно."""
+        """Сохраняет батч. Возвращает (saved, updated, errors, skipped)."""
         batch_json = json.dumps(batch, ensure_ascii=False)
         saved = 0
+        updated = 0
         errors = 0
         skipped = 0
 
-        # Проверяем соединение с БД
         if not self._ensure_connection():
             self.stderr.write('❌ Не удалось подключиться к БД!')
-            return 0, len(batch), 0
+            return 0, 0, len(batch), 0
 
         try:
             objects = list(deserialize('json', batch_json))
         except Exception as e:
             logger.error(f'Ошибка десериализации: {e}')
-            return 0, len(batch), 0
+            return 0, 0, len(batch), 0
 
-        # Попытка 1: весь батч в одной транзакции (быстро)
+        if self.skip_existing:
+            return self._save_skip_existing(objects)
+
+        # Режим перезаписи: весь батч в одной транзакции
         try:
             with transaction.atomic():
                 for obj in objects:
+                    # Проверяем, существует ли запись
+                    Model = obj.object.__class__
+                    pk = obj.object.pk
+                    exists = Model.objects.filter(pk=pk).exists()
                     obj.save()
-                    saved += 1
-            # Пауза между батчами — даём БД отдышаться
+                    if exists:
+                        updated += 1
+                    else:
+                        saved += 1
             time.sleep(0.05)
-            return saved, 0, 0
+            return saved, updated, 0, 0
         except Exception:
-            # Батч упал — откат. Переходим к поштучному сохранению
             saved = 0
+            updated = 0
 
-        # Попытка 2: поштучно с savepoint (медленно, но надёжно)
+        # Fallback: поштучно
+        return self._save_individual(objects, overwrite=True)
+
+    def _save_skip_existing(self, objects):
+        """Сохраняет только новые записи, пропуская существующие."""
+        saved = 0
+        skipped = 0
+        errors = 0
+
+        # Группируем по модели для batch-проверки существования
+        by_model = {}
         for obj in objects:
-            if not self._ensure_connection():
-                errors += len(objects) - saved - skipped - errors
-                break
+            Model = obj.object.__class__
+            model_key = Model._meta.label
+            if model_key not in by_model:
+                by_model[model_key] = {'model': Model, 'objects': []}
+            by_model[model_key]['objects'].append(obj)
+
+        for model_key, data in by_model.items():
+            Model = data['model']
+            model_objects = data['objects']
+            pks = [obj.object.pk for obj in model_objects]
+            existing_pks = set(Model.objects.filter(pk__in=pks).values_list('pk', flat=True))
+
+            new_objects = [obj for obj in model_objects if obj.object.pk not in existing_pks]
+            skipped += len(model_objects) - len(new_objects)
+
+            if not new_objects:
+                continue
+
+            # Попытка батчом
             try:
                 with transaction.atomic():
+                    for obj in new_objects:
+                        obj.save()
+                        saved += 1
+                time.sleep(0.05)
+            except Exception:
+                # Fallback поштучно
+                saved_before = saved
+                saved = saved_before - len(new_objects)  # откат
+                s, u, e, sk = self._save_individual(new_objects, overwrite=False)
+                saved += s
+                skipped += sk
+                errors += e
+
+        return saved, 0, errors, skipped
+
+    def _save_individual(self, objects, overwrite=True):
+        """Поштучное сохранение с savepoint. Возвращает (saved, updated, errors, skipped)."""
+        saved = 0
+        updated = 0
+        errors = 0
+        skipped = 0
+
+        for obj in objects:
+            if not self._ensure_connection():
+                errors += 1
+                continue
+            try:
+                Model = obj.object.__class__
+                pk = obj.object.pk
+                exists = Model.objects.filter(pk=pk).exists()
+
+                if exists and not overwrite:
+                    skipped += 1
+                    continue
+
+                with transaction.atomic():
                     obj.save()
-                    saved += 1
+                    if exists:
+                        updated += 1
+                    else:
+                        saved += 1
             except Exception as e:
                 err_msg = str(e)
                 if 'duplicate key' in err_msg or 'already exists' in err_msg:
                     skipped += 1
                 elif 'foreign key' in err_msg or 'not present' in err_msg:
-                    skipped += 1  # FK нарушение — родитель не загружен, пропускаем
+                    skipped += 1
                 else:
                     errors += 1
                     if errors <= 3:
                         logger.warning(f'Ошибка: {e}')
 
-        return saved, errors, skipped
+        return saved, updated, errors, skipped
 
     def _dry_run(self, filepath):
         """Подсчёт записей без загрузки."""

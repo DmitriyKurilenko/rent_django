@@ -228,26 +228,13 @@ class Booking(models.Model):
     
     @property
     def boat_image(self):
-        """Первое изображение из галереи"""
+        """CDN превью или None (шаблон покажет заглушку).
+        Если view предзагрузил _cached_preview — используем без запроса."""
+        if hasattr(self, '_cached_preview'):
+            return self._cached_preview
         parsed_boat = self.get_parsed_boat()
-        if parsed_boat:
-            # Берем из BoatGallery
-            first_photo = parsed_boat.gallery.first()
-            if first_photo:
-                return first_photo.cdn_url
-        
-        # Fallback на boat_data
-        if self.boat_data:
-            images = self.boat_data.get('images', [])
-            if images:
-                return images[0].get('thumb') or images[0].get('main_img')
-        
-        # Fallback на offer.boat_data
-        if self.offer and self.offer.boat_data:
-            images = self.offer.boat_data.get('images', [])
-            if images:
-                return images[0].get('thumb') or images[0].get('main_img')
-        
+        if parsed_boat and parsed_boat.preview_cdn_url:
+            return parsed_boat.preview_cdn_url
         return None
     
     @property

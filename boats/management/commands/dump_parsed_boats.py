@@ -191,9 +191,9 @@ class Command(BaseCommand):
         self.stdout.write('💡 Копируй и выполняй на сервере:')
         self.stdout.write('')
         for filename, _, _ in files_created:
-            self.stdout.write(f'docker cp {output_dir}/{filename} rent_django-web-1:/app/boats/fixtures/{filename}')
-            self.stdout.write(f'docker-compose exec web python manage.py load_parsed_boats boats/fixtures/{filename}')
-            self.stdout.write(f'docker-compose exec web rm boats/fixtures/{filename}')
+            self.stdout.write(f'docker cp {output_dir}/{filename} rent_django-web-1:/app/{filename}')
+            self.stdout.write(f'docker-compose exec web python manage.py load_parsed_boats /app/{filename}')
+            self.stdout.write(f'docker-compose exec web rm /app/{filename}')
             self.stdout.write('')
 
     def _dump_single(self, model_querysets, output_path, total_count):

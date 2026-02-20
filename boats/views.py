@@ -158,23 +158,21 @@ def boat_search(request):
         if request.user.is_authenticated:
             favorite_slugs = set(Favorite.objects.filter(user=request.user).values_list('boat_slug', flat=True))
 
-        # CDN-превью: один запрос на всю страницу
+        # CDN-превью: один запрос на всю страницу по slug
         api_boats = search_results.get('boats', [])
-        boat_ids = [str(b.get('_id') or b.get('id')) for b in api_boats if b.get('_id') or b.get('id')]
+        slugs = [b.get('slug', '') for b in api_boats if b.get('slug')]
         preview_map = dict(
-            ParsedBoat.objects.filter(boat_id__in=boat_ids, preview_cdn_url__gt='')
-            .values_list('boat_id', 'preview_cdn_url')
-        ) if boat_ids else {}
+            ParsedBoat.objects.filter(slug__in=slugs, preview_cdn_url__gt='')
+            .values_list('slug', 'preview_cdn_url')
+        ) if slugs else {}
 
         for boat in api_boats:
             try:
                 formatted_boat = format_boat_data(boat)
 
-                # Подменяем картинку на CDN-превью если есть
-                bid = str(boat.get('_id') or boat.get('id', ''))
-                cdn_preview = preview_map.get(bid)
-                if cdn_preview:
-                    formatted_boat['image'] = cdn_preview
+                # Превью: CDN если есть, иначе thumb из API
+                cdn_preview = preview_map.get(formatted_boat.get('slug', ''))
+                formatted_boat['preview'] = cdn_preview or boat.get('thumb', '')
 
                 # Стабилизируем цену в выдаче по slug+датам (чтобы не прыгала при refresh)
                 if check_in and check_out and formatted_boat.get('slug'):
@@ -972,6 +970,24 @@ def my_bookings(request):
     paginator = Paginator(bookings_qs, 15)
     bookings = paginator.get_page(page_number)
 
+    # Предзагрузка превью для всех бронирований страницы (1 запрос вместо N)
+    boat_ids = set()
+    for b in bookings:
+        if b.offer and b.offer.boat_data:
+            bid = b.offer.boat_data.get('boat_id', '')
+            if bid:
+                boat_ids.add(bid)
+    preview_map = dict(
+        ParsedBoat.objects.filter(boat_id__in=list(boat_ids), preview_cdn_url__gt='')
+        .values_list('boat_id', 'preview_cdn_url')
+    ) if boat_ids else {}
+
+    for b in bookings:
+        bid = ''
+        if b.offer and b.offer.boat_data:
+            bid = b.offer.boat_data.get('boat_id', '')
+        b._cached_preview = preview_map.get(bid)
+
     # Статистика
     total_bookings = bookings_qs.count()
     pending_bookings = bookings_qs.filter(status='pending').count()
@@ -1289,34 +1305,29 @@ def offers_list(request):
     page_obj = paginator.get_page(page_number)
 
     # Подготавливаем данные для шаблона (только текущая страница)
-    from boats.helpers import get_offer_boat_data
-    from urllib.parse import urlparse
+    import re
+
+    # Собираем все slug за один проход
+    slug_pattern = re.compile(r'/(?:boat|yachta)/([^/?#]+)')
+    offer_slugs = []
+    for offer in page_obj:
+        m = slug_pattern.search(offer.source_url)
+        offer_slugs.append(m.group(1) if m else None)
+
+    # Один запрос на все превью страницы
+    valid_slugs = [s for s in offer_slugs if s]
+    preview_map = dict(
+        ParsedBoat.objects.filter(slug__in=valid_slugs, preview_cdn_url__gt='')
+        .values_list('slug', 'preview_cdn_url')
+    ) if valid_slugs else {}
 
     offers_with_data = []
-
-    for offer in page_obj:
-        # Извлекаем slug из URL
-        parsed_url = urlparse(offer.source_url)
-        url_parts = parsed_url.path.strip('/').split('/')
-        slug = url_parts[-1] if url_parts else None
-
-        # Получаем данные лодки
-        if slug:
-            boat_data = get_offer_boat_data(slug)
-        else:
-            boat_data = offer.boat_data or {}
-
-        # Get first image from CDN
-        pictures = boat_data.get('pictures', [])
-        first_image = None
-        if pictures:
-            first_image = pictures[0]
-
+    for offer, slug in zip(page_obj, offer_slugs):
+        boat_data = offer.boat_data or {}
         title = offer.title or boat_data.get('title') or boat_data.get('boat_info', {}).get('title', 'Без названия')
         guests = boat_data.get('max_sleeps', boat_data.get('berths', 0))
 
-        # Оборачиваем offer в объект с дополнительными данными
-        offer.image = first_image
+        offer.image = preview_map.get(slug) if slug else None
         offer.guests = guests
         offer.title_display = title
 

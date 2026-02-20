@@ -247,10 +247,10 @@
                     <div class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex flex-col sm:flex-row hover:border-primary">
                         <!-- Thumbnail -->
                         <div class="w-full aspect-square sm:w-56 sm:h-56 flex-shrink-0 bg-base-200 overflow-hidden">
-                            {% if boat.images %}
-                                <img 
-                                    src="{{ boat.images.0 }}" 
-                                    alt="{{ boat.name }}" 
+                            {% if boat.preview %}
+                                <img
+                                    src="{{ boat.preview }}"
+                                    alt="{{ boat.name }}"
                                     class="w-full h-full object-contain sm:object-cover hover:scale-110 transition-transform duration-300 ease-in-out"
                                 >
                             {% else %}
