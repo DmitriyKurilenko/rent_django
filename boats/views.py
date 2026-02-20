@@ -1557,10 +1557,10 @@ def create_offer(request):
                 offer.has_meal = False
             
             # Корректировка цены (наценка или скидка)
-            price_adjustment = form.cleaned_data.get('price_adjustment') or 0
+            price_adjustment = float(form.cleaned_data.get('price_adjustment') or 0)
             if price_adjustment:
                 offer.price_adjustment = price_adjustment
-                offer.total_price += price_adjustment
+                offer.total_price = float(offer.total_price) + price_adjustment
                 logger.info(f'[Create Offer] Price adjustment: {price_adjustment}, adjusted total: {offer.total_price}')
 
             logger.info(f'[Create Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}')
