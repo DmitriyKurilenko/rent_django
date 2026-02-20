@@ -1354,6 +1354,58 @@ def offers_list(request):
     return render(request, 'boats/offers_list.html', context)
 
 
+def _build_boat_data_from_db(parsed_boat):
+    """Собирает полный boat_data dict из ParsedBoat для сохранения в оффере."""
+    desc = parsed_boat.descriptions.filter(language='ru_RU').first()
+    try:
+        tech = parsed_boat.technical_specs
+    except Exception:
+        tech = None
+    details = parsed_boat.details.filter(language='ru_RU').first()
+
+    return {
+        'title': desc.title if desc else parsed_boat.model or parsed_boat.slug,
+        'name': desc.title if desc else parsed_boat.model or parsed_boat.slug,
+        'slug': parsed_boat.slug,
+        'boat_id': parsed_boat.boat_id,
+        'manufacturer': parsed_boat.manufacturer,
+        'model': parsed_boat.model,
+        'year': parsed_boat.year,
+        'type': parsed_boat.boat_type if hasattr(parsed_boat, 'boat_type') else '',
+        'location': desc.location if desc else '',
+        'marina': desc.marina if desc else '',
+        'country': desc.country if desc else '',
+        'description': desc.description if desc else '',
+        'currency': 'EUR',
+        # Технические характеристики
+        'length': float(tech.length) if tech and tech.length else None,
+        'beam': float(tech.beam) if tech and tech.beam else None,
+        'draft': float(tech.draft) if tech and tech.draft else None,
+        'cabins': tech.cabins if tech else None,
+        'berths': tech.berths if tech else None,
+        'max_sleeps': tech.berths if tech else None,
+        'toilets': tech.toilets if tech else None,
+        'fuel': float(tech.fuel_capacity) if tech and tech.fuel_capacity else None,
+        'water_tank': float(tech.water_capacity) if tech and tech.water_capacity else None,
+        'maximum_speed': float(tech.max_speed) if tech and tech.max_speed else None,
+        'engine': tech.engine_type if tech else '',
+        'engine_power': float(tech.engine_power) if tech and tech.engine_power else None,
+        'number_engines': tech.number_engines if tech else None,
+        'engine_type': tech.engine_type if tech else '',
+        'fuel_type': tech.fuel_type if tech else '',
+        # Галерея
+        'images': list(parsed_boat.gallery.values_list('cdn_url', flat=True)),
+        # Детали (extras, equipment и т.д.)
+        'extras': details.extras if details else [],
+        'additional_services': details.additional_services if details else [],
+        'delivery_extras': details.delivery_extras if details else [],
+        'not_included': details.not_included if details else [],
+        'cockpit': details.cockpit if details else [],
+        'entertainment': details.entertainment if details else [],
+        'equipment': details.equipment if details else [],
+    }
+
+
 @login_required
 def create_offer(request):
     """Создание нового оффера"""
@@ -1400,22 +1452,7 @@ def create_offer(request):
             parsed_boat = ParsedBoat.objects.filter(slug=slug).first()
 
             if parsed_boat:
-                desc = parsed_boat.descriptions.filter(language='ru_RU').first()
-                tech = parsed_boat.technical_specs
-                boat_data = {
-                    'title': desc.title if desc else parsed_boat.model or slug,
-                    'slug': parsed_boat.slug,
-                    'boat_id': parsed_boat.boat_id,
-                    'manufacturer': parsed_boat.manufacturer,
-                    'model': parsed_boat.model,
-                    'year': parsed_boat.year,
-                    'location': desc.location if desc else '',
-                    'country': desc.country if desc else '',
-                    'cabins': tech.cabins if tech else None,
-                    'berths': tech.berths if tech else None,
-                    'length': tech.length if tech else None,
-                    'images': list(parsed_boat.gallery.values_list('cdn_url', flat=True)[:5]),
-                }
+                boat_data = _build_boat_data_from_db(parsed_boat)
                 logger.info(f'[Create Offer] Boat data from DB for {slug}')
             else:
                 # Лодки нет в БД — парсим
@@ -1577,10 +1614,11 @@ def create_offer(request):
                 offer.has_meal = False
             
             # Корректировка цены (наценка или скидка)
-            price_adjustment = float(form.cleaned_data.get('price_adjustment') or 0)
+            from decimal import Decimal
+            price_adjustment = form.cleaned_data.get('price_adjustment') or Decimal('0')
             if price_adjustment:
                 offer.price_adjustment = price_adjustment
-                offer.total_price = float(offer.total_price) + price_adjustment
+                offer.total_price = Decimal(str(offer.total_price)) + Decimal(str(price_adjustment))
                 logger.info(f'[Create Offer] Price adjustment: {price_adjustment}, adjusted total: {offer.total_price}')
 
             logger.info(f'[Create Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}')
@@ -1818,22 +1856,7 @@ def quick_create_offer(request, boat_slug):
         parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
 
         if parsed_boat:
-            desc = parsed_boat.descriptions.filter(language='ru_RU').first()
-            tech = parsed_boat.technical_specs
-            boat_data = {
-                'title': desc.title if desc else parsed_boat.model or boat_slug,
-                'slug': parsed_boat.slug,
-                'boat_id': parsed_boat.boat_id,
-                'manufacturer': parsed_boat.manufacturer,
-                'model': parsed_boat.model,
-                'year': parsed_boat.year,
-                'location': desc.location if desc else '',
-                'country': desc.country if desc else '',
-                'cabins': tech.cabins if tech else None,
-                'berths': tech.berths if tech else None,
-                'length': tech.length if tech else None,
-                'images': list(parsed_boat.gallery.values_list('cdn_url', flat=True)[:5]),
-            }
+            boat_data = _build_boat_data_from_db(parsed_boat)
             logger.info(f'[Quick Offer] Boat data from DB for {boat_slug}')
         else:
             # Лодки нет в БД — парсим
@@ -1956,10 +1979,11 @@ def quick_create_offer(request, boat_slug):
             offer.has_meal = False
         
         # Корректировка цены
-        price_adjustment = float(request.POST.get('price_adjustment', 0) or 0)
+        from decimal import Decimal
+        price_adjustment = Decimal(str(request.POST.get('price_adjustment', 0) or 0))
         if price_adjustment:
             offer.price_adjustment = price_adjustment
-            offer.total_price = float(offer.total_price) + price_adjustment
+            offer.total_price = Decimal(str(offer.total_price)) + price_adjustment
 
         logger.info(f'[Quick Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}, adjustment: {price_adjustment}')
 
