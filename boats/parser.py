@@ -310,7 +310,7 @@ def fetch_page(url: str) -> Optional[str]:
     
     # Максимально реалистичные headers
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br',
@@ -595,95 +595,6 @@ def _extract_not_included(soup: BeautifulSoup) -> list:
 # ЛОКАЛИЗАЦИЯ: EXTRAS, SERVICES И ПРОЧИЕ УСЛУГИ ДЛЯ РАЗНЫХ ЯЗЫКОВ
 # =============================================================================
 
-def _extract_extras_for_language(slug: str, lang: str) -> dict:
-    """
-    Парсит extras, additional_services, delivery_extras и not_included для конкретного языка
-    
-    Args:
-        slug: Slug лодки
-        lang: Код языка (ru_RU, en_EN, de_DE и т.д.)
-    
-    Returns:
-        dict: {'extras': [...], 'additional_services': [...], 'delivery_extras': [...], 'not_included': [...]}
-    """
-    try:
-        # Получаем URL для языка
-        url = get_boat_url_for_language(slug, lang)
-        url = add_currency_param(url, 'EUR')
-        
-        logger.info(f"[parser] 🌐 Парсим services для {lang}: {url}")
-        
-        # Загружаем страницу
-        html_content = fetch_page(url)
-        if not html_content:
-            logger.warning(f"[parser] Не удалось загрузить страницу для {lang}")
-            return {
-                'extras': [],
-                'additional_services': [],
-                'delivery_extras': [],
-                'not_included': [],
-            }
-        
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Извлекаем все компоненты услуг
-        extras = _extract_extras_from_component(soup)
-        additional_services = _extract_additional_services_from_component(soup)
-        delivery_extras = _extract_delivery_extras(soup)
-        not_included = _extract_not_included(soup)
-        
-        logger.info(f"[parser] ✅ Получены services для {lang}: extras={len(extras)}, adds={len(additional_services)}, delivery={len(delivery_extras)}, not_included={len(not_included)}")
-        
-        return {
-            'extras': extras,
-            'additional_services': additional_services,
-            'delivery_extras': delivery_extras,
-            'not_included': not_included,
-        }
-        
-    except Exception as e:
-        logger.warning(f"[parser] ❌ Ошибка парсинга services для {lang}: {e}")
-        import traceback
-        logger.debug(traceback.format_exc())
-        return {
-            'extras': [],
-            'additional_services': [],
-            'delivery_extras': [],
-            'not_included': [],
-        }
-
-
-def _extract_extras_from_all_languages(slug: str, languages: list = None) -> dict:
-    """
-    Парсит services (extras, adds, delivery, not_included) со всех языков
-    
-    Args:
-        slug: Slug лодки
-        languages: Список языков
-    
-    Returns:
-        dict: {'ru_RU': {'extras': [...], 'additional_services': [...], ...}, ...}
-    """
-    if languages is None:
-        languages = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR']
-    
-    result = {}
-    
-    for lang in languages:
-        try:
-            services = _extract_extras_for_language(slug, lang)
-            result[lang] = services
-        except Exception as e:
-            logger.error(f"[parser] Ошибка получения services для {lang}: {e}")
-            result[lang] = {
-                'extras': [],
-                'additional_services': [],
-                'delivery_extras': [],
-                'not_included': [],
-            }
-    
-    return result
-
 
 def get_boat_url_for_language(slug: str, lang: str) -> str:
     """
@@ -709,226 +620,119 @@ def get_boat_url_for_language(slug: str, lang: str) -> str:
     return f"https://www.boataround.com/{locale}/{boat_type}/{slug}/"
 
 
-def _extract_boat_info_for_language(slug: str, lang: str) -> dict:
-    """
-    Парсит информацию о лодке с HTML конкретного языка
-    
-    Args:
-        slug: Slug лодки
-        lang: Код языка (ru_RU, en_EN, de_DE и т.д.)
-    
-    Returns:
-        dict: Локализованная информация (title, description, location, marina)
-    """
-    try:
-        # Получаем URL для языка
-        url = get_boat_url_for_language(slug, lang)
-        url = add_currency_param(url, 'EUR')
-        
-        logger.info(f"[parser] 🌐 Парсим описание для {lang}: {url}")
-        
-        # Загружаем страницу
-        html_content = fetch_page(url)
-        if not html_content:
-            logger.warning(f"[parser] Не удалось загрузить страницу для {lang}")
-            return {
-                'title': '',
-                'description': '',
-                'location': '',
-                'marina': '',
-            }
-        
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Инициализируем результат
-        result = {
-            'title': '',
-            'description': '',
-            'location': '',
-            'marina': '',
-        }
-        
-        # === TITLE ===
-        # Метод 1: Из JSON-LD (schema.org)
-        script_tags = soup.find_all('script', {'type': 'application/ld+json'})
-        for script in script_tags:
-            try:
-                data = json.loads(script.string)
-                if isinstance(data, dict):
-                    # Проверяем @graph
-                    if '@graph' in data:
-                        for item in data.get('@graph', []):
-                            if isinstance(item, dict) and item.get('@type') == 'Product':
-                                result['title'] = item.get('name', result['title'])
-                                result['description'] = item.get('description', result['description'])
-                                break
-                    # Или прямой Product
-                    elif data.get('@type') == 'Product':
-                        result['title'] = data.get('name', result['title'])
-                        result['description'] = data.get('description', result['description'])
-                    
-                    if result['title']:
-                        break
-            except (json.JSONDecodeError, TypeError):
-                continue
-        
-        # === LOCATION И MARINA ===
-        # Из компонентов
-        add_to_wishlist = soup.find('add-to-wishlist')
-        if add_to_wishlist:
-            result['marina'] = add_to_wishlist.get('marina', result['marina']) or result['marina']
-            result['location'] = add_to_wishlist.get('region', result['location']) or result['location']
-        
-        # Fallback: Из mobile-payment-box
-        if not result['location']:
-            payment_box = soup.find('mobile-payment-box')
-            if payment_box:
-                result['location'] = payment_box.get('region', result['location']) or result['location']
-        
-        logger.info(f"[parser] ✅ Получено описание для {lang}: title='{result['title'][:50]}...'")
-        
-        return result
-        
-    except Exception as e:
-        logger.warning(f"[parser] ❌ Ошибка парсинга описания для {lang}: {e}")
-        import traceback
-        logger.debug(traceback.format_exc())
-        return {
-            'title': '',
-            'description': '',
-            'location': '',
-            'marina': '',
-        }
-
-
-def _extract_boat_info_from_all_languages(slug: str, languages: list = None) -> dict:
-    """
-    Парсит информацию о лодке со всех языков
-    
-    Args:
-        slug: Slug лодки
-        languages: Список языков
-    
-    Returns:
-        dict: {'ru_RU': {'title': ..., 'description': ..., ...}, ...}
-    """
-    if languages is None:
-        languages = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR']
-    
-    result = {}
-    
-    for lang in languages:
-        try:
-            info = _extract_boat_info_for_language(slug, lang)
-            result[lang] = info
-        except Exception as e:
-            logger.error(f"[parser] Ошибка получения описания для {lang}: {e}")
-            result[lang] = {
-                'title': '',
-                'description': '',
-                'location': '',
-                'marina': '',
-            }
-    
-    return result
-
-
-def _extract_equipment_from_api(slug: str, languages: list = None) -> dict:
-    """
-    Получает equipment из API boataround.com на разных языках
-    
-    Args:
-        slug: Slug лодки (например 'beneteau-oceanis-341-ersa')
-        languages: Список языков для парсинга (например ['ru_RU', 'en_EN', 'de_DE'])
-    
-    Returns:
-        dict: {'ru_RU': {'cockpit': [...], 'entertainment': [...], 'equipment': [...]}, ...}
-    """
-    if languages is None:
-        languages = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR']
-    
-    # Импортируем внутри функции для избежания циклических импортов
-    if BoataroundAPI is None:
-        from boats.boataround_api import BoataroundAPI as API_CLASS
-    else:
-        API_CLASS = BoataroundAPI
-    
-    result = {}
-    
-    for lang in languages:
-        try:
-            logger.info(f"[parser] 🌐 Получаю equipment из API для slug={slug}, lang={lang}")
-            
-            # Вызываем поиск через API
-            # API возвращает: {'status': 'OK', 'data': [{'_id': ..., 'data': [...], 'filter': {...}, ...}]}
-            response_data = requests.get(
-                'https://api.boataround.com/v1/search',
-                params={
-                    'slug': slug,
-                    'lang': lang,
-                    'limit': 1,
-                },
-                headers=API_CLASS.HEADERS,
-                timeout=30
-            ).json()
-            
-            logger.debug(f"[parser] API response keys: {list(response_data.keys())}")
-            
-            if response_data and isinstance(response_data, dict):
-                # Извлекаем фильтры с правильного уровня
-                # Структура: {'status': 'OK', 'data': [{'filter': {...}, ...}]}
-                data_list = response_data.get('data', [])
-                
-                if isinstance(data_list, list) and len(data_list) > 0:
-                    search_group = data_list[0]  # Первая группа результатов
-                    filter_data = search_group.get('filter', {})  # ⭐ filters на уровне группы
-                    
-                    logger.debug(f"[parser] filter_data type: {type(filter_data)}, keys: {list(filter_data.keys()) if isinstance(filter_data, dict) else 'N/A'}")
-                    
-                    if isinstance(filter_data, dict) and filter_data:
-                        # Извлекаем cockpit
-                        cockpit = []
-                        if 'cockpit' in filter_data and isinstance(filter_data['cockpit'], list):
-                            cockpit = [{'name': item.get('name', '')} for item in filter_data['cockpit'] if item.get('name')]
-                        
-                        # Извлекаем entertainment
-                        entertainment = []
-                        if 'entertainment' in filter_data and isinstance(filter_data['entertainment'], list):
-                            entertainment = [{'name': item.get('name', '')} for item in filter_data['entertainment'] if item.get('name')]
-                        
-                        # Извлекаем equipment
-                        equipment = []
-                        if 'equipment' in filter_data and isinstance(filter_data['equipment'], list):
-                            equipment = [{'name': item.get('name', '')} for item in filter_data['equipment'] if item.get('name')]
-                        
-                        result[lang] = {
-                            'cockpit': cockpit,
-                            'entertainment': entertainment,
-                            'equipment': equipment,
-                        }
-                        logger.info(f"[parser] ✅ Получены для {lang}: cockpit={len(cockpit)}, entertainment={len(entertainment)}, equipment={len(equipment)}")
-                    else:
-                        logger.warning(f"[parser] filter_data пустой или не dict для {lang}")
-                        result[lang] = {'cockpit': [], 'entertainment': [], 'equipment': []}
-                else:
-                    logger.warning(f"[parser] API вернул пустой список data для {lang}")
-                    result[lang] = {'cockpit': [], 'entertainment': [], 'equipment': []}
-            else:
-                logger.warning(f"[parser] response_data не является dict или пусто для {lang}")
-                result[lang] = {'cockpit': [], 'entertainment': [], 'equipment': []}
-                
-        except Exception as e:
-            logger.warning(f"[parser] ❌ Ошибка получения equipment для {lang}: {e}")
-            import traceback
-            logger.debug(traceback.format_exc())
-            result[lang] = {'cockpit': [], 'entertainment': [], 'equipment': []}
-    
-    return result
-
 
 # =============================================================================
 # ИЗВЛЕЧЕНИЕ ОБОРУДОВАНИЯ (Cockpit, Entertainment, Equipment)
 # =============================================================================
+
+def _extract_amenities_from_html(soup) -> dict:
+    """Extracts cockpit/entertainment/equipment from <amenities> Vue component.
+    Only returns items where is_present=True."""
+    result = {'cockpit': [], 'entertainment': [], 'equipment': []}
+    amenities_tag = soup.find('amenities')
+    if not amenities_tag:
+        logger.debug('[parser] <amenities> component not found in HTML')
+        return result
+    for key in ['cockpit', 'entertainment', 'equipment']:
+        attr_val = amenities_tag.get(f':{key}')
+        if not attr_val:
+            continue
+        try:
+            items = json.loads(attr_val)
+            result[key] = [
+                {'name': item['name']}
+                for item in items
+                if item.get('is_present') and item.get('name')
+            ]
+            logger.debug(f'[parser] amenities {key}: {len(result[key])} present of {len(items)}')
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.warning(f'[parser] Failed to parse amenities :{key}: {e}')
+    return result
+
+
+def _fetch_language_page_data(slug: str, lang: str) -> dict:
+    """
+    Загружает HTML-страницу лодки для одного языка ОДИН РАЗ и извлекает:
+    - descriptions: title, description, location, marina
+    - services: extras, additional_services, delivery_extras, not_included
+    - amenities: cockpit, entertainment, equipment (только is_present=True)
+    """
+    empty = {
+        'descriptions': {'title': '', 'description': '', 'location': '', 'marina': ''},
+        'services': {'extras': [], 'additional_services': [], 'delivery_extras': [], 'not_included': []},
+        'amenities': {'cockpit': [], 'entertainment': [], 'equipment': []},
+    }
+    try:
+        url = get_boat_url_for_language(slug, lang)
+        url = add_currency_param(url, 'EUR')
+        logger.info(f'[parser] 🌐 Загружаем страницу {lang}: {url}')
+        html_content = fetch_page(url)
+        if not html_content:
+            logger.warning(f'[parser] Не удалось загрузить страницу {lang}')
+            return empty
+
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        # --- Описания ---
+        descriptions = {'title': '', 'description': '', 'location': '', 'marina': ''}
+        for script in soup.find_all('script', {'type': 'application/ld+json'}):
+            try:
+                data = json.loads(script.string)
+                if isinstance(data, dict):
+                    if '@graph' in data:
+                        for item in data.get('@graph', []):
+                            if isinstance(item, dict) and item.get('@type') == 'Product':
+                                descriptions['title'] = item.get('name', '')
+                                descriptions['description'] = item.get('description', '')
+                                break
+                    elif data.get('@type') == 'Product':
+                        descriptions['title'] = data.get('name', '')
+                        descriptions['description'] = data.get('description', '')
+                if descriptions['title']:
+                    break
+            except (json.JSONDecodeError, TypeError):
+                continue
+        add_to_wishlist = soup.find('add-to-wishlist')
+        if add_to_wishlist:
+            descriptions['marina'] = add_to_wishlist.get('marina', '') or ''
+            descriptions['location'] = add_to_wishlist.get('region', '') or ''
+        if not descriptions['location']:
+            payment_box = soup.find('mobile-payment-box')
+            if payment_box:
+                descriptions['location'] = payment_box.get('region', '') or ''
+
+        # --- Услуги ---
+        services = {
+            'extras': _extract_extras_from_component(soup),
+            'additional_services': _extract_additional_services_from_component(soup),
+            'delivery_extras': _extract_delivery_extras(soup),
+            'not_included': _extract_not_included(soup),
+        }
+
+        # --- Оборудование (только is_present=True) ---
+        amenities = _extract_amenities_from_html(soup)
+
+        logger.info(
+            f'[parser] ✅ {lang}: title="{descriptions["title"][:40]}", '
+            f'extras={len(services["extras"])}, '
+            f'cockpit={len(amenities["cockpit"])}, entertainment={len(amenities["entertainment"])}, '
+            f'equipment={len(amenities["equipment"])}'
+        )
+        return {'descriptions': descriptions, 'services': services, 'amenities': amenities}
+
+    except Exception as e:
+        import traceback
+        logger.error(f'[parser] Ошибка загрузки {lang} для {slug}: {e}\n{traceback.format_exc()}')
+        return empty
+
+
+def _fetch_all_languages_data(slug: str, languages: list) -> dict:
+    """
+    Загружает данные лодки для всех языков. Каждая страница тянется ровно ОДИН РАЗ.
+    Возвращает: {lang: {'descriptions': {...}, 'services': {...}, 'amenities': {...}}}
+    """
+    return {lang: _fetch_language_page_data(slug, lang) for lang in languages}
+
 
 def _extract_equipment_section(soup: BeautifulSoup, section_key: str) -> list:
     """Извлекает оборудование из vue компонента (cockpit, entertainment, equipment)"""
@@ -1293,21 +1097,15 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     delivery_extras = _extract_delivery_extras(soup)
     not_included = _extract_not_included(soup)
     
-    # ⭐ Получаем equipment из API на разных языках
+    # ⭐ Загружаем страницу каждого языка ОДИН РАЗ и извлекаем все данные
     SUPPORTED_LANGUAGES = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR', 'es_ES']
-    equipment_by_language = _extract_equipment_from_api(slug, SUPPORTED_LANGUAGES)
-    
-    # ⭐ Получаем локализованные описания из HTML разных языков
-    localized_descriptions = _extract_boat_info_from_all_languages(slug, SUPPORTED_LANGUAGES)
-    
-    # ⭐ Получаем локализованные услуги (extras, adds, delivery, not_included) из HTML разных языков
-    localized_extras = _extract_extras_from_all_languages(slug, SUPPORTED_LANGUAGES)
-    
-    # Инициализируем оборудование пустыми списками для русского (по умолчанию)
-    # Будут заполнены из API ниже
-    cockpit = equipment_by_language.get('ru_RU', {}).get('cockpit', [])
-    entertainment = equipment_by_language.get('ru_RU', {}).get('entertainment', [])
-    equipment = equipment_by_language.get('ru_RU', {}).get('equipment', [])
+    all_lang_data = _fetch_all_languages_data(slug, SUPPORTED_LANGUAGES)
+
+    # Оборудование русской версии для основного результата
+    ru_amenities = all_lang_data.get('ru_RU', {}).get('amenities', {})
+    cockpit = ru_amenities.get('cockpit', [])
+    entertainment = ru_amenities.get('entertainment', [])
+    equipment = ru_amenities.get('equipment', [])
     
     # Скачиваем фото (первые 20)
     pics_to_download = pics[:20]
@@ -1320,13 +1118,7 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
             downloaded_pics.append(saved_path)
     
     logger.info(f"Успешно скачано {len(downloaded_pics)}/{len(pics_to_download)} фото")
-    
-    # Извлекаем equipment на русском для возврата (основной язык)
-    ru_equipment = equipment_by_language.get('ru_RU', {})
-    cockpit = ru_equipment.get('cockpit', [])
-    entertainment = ru_equipment.get('entertainment', [])
-    equipment_data = ru_equipment.get('equipment', [])
-    
+
     # Формируем результат с полной структурой
     result = {
         # Основная информация
@@ -1357,10 +1149,8 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
         # Оборудование (основной язык - русский)
         'cockpit': cockpit,                         # Оборудование кокпита
         'entertainment': entertainment,             # Развлечения
-        'equipment': equipment_data,                # Оборудование
+        'equipment': equipment,                     # Оборудование
         
-        # Оборудование на разных языках (для поддержки мультиязычности)
-        'equipment_by_language': equipment_by_language,
     }
     # Краткое структурированное логирование результата парсинга
     try:
@@ -1418,8 +1208,8 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
 
             # Сохраняем описание (BoatDescription) для всех языков
             for language in SUPPORTED_LANGUAGES:
-                lang_desc = localized_descriptions.get(language, {})
-                
+                lang_desc = all_lang_data.get(language, {}).get('descriptions', {})
+
                 # Используем локализованные данные если есть, иначе русские по умолчанию
                 title = lang_desc.get('title', '') or boat_info.get('title', '')
                 description = lang_desc.get('description', '') or boat_info.get('description', '')
@@ -1466,8 +1256,8 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
 
             # Сохраняем доп. детали (BoatDetails) для каждого языка
             for language in SUPPORTED_LANGUAGES:
-                lang_equipment = equipment_by_language.get(language, {})
-                lang_services = localized_extras.get(language, {})
+                lang_equipment = all_lang_data.get(language, {}).get('amenities', {})
+                lang_services = all_lang_data.get(language, {}).get('services', {})
                 
                 BoatDetails.objects.update_or_create(
                     boat=parsed_boat,

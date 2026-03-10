@@ -1150,34 +1150,15 @@ def format_boat_data(boat: Dict) -> Dict:
     # Чартер для расчёта комиссии (из in-memory кэша)
     charter_obj = _get_charter(charter_id_raw) if charter_id_raw else None
 
-    # Для search API используем totalPrice как более стабильный источник
-    # (в API поле discount может "прыгать" при одинаковых параметрах)
-    total_price_from_api = boat.get('totalPrice', 0)
+    # Считаем из стабильных полей — totalPrice из API недетерминирован
     try:
-        if total_price_from_api:
-            price = float(total_price_from_api)
-
-            # Применяем только дополнительный шаг по комиссии чартера
-            # если additional_discount < commission -> еще скидка min(5, commission)
-            if charter_obj and charter_obj.commission:
-                commission = float(charter_obj.commission)
-                additional_discount_val = float(additional_discount) if additional_discount else 0
-                if additional_discount_val < commission:
-                    try:
-                        from boats.models import PriceSettings
-                        extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
-                    except Exception:
-                        extra_discount_max = 5
-                    extra_discount = min(extra_discount_max, commission)
-                    price = price * (1 - extra_discount / 100)
-        else:
-            from boats.helpers import calculate_final_price_with_discounts
-            price = calculate_final_price_with_discounts(
-                base_price,
-                discount_without_extra,
-                additional_discount,
-                charter_obj,
-            )
+        from boats.helpers import calculate_final_price_with_discounts
+        price = calculate_final_price_with_discounts(
+            base_price,
+            discount_without_extra,
+            additional_discount,
+            charter_obj,
+        )
     except Exception as calc_err:
         logger.warning(f"[format_boat_data] Price calc fallback due to error: {calc_err}")
         price = base_price
@@ -1264,7 +1245,8 @@ def format_boat_data(boat: Dict) -> Dict:
         length = 0
     
     # Год выпуска
-    year = boat.get('year') or boat.get('buildYear', '')
+    params = boat.get('parameters') or {}
+    year = boat.get('year') or boat.get('buildYear') or params.get('year', '')
     if year:
         try:
             year = int(year)
@@ -1285,28 +1267,12 @@ def format_boat_data(boat: Dict) -> Dict:
     # Дополнительная информация (уже извлечена выше для расчёта цены)
     coordinates = boat.get('coordinates', [])
     
-    # === ОБОРУДОВАНИЕ ИЗ FILTER (из API) ===
-    # Эти данные приходят в поле 'filter' в структуре: filter.cockpit, filter.entertainment, filter.equipment
-    # Каждое это массив объектов: [{"_id":"...", "name":"...", "count":1}, ...]
-    # Извлекаем только 'name' для отображения
-    filter_data = boat.get('filter', {}) if isinstance(boat.get('filter'), dict) else {}
-    
+    # === ОБОРУДОВАНИЕ ===
+    # Оборудование нельзя определить из поиска API (filter.count — глобальный для всех лодок).
+    # Корректные данные берутся из HTML <amenities> компонента при полном парсинге лодки.
     cockpit = []
     entertainment = []
     equipment = []
-    
-    if filter_data:
-        # Парсим cockpit
-        if 'cockpit' in filter_data and isinstance(filter_data['cockpit'], list):
-            cockpit = [{'name': item.get('name', '')} for item in filter_data['cockpit'] if item.get('name')]
-        
-        # Парсим entertainment
-        if 'entertainment' in filter_data and isinstance(filter_data['entertainment'], list):
-            entertainment = [{'name': item.get('name', '')} for item in filter_data['entertainment'] if item.get('name')]
-        
-        # Парсим equipment
-        if 'equipment' in filter_data and isinstance(filter_data['equipment'], list):
-            equipment = [{'name': item.get('name', '')} for item in filter_data['equipment'] if item.get('name')]
     
     # Лог для отладки
     logger.info(
@@ -1342,7 +1308,7 @@ def format_boat_data(boat: Dict) -> Dict:
         'charter_logo': charter_logo,
         'charter_id': charter_id_raw,
         'coordinates': coordinates,
-        # Оборудование из API filter
+        # Оборудование (пусто из API, заполняется при полном парсинге через HTML <amenities>)
         'cockpit': cockpit,
         'entertainment': entertainment,
         'equipment': equipment,

@@ -244,9 +244,9 @@
                 <!-- Boats List -->
                 <div class="space-y-4">
                     {% for boat in boats %}
-                    <div class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex flex-col sm:flex-row hover:border-primary">
+                    <div data-testid="search-boat-card" class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex flex-col sm:flex-row sm:h-56 hover:border-primary">
                         <!-- Thumbnail -->
-                        <div class="w-full aspect-square sm:w-56 sm:h-56 flex-shrink-0 bg-base-200 overflow-hidden">
+                        <div data-testid="search-boat-preview" class="w-full aspect-square sm:w-56 sm:h-56 flex-shrink-0 bg-base-200 overflow-hidden">
                             {% if boat.preview %}
                                 <img
                                     src="{{ boat.preview }}"
@@ -261,11 +261,11 @@
                         </div>
 
                         <!-- Content -->
-                        <div class="flex-1 min-w-0 p-4 flex flex-col justify-between">
+                        <div class="flex-1 min-w-0 p-3 sm:p-4 flex flex-col h-full overflow-hidden">
                             <!-- Header -->
-                            <div>
-                                <div class="flex items-start justify-between gap-2 mb-2">
-                                    <h3 class="text-lg font-bold break-words">{{ boat.name|default:"Лодка" }}</h3>
+                            <div class="min-h-0 overflow-hidden">
+                                <div class="flex items-start justify-between gap-2 mb-1.5">
+                                    <h3 class="text-base sm:text-lg font-bold truncate leading-tight" title="{{ boat.name|default:'Лодка' }}">{{ boat.name|default:"Лодка" }}</h3>
                                     {% if boat.featured %}
                                     <span class="badge badge-accent gap-1 ml-2">
                                         <i class="fas fa-star"></i>
@@ -274,27 +274,31 @@
                                 </div>
 
                                 <!-- Location -->
-                                <div class="text-sm text-base-content/70 mb-3">
+                                <div class="text-xs sm:text-sm text-base-content/70 mb-2 truncate" title="{{ boat.country|default:'' }}{% if boat.marina %} • {{ boat.marina }}{% endif %}">
                                     <i class="fas fa-map-pin"></i>
                                     {{ boat.country|default:"" }}
                                     {% if boat.marina %}• {{ boat.marina }}{% endif %}
                                 </div>
 
                                 <!-- Specs Row -->
-                                <div class="flex flex-wrap gap-4 text-sm mb-3">
-                                    <div class="flex items-center gap-1">
+                                <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs sm:text-sm mb-2">
+                                    <div class="flex items-center gap-1 whitespace-nowrap">
                                         <i class="fas fa-users text-primary"></i>
                                         <span>{{ boat.berths|default:"—" }} гостей</span>
                                     </div>
-                                    <div class="flex items-center gap-1">
+                                    <div class="flex items-center gap-1 whitespace-nowrap">
                                         <i class="fas fa-door-open text-primary"></i>
                                         <span>{{ boat.cabins|default:"—" }} кают</span>
                                     </div>
-                                    <div class="flex items-center gap-1">
+                                    <div class="flex items-center gap-1 whitespace-nowrap">
                                         <i class="fas fa-ruler text-info"></i>
                                         <span>{{ boat.length|default:"—" }}м</span>
                                     </div>
-                                    <div class="flex items-center gap-1">
+                                    <div class="flex items-center gap-1 whitespace-nowrap">
+                                        <i class="fas fa-calendar-alt text-primary"></i>
+                                        <span>{{ boat.year }} г.</span>
+                                    </div>
+                                    <div class="flex items-center gap-1 whitespace-nowrap">
                                         <i class="fas fa-star text-warning"></i>
                                         <span>{{ boat.rating|default:"—" }}</span>
                                     </div>
@@ -302,8 +306,8 @@
                             </div>
 
                             <!-- Footer: Price & Actions -->
-                            <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pt-3 border-t border-base-300">
-                                <div>
+                            <div class="mt-auto flex flex-col sm:flex-row sm:items-end justify-between gap-2 pt-2 border-t border-base-300">
+                                <div class="min-w-0">
                                     {% if check_in and check_out and rental_days and boat.price %}
                                     <div class="text-xs text-base-content/70">Итого за {{ rental_days }} дн.</div>
                                     {% if boat.old_price and boat.discount_percent %}
@@ -311,16 +315,16 @@
                                         {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
                                     </div>
                                     {% endif %}
-                                    <div class="text-2xl font-bold text-primary">
+                                    <div class="text-xl sm:text-2xl font-bold text-primary leading-tight">
                                         {{ boat.price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
                                     </div>
                                     {% if boat.discount_percent %}
-                                    <div class="text-xs text-success font-semibold mt-1">
+                                    <div class="text-xs text-success font-semibold mt-0.5">
                                         Скидка до {{ boat.discount_percent|floatformat:0 }}%
                                     </div>
                                     {% endif %}
                                     {% if boat.price_per_day %}
-                                    <div class="text-xs text-base-content/70 mt-1">
+                                    <div class="text-xs text-base-content/70 mt-0.5">
                                         <span class="font-semibold">{{ boat.price_per_day|floatformat:0 }}</span> за сутки
                                     </div>
                                     {% endif %}
@@ -331,17 +335,17 @@
                                         {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
                                     </div>
                                     {% endif %}
-                                    <div class="text-2xl font-bold text-primary">
+                                    <div class="text-xl sm:text-2xl font-bold text-primary leading-tight">
                                         {% if boat.price %}{{ boat.price|floatformat:0 }}{% else %}N/A{% endif %} {{ boat.currency|default:"EUR" }}
                                     </div>
                                     {% if boat.discount_percent %}
-                                    <div class="text-xs text-success font-semibold mt-1">
+                                    <div class="text-xs text-success font-semibold mt-0.5">
                                         Скидка до {{ boat.discount_percent|floatformat:0 }}%
                                     </div>
                                     {% endif %}
                                     {% endif %}
                                 </div>
-                                <div class="flex gap-2 sm:justify-end w-full sm:w-auto" x-data="{ 
+                                <div class="flex gap-2 sm:justify-end w-full sm:w-auto flex-shrink-0" x-data="{ 
                                     isFavorite: {{ boat.is_favorite|yesno:'true,false' }},
                                     loading: false,
                                     async toggleFavorite() {
@@ -371,17 +375,17 @@
                                     <button 
                                         @click="toggleFavorite()"
                                         :disabled="loading"
-                                        class="btn btn-ghost btn-sm"
+                                        class="btn btn-ghost btn-xs sm:btn-sm"
                                         :class="isFavorite ? 'text-error' : ''"
                                     >
                                         <i :class="isFavorite ? 'fas fa-heart' : 'far fa-heart'"></i>
                                     </button>
                                     {% else %}
-                                    <button class="btn btn-ghost btn-sm" x-data @click="window.location.href='{% url 'login' %}?next={{ request.path }}'" title="Войдите, чтобы добавить в избранное">
+                                    <button class="btn btn-ghost btn-xs sm:btn-sm" x-data @click="window.location.href='{% url 'login' %}?next={{ request.path }}'" title="Войдите, чтобы добавить в избранное">
                                         <i class="far fa-heart"></i>
                                     </button>
                                     {% endif %}
-                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" class="btn btn-primary btn-sm flex-1 sm:flex-none">
+                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" class="btn btn-primary btn-xs sm:btn-sm flex-1 sm:flex-none">
                                         Подробно
                                     </a>
                                 </div>

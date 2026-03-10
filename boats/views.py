@@ -714,14 +714,15 @@ def boat_detail_api(request, boat_id):
             api_check_in = (today + timedelta(days=7)).strftime('%Y-%m-%d')
             api_check_out = (today + timedelta(days=14)).strftime('%Y-%m-%d')
 
-        # Кэшируем цену по slug+даты на 15 минут
+        slug = boat_static['slug']
+        search_price_key = f'search_price_v2:{slug}:{api_check_in}:{api_check_out}:EUR'
         price_cache_key = f'boat_price:{boat_id}:{api_check_in}:{api_check_out}'
         price_info = cache.get(price_cache_key)
 
         if not price_info:
             from boats.boataround_api import BoataroundAPI
             price_data = BoataroundAPI.get_price(
-                slug=boat_static['slug'],
+                slug=slug,
                 check_in=api_check_in,
                 check_out=api_check_out,
                 currency='EUR',
@@ -732,32 +733,22 @@ def boat_detail_api(request, boat_id):
             discount = 0
             total_price = 0
             if price_data:
+                from boats.helpers import calculate_final_price_with_discounts
+
                 base_price = float(price_data.get('price', 0))
-                total_price_api = float(price_data.get('totalPrice', 0))
                 discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
                 additional_discount = float(price_data.get('additional_discount', 0))
                 discount = discount_without_extra
                 charter_commission = float(boat_static.get('_charter_commission', 0))
 
-                if total_price_api:
-                    # Зеркалируем логику поиска: totalPrice из API уже включает все стандартные скидки,
-                    # применяем только дополнительный шаг комиссии чартера
-                    total_price = total_price_api
-                    if charter_commission and additional_discount < charter_commission:
-                        from boats.models import PriceSettings
-                        extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
-                        extra_discount = min(extra_discount_max, charter_commission)
-                        total_price = total_price * (1 - extra_discount / 100)
-                else:
-                    from boats.helpers import calculate_final_price_with_discounts
+                class _Charter:
+                    commission = charter_commission
 
-                    class _Charter:
-                        commission = charter_commission
-
-                    total_price = calculate_final_price_with_discounts(
-                        base_price, discount_without_extra, additional_discount,
-                        _Charter() if charter_commission else None
-                    )
+                # Считаем из стабильных полей — totalPrice из API недетерминирован
+                total_price = calculate_final_price_with_discounts(
+                    base_price, discount_without_extra, additional_discount,
+                    _Charter() if charter_commission else None
+                )
                 price = base_price
 
             old_price = 0
@@ -777,7 +768,13 @@ def boat_detail_api(request, boat_id):
                 'discount_percent': discount_percent,
                 'currency': 'EUR',
             }
-            cache.set(price_cache_key, price_info, 60 * 15)  # 15 минут
+            # Пишем в оба кэша — чтобы следующие запросы (и поиск, и деталь) видели одно
+            cache.set(price_cache_key, price_info, 60 * 60)
+            cache.set(search_price_key, {
+                'price': total_price,
+                'old_price': old_price,
+                'discount_percent': discount_percent,
+            }, 60 * 60)
 
         # Собираем boat_dict из кэшированных данных + цены
         boat_dict = {**boat_static, **price_info}

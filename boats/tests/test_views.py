@@ -1,6 +1,7 @@
 """
 Tests for boats views
 """
+from unittest.mock import patch
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
@@ -62,6 +63,38 @@ class BoatViewsTest(TestCase):
         response = self.client.get(reverse('boat_search'))
         self.assertEqual(response.status_code, 200)
         self.assertIn('boats', response.context)
+
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_card_has_fixed_height_and_overflow_rules(self, mock_search, mock_format_boat_data):
+        """Search results card should keep desktop height equal to preview and avoid overflow."""
+        mock_search.return_value = {
+            'boats': [{'slug': 'test-boat-slug', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'test-boat-slug',
+            'id': 'test-boat-id',
+            'name': 'Test Boat Name',
+            'country': 'Croatia',
+            'marina': 'Split',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+        }
+
+        response = self.client.get(reverse('boat_search'), {'destination': 'croatia'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-testid="search-boat-card"')
+        self.assertContains(response, 'sm:h-56')
+        self.assertContains(response, 'data-testid="search-boat-preview"')
+        self.assertContains(response, 'h-full overflow-hidden')
 
 
 class BoatAuthenticationTest(TestCase):
