@@ -413,13 +413,30 @@ class BoataroundAPI:
                 params['checkIn'] = check_in
             if check_out:
                 params['checkOut'] = check_out
-            
-            response = requests.get(
-                url,
-                params=params,
-                headers=BoataroundAPI.HEADERS,
-                timeout=5
-            )
+
+            # Цена нужна на критичном пути открытия карточки: делаем мягкие ретраи
+            # при сетевых проблемах, чтобы снизить количество ложных "ошибок".
+            max_retries = 3
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = requests.get(
+                        url,
+                        params=params,
+                        headers=BoataroundAPI.HEADERS,
+                        timeout=10
+                    )
+                    break
+                except (requests.Timeout, requests.ConnectionError) as net_err:
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"[Price] Retry {attempt + 1}/{max_retries} for {slug} due to network error: {net_err}"
+                        )
+                        import time
+                        time.sleep(2 ** attempt)
+                    else:
+                        logger.warning(f"[Price] Failed after {max_retries} attempts for {slug}: {net_err}")
+                        return {}
             
             if response.status_code == 200:
                 data = response.json()

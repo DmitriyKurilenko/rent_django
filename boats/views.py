@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.utils.translation import get_language
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails
+from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, BoatPrice
 from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
@@ -729,9 +729,11 @@ def boat_detail_api(request, boat_id):
                 lang=db_lang
             )
 
-            price = 0
-            discount = 0
-            total_price = 0
+            price = 0.0
+            discount = 0.0
+            total_price = 0.0
+            old_price = 0.0
+            discount_percent = 0
             if price_data:
                 from boats.helpers import calculate_final_price_with_discounts
 
@@ -750,15 +752,55 @@ def boat_detail_api(request, boat_id):
                     _Charter() if charter_commission else None
                 )
                 price = base_price
+            else:
+                # Если live-цена не пришла, пробуем fallback:
+                # 1) старый кэш цены из поиска на те же даты
+                # 2) сохраненная в БД базовая цена лодки
+                stale_search_price = cache.get(search_price_key) or {}
+                stale_total = float(stale_search_price.get('price') or 0)
+                stale_old = float(stale_search_price.get('old_price') or 0)
+                stale_discount = float(stale_search_price.get('discount_percent') or 0)
 
-            old_price = 0
-            discount_percent = 0
+                if stale_total > 0:
+                    total_price = stale_total
+                    price = stale_old if stale_old > 0 else stale_total
+                    old_price = stale_old if stale_old > 0 else 0.0
+                    discount_percent = int(round(stale_discount)) if stale_discount > 0 else 0
+                    logger.warning(
+                        f"[Boat Detail] Price API unavailable for {slug}, using cached search price "
+                        f"for {api_check_in}..{api_check_out}"
+                    )
+                else:
+                    fallback_days = rental_days if rental_days and rental_days > 0 else 7
+                    db_price = (
+                        BoatPrice.objects.filter(boat__slug=slug, currency='EUR').first()
+                        or BoatPrice.objects.filter(boat__slug=slug).first()
+                    )
+                    if db_price:
+                        per_day = float(db_price.price_per_day or 0)
+                        per_week = float(db_price.price_per_week or 0)
+                        if per_day > 0:
+                            total_price = round(per_day * fallback_days, 2)
+                            price = total_price
+                        elif per_week > 0:
+                            total_price = round((per_week / 7) * fallback_days, 2)
+                            price = total_price
+                        logger.warning(
+                            f"[Boat Detail] Price API unavailable for {slug}, using DB fallback price "
+                            f"(days={fallback_days}, currency={db_price.currency})"
+                        )
+                    else:
+                        logger.warning(
+                            f"[Boat Detail] Price API unavailable for {slug} and no cached/DB fallback found"
+                        )
+
             try:
-                if price and total_price and float(price) > float(total_price):
+                if not old_price and price and total_price and float(price) > float(total_price):
                     old_price = float(price)
                     discount_percent = round((float(price) - float(total_price)) / float(price) * 100)
             except (ValueError, TypeError, ZeroDivisionError):
-                pass
+                old_price = 0.0
+                discount_percent = 0
 
             price_info = {
                 'price': price,
@@ -768,13 +810,19 @@ def boat_detail_api(request, boat_id):
                 'discount_percent': discount_percent,
                 'currency': 'EUR',
             }
-            # Пишем в оба кэша — чтобы следующие запросы (и поиск, и деталь) видели одно
-            cache.set(price_cache_key, price_info, 60 * 60)
-            cache.set(search_price_key, {
-                'price': total_price,
-                'old_price': old_price,
-                'discount_percent': discount_percent,
-            }, 60 * 60)
+            if total_price > 0 or price > 0:
+                # Пишем в оба кэша — чтобы следующие запросы (и поиск, и деталь) видели одно
+                cache.set(price_cache_key, price_info, 60 * 60)
+                cache.set(search_price_key, {
+                    'price': total_price if total_price > 0 else price,
+                    'old_price': old_price,
+                    'discount_percent': discount_percent,
+                }, 60 * 60)
+            else:
+                # Не кэшируем "нулевую" цену после сбоя API, чтобы не отравлять кэш.
+                logger.warning(
+                    f"[Boat Detail] Skip empty price cache write for {slug} ({api_check_in}..{api_check_out})"
+                )
 
         # Собираем boat_dict из кэшированных данных + цены
         boat_dict = {**boat_static, **price_info}
