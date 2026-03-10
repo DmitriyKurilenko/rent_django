@@ -733,20 +733,31 @@ def boat_detail_api(request, boat_id):
             total_price = 0
             if price_data:
                 base_price = float(price_data.get('price', 0))
+                total_price_api = float(price_data.get('totalPrice', 0))
                 discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
                 additional_discount = float(price_data.get('additional_discount', 0))
                 discount = discount_without_extra
+                charter_commission = float(boat_static.get('_charter_commission', 0))
 
-                from boats.helpers import calculate_final_price_with_discounts
+                if total_price_api:
+                    # Зеркалируем логику поиска: totalPrice из API уже включает все стандартные скидки,
+                    # применяем только дополнительный шаг комиссии чартера
+                    total_price = total_price_api
+                    if charter_commission and additional_discount < charter_commission:
+                        from boats.models import PriceSettings
+                        extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
+                        extra_discount = min(extra_discount_max, charter_commission)
+                        total_price = total_price * (1 - extra_discount / 100)
+                else:
+                    from boats.helpers import calculate_final_price_with_discounts
 
-                # Используем сохранённую комиссию чартера
-                class _Charter:
-                    commission = boat_static.get('_charter_commission', 0)
+                    class _Charter:
+                        commission = charter_commission
 
-                total_price = calculate_final_price_with_discounts(
-                    base_price, discount_without_extra, additional_discount,
-                    _Charter() if _Charter.commission else None
-                )
+                    total_price = calculate_final_price_with_discounts(
+                        base_price, discount_without_extra, additional_discount,
+                        _Charter() if charter_commission else None
+                    )
                 price = base_price
 
             old_price = 0
@@ -1001,8 +1012,8 @@ def my_bookings(request):
     # Список менеджеров для суперадмина
     managers = []
     if user.profile.role == 'superadmin':
-        from accounts.models import UserProfile
-        managers = User.objects.filter(profile__role='manager').order_by('first_name', 'username')
+        from django.contrib.auth.models import User as AuthUser
+        managers = AuthUser.objects.filter(profile__role='manager').order_by('first_name', 'username')
 
     context = {
         'bookings': bookings,
@@ -1579,8 +1590,10 @@ def create_offer(request):
             if 'images' not in boat_data_json:
                 boat_data_json['images'] = []
             
+            if boat_data_json.get('description'):
+                boat_data_json['description'] = _strip_last_sentence(boat_data_json['description'])
             offer.boat_data = boat_data_json
-            
+
             # Даты уже установлены из формы через form.save(commit=False)
             # Проверяем что они установлены
             if not offer.check_in or not offer.check_out:
@@ -1625,9 +1638,11 @@ def create_offer(request):
 
             offer.currency = boat_data.get('currency', 'EUR')
             
-            # Заголовок
+            # Заголовок — производитель + модель (например "Bali 4.2")
             if not offer.title:
-                offer.title = boat_data.get('title', 'Аренда яхты')
+                manufacturer = boat_data.get('manufacturer', '')
+                model = boat_data.get('model', '')
+                offer.title = ' '.join(filter(None, [manufacturer, model])) or boat_data.get('title', 'Аренда яхты')
             
             # Сохраняем оффер
             offer.save()
@@ -1730,10 +1745,143 @@ def offer_detail(request, uuid):
         'can_view_internal_notes': can_view_internal_notes,
         'can_book_from_offer': can_book_from_offer,
     }
-    
+
+    if request.user.is_authenticated and request.user.profile.role in ('manager', 'admin', 'superadmin'):
+        context['price_debug'] = _build_price_debug(offer)
+
     # Выбираем шаблон в зависимости от типа оффера
     template = 'boats/offer_captain.html' if offer.is_captain_offer() else 'boats/offer_tourist.html'
     return render(request, template, context)
+
+
+def _strip_last_sentence(text: str) -> str:
+    """Убирает последнее предложение из текста (обычно содержит название чартера)."""
+    import re
+    text = text.strip()
+    # Ищем последнюю границу предложения: точка/восклицание/вопрос + пробел/конец строки/перенос
+    matches = list(re.finditer(r'[.!?][\s\n]+', text))
+    if not matches:
+        return text
+    last = matches[-1]
+    return text[:last.end()].rstrip()
+
+
+def _build_price_debug(offer):
+    """Разбивка формулы цены для отладки."""
+    from boats.models import PriceSettings
+    from boats.helpers import TURKEY_NAMES, SEYCHELLES_NAMES
+
+    cfg = PriceSettings.get_settings()
+    bd = offer.boat_data
+    adjustment = float(offer.price_adjustment or 0)
+
+    if offer.is_captain_offer():
+        api_price = float(bd.get('price', 0))
+        discount_wo_extra_pct = float(bd.get('discount', 0))
+        api_total = float(bd.get('totalPrice', 0))
+        after_dwe = round(api_price * (1 - discount_wo_extra_pct / 100), 2) if discount_wo_extra_pct else api_price
+        return {
+            'type': 'captain',
+            'api_price': api_price,
+            'discount_wo_extra_pct': discount_wo_extra_pct,
+            'after_discount_wo_extra': after_dwe,
+            'api_total': api_total,
+            'extra_discount_max': float(cfg.extra_discount_max),
+            'adjustment': adjustment,
+            'total_price': float(offer.total_price),
+        }
+
+    # Tourist
+    api_total = float(bd.get('totalPrice', 0))
+    country = bd.get('country', '').lower()
+    marina = bd.get('marina', '').lower()
+    # category: разные ключи в зависимости от источника данных
+    category = bd.get('category', '') or bd.get('type', '') or ''
+    # параметры могут быть вложены в 'parameters' (API/парсер) или плоско (DB)
+    params = bd.get('parameters', {}) or {}
+    length = float(params.get('length', 0) or bd.get('length', 0) or 0)
+    double_cabins = int(params.get('double_cabins', 0) or bd.get('double_cabins', 0) or 0)
+    max_sleeps = int(
+        params.get('max_sleeps', 0) or params.get('berths', 0)
+        or bd.get('max_sleeps', 0) or bd.get('berths', 0) or 0
+    )
+
+    insurance_rate = float(cfg.tourist_insurance_rate)
+    insurance_min = float(cfg.tourist_insurance_min)
+    insurance = round(max(api_total * insurance_rate, insurance_min), 2)
+
+    if country in TURKEY_NAMES:
+        base_country = float(cfg.tourist_turkey_base)
+        dish_base = float(cfg.tourist_turkey_dish_base)
+        country_label = 'Турция'
+    elif country in SEYCHELLES_NAMES:
+        base_country = float(cfg.tourist_seychelles_base)
+        dish_base = float(cfg.tourist_seychelles_dish_base)
+        country_label = 'Сейшелы'
+    else:
+        base_country = float(cfg.tourist_default_base)
+        dish_base = float(cfg.tourist_default_dish_base)
+        country_label = 'по умолч.'
+
+    max_double_free = int(cfg.tourist_max_double_cabins_free)
+    double_cabin_extra = float(cfg.tourist_double_cabin_extra)
+    extra_cabins_count = max(double_cabins - max_double_free, 0) if country in SEYCHELLES_NAMES else 0
+    extra_cabins = round(extra_cabins_count * double_cabin_extra, 2)
+
+    praslin = float(cfg.tourist_praslin_extra) if marina == 'praslin marina' else 0
+
+    length_extra = float(cfg.tourist_length_extra) if length > 14.2 else 0
+
+    turkey_length_extra = 0
+    turkey_length_note = ''
+    if length > 13.8 and country in TURKEY_NAMES:
+        if category == 'Катамаран':
+            turkey_length_extra = float(cfg.tourist_catamaran_length_extra)
+            turkey_length_note = 'катамаран'
+        elif category == 'Парусная Яхта':
+            turkey_length_extra = float(cfg.tourist_sailing_length_extra)
+            turkey_length_note = 'парусная яхта'
+
+    food = 0
+    food_formula = ''
+    if offer.has_meal and max_sleeps > 0:
+        cook = float(cfg.tourist_cook_price)
+        food = round((max_sleeps - 2) * dish_base + cook, 2)
+        food_formula = f'({max_sleeps} − 2) × {dish_base} + {cook}'
+
+    subtotal = round(
+        api_total + insurance + extra_cabins + base_country
+        + praslin + length_extra + turkey_length_extra + food, 2
+    )
+
+    return {
+        'type': 'tourist',
+        'country': bd.get('country', '') or '—',
+        'country_label': country_label,
+        'marina': bd.get('marina', '') or '—',
+        'category': category or '—',
+        'length': length,
+        'double_cabins': double_cabins,
+        'max_sleeps': max_sleeps,
+        'has_meal': offer.has_meal,
+        # шаги
+        'api_total': api_total,
+        'insurance': insurance,
+        'insurance_formula': f'max({api_total} × {round(insurance_rate*100,1)}%, {insurance_min})',
+        'extra_cabins': extra_cabins,
+        'extra_cabins_formula': f'{extra_cabins_count} × {double_cabin_extra}' if extra_cabins else '—',
+        'base_country': base_country,
+        'base_country_label': country_label,
+        'praslin': praslin,
+        'length_extra': length_extra,
+        'turkey_length_extra': turkey_length_extra,
+        'turkey_length_note': turkey_length_note,
+        'food': food,
+        'food_formula': food_formula or '—',
+        'subtotal': subtotal,
+        'adjustment': adjustment,
+        'total_price': float(offer.total_price),
+    }
 
 
 @login_required
@@ -1952,9 +2100,11 @@ def quick_create_offer(request, boat_slug):
             boat_data_json['images'] = boat_data_json['gallery']
         if 'images' not in boat_data_json:
             boat_data_json['images'] = []
-        
+
+        if boat_data_json.get('description'):
+            boat_data_json['description'] = _strip_last_sentence(boat_data_json['description'])
         offer.boat_data = boat_data_json
-        
+
         # Рассчитываем цену из API (не из базы!)
         from boats.helpers import calculate_tourist_price
         
@@ -1988,7 +2138,9 @@ def quick_create_offer(request, boat_slug):
         logger.info(f'[Quick Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}, adjustment: {price_adjustment}')
 
         offer.currency = boat_data.get('currency', 'EUR')
-        offer.title = boat_data.get('title', f'Аренда яхты {boat_slug}')
+        manufacturer = boat_data.get('manufacturer', '')
+        model = boat_data.get('model', '')
+        offer.title = ' '.join(filter(None, [manufacturer, model])) or boat_data.get('title', f'Аренда яхты {boat_slug}')
         
         offer.save()
         

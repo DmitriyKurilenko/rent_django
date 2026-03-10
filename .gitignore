@@ -155,3 +155,7 @@ service-account.json
 .github/workflows/*.yml
 !.github/workflows/example.yml
 thumbs_cache.json
+
+manager1.i
+
+задача.md

@@ -28,6 +28,11 @@
                         <button class="btn btn-sm btn-primary justify-start w-full" disabled>
                             <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
                         </button>
+                        {% if user.profile.can_manage_prices %}
+                        <a href="{% url 'profile' %}?tab=prices" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

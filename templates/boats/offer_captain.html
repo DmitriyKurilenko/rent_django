@@ -17,10 +17,6 @@
     <div class="mb-6 flex items-start justify-between">
         <div>
             <h1 class="text-2xl font-bold">{{ offer.title }}</h1>
-            <p class="text-sm text-base-content/60 mt-1">
-                {% if offer.boat_data.marina %}{{ offer.boat_data.marina }}, {% endif %}
-                {% if offer.boat_data.location %}{{ offer.boat_data.location }}{% endif %}
-            </p>
         </div>
         {% if user.is_authenticated %}
         <div class="flex gap-2">
@@ -90,57 +86,6 @@
             </div>
             {% endif %}
 
-            <!-- Description and Price Grid -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <!-- Description (wider) -->
-                {% if offer.boat_data.description %}
-                <div class="lg:col-span-2 card bg-base-100 shadow">
-                    <div class="card-body gap-2">
-                        <h3 class="font-bold text-sm">{% trans "Описание" %}</h3>
-                        <p class="text-sm leading-relaxed">{{ offer.boat_data.description|linebreaks }}</p>
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Price Block (narrower) -->
-                <div class="card bg-primary text-primary-content shadow">
-                    <div class="card-body gap-3 p-5">
-                        <h3 class="font-bold text-base">{% trans "Цена" %}</h3>
-                        {% if display_old_price and display_discount_percent %}
-                        <div class="text-sm opacity-75 line-through">
-                            {{ display_old_price|floatformat:0 }} {{ offer.currency }}
-                        </div>
-                        <div class="text-sm opacity-75 mt-1">
-                            {% trans "Скидка" %}: {{ display_discount_percent|floatformat:0 }}% ({{ display_discount_amount|floatformat:0 }} {{ offer.currency }})
-                        </div>
-                        {% endif %}
-                        <div class="text-4xl font-bold mt-2">
-                            {{ offer.total_price|floatformat:0 }} {{ offer.currency }}
-                        </div>
-                        <div class="text-sm opacity-75">
-                            {% trans "за" %} {{ offer.check_in|date:"d.m.Y" }} - {{ offer.check_out|date:"d.m.Y" }}
-                        </div>
-
-                        {% if can_book_from_offer %}
-                        <form method="post" action="{% url 'book_offer' offer.uuid %}" class="mt-3">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-secondary btn-block btn-sm">
-                                <i class="fas fa-calendar-check"></i>
-                                {% trans "Забронировать" %}
-                            </button>
-                        </form>
-                        {% endif %}
-
-                        {% if show_countdown and countdown_end_iso %}
-                        <div class="mt-2 p-2 rounded bg-base-100/20">
-                            <div class="text-xs opacity-80">{% trans "Предложение действует" %}</div>
-                            <div id="offer-countdown" class="font-semibold text-sm">--:--:--</div>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
             <!-- Cockpit, Entertainment, Equipment Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <!-- Cockpit -->
@@ -195,33 +140,72 @@
                 {% endif %}
             </div>
 
-            <!-- Boat Specs and Tech Combined -->
-            <div class="card bg-base-100 shadow">
-                <div class="card-body gap-2">
-                    <h3 class="font-bold text-sm mb-2">{% trans "Параметры" %}</h3>
-                    <div class="grid grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-                        {% if offer.boat_data.name %}<div><span class="opacity-70">{% trans "Название:" %}</span> {{ offer.boat_data.name }}</div>{% endif %}
-                        {% if offer.boat_data.type %}<div><span class="opacity-70">{% trans "Тип:" %}</span> {{ offer.boat_data.type }}</div>{% endif %}
-                        {% if offer.boat_data.manufacturer %}<div><span class="opacity-70">{% trans "Производитель:" %}</span> {{ offer.boat_data.manufacturer }}</div>{% endif %}
-                        {% if offer.boat_data.model %}<div><span class="opacity-70">{% trans "Модель:" %}</span> {{ offer.boat_data.model }}</div>{% endif %}
-                        {% if offer.boat_data.year %}<div><span class="opacity-70">{% trans "Год:" %}</span> {{ offer.boat_data.year }}</div>{% endif %}
-                        {% if offer.boat_data.length %}<div><span class="opacity-70">{% trans "Длина:" %}</span> {{ offer.boat_data.length }}м</div>{% endif %}
-                        {% if offer.boat_data.beam %}<div><span class="opacity-70">{% trans "Ширина:" %}</span> {{ offer.boat_data.beam }}м</div>{% endif %}
-                        {% if offer.boat_data.draft %}<div><span class="opacity-70">{% trans "Осадка:" %}</span> {{ offer.boat_data.draft }}м</div>{% endif %}
-                        {% if offer.boat_data.cabins %}<div><span class="opacity-70">{% trans "Каюты:" %}</span> {{ offer.boat_data.cabins }}</div>{% endif %}
-                        {% if offer.boat_data.berths %}<div><span class="opacity-70">{% trans "Мест:" %}</span> {{ offer.boat_data.berths }}</div>{% endif %}
-                        {% if offer.boat_data.toilets %}<div><span class="opacity-70">{% trans "Туалеты:" %}</span> {{ offer.boat_data.toilets }}</div>{% endif %}
-                        {% if offer.boat_data.engine %}<div><span class="opacity-70">{% trans "Двигатель:" %}</span> {{ offer.boat_data.engine }}</div>{% endif %}
-                        {% if offer.boat_data.engine_power %}<div><span class="opacity-70">{% trans "Мощность:" %}</span> {{ offer.boat_data.engine_power }} л.с.</div>{% endif %}
-                        {% if offer.boat_data.number_engines %}<div><span class="opacity-70">{% trans "Двигателей:" %}</span> {{ offer.boat_data.number_engines }}</div>{% endif %}
-                        {% if offer.boat_data.engine_type %}<div><span class="opacity-70">{% trans "Тип ДВ:" %}</span> {{ offer.boat_data.engine_type }}</div>{% endif %}
-                        {% if offer.boat_data.fuel %}<div><span class="opacity-70">{% trans "Топливо:" %}</span> {{ offer.boat_data.fuel }}л</div>{% endif %}
-                        {% if offer.boat_data.fuel_type %}<div><span class="opacity-70">{% trans "Вид ТС:" %}</span> {{ offer.boat_data.fuel_type }}</div>{% endif %}
-                        {% if offer.boat_data.water_tank %}<div><span class="opacity-70">{% trans "Вода:" %}</span> {{ offer.boat_data.water_tank }}л</div>{% endif %}
-                        {% if offer.boat_data.maximum_speed %}<div><span class="opacity-70">{% trans "Скорость:" %}</span> {{ offer.boat_data.maximum_speed }} уз</div>{% endif %}
+            <!-- Параметры + Цена -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                <!-- Параметры (левая колонка) -->
+                <div class="lg:col-span-2 card bg-base-100 shadow h-full">
+                    <div class="card-body gap-2">
+                        <h3 class="font-bold text-sm mb-2">{% trans "Параметры" %}</h3>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            {% if offer.boat_data.type %}<div><span class="opacity-70">{% trans "Тип:" %}</span> {{ offer.boat_data.type }}</div>{% endif %}
+                            {% if offer.boat_data.manufacturer %}<div><span class="opacity-70">{% trans "Производитель:" %}</span> {{ offer.boat_data.manufacturer }}</div>{% endif %}
+                            {% if offer.boat_data.model %}<div><span class="opacity-70">{% trans "Модель:" %}</span> {{ offer.boat_data.model }}</div>{% endif %}
+                            {% if offer.boat_data.year %}<div><span class="opacity-70">{% trans "Год:" %}</span> {{ offer.boat_data.year }}</div>{% endif %}
+                            {% if offer.boat_data.length %}<div><span class="opacity-70">{% trans "Длина:" %}</span> {{ offer.boat_data.length }}м</div>{% endif %}
+                            {% if offer.boat_data.beam %}<div><span class="opacity-70">{% trans "Ширина:" %}</span> {{ offer.boat_data.beam }}м</div>{% endif %}
+                            {% if offer.boat_data.draft %}<div><span class="opacity-70">{% trans "Осадка:" %}</span> {{ offer.boat_data.draft }}м</div>{% endif %}
+                            {% if offer.boat_data.cabins %}<div><span class="opacity-70">{% trans "Каюты:" %}</span> {{ offer.boat_data.cabins }}</div>{% endif %}
+                            {% if offer.boat_data.berths %}<div><span class="opacity-70">{% trans "Мест:" %}</span> {{ offer.boat_data.berths }}</div>{% endif %}
+                            {% if offer.boat_data.toilets %}<div><span class="opacity-70">{% trans "Туалеты:" %}</span> {{ offer.boat_data.toilets }}</div>{% endif %}
+                            {% if offer.boat_data.engine %}<div><span class="opacity-70">{% trans "Двигатель:" %}</span> {{ offer.boat_data.engine }}</div>{% endif %}
+                            {% if offer.boat_data.engine_power %}<div><span class="opacity-70">{% trans "Мощность:" %}</span> {{ offer.boat_data.engine_power }} л.с.</div>{% endif %}
+                            {% if offer.boat_data.number_engines %}<div><span class="opacity-70">{% trans "Двигателей:" %}</span> {{ offer.boat_data.number_engines }}</div>{% endif %}
+                            {% if offer.boat_data.engine_type %}<div><span class="opacity-70">{% trans "Тип ДВ:" %}</span> {{ offer.boat_data.engine_type }}</div>{% endif %}
+                            {% if offer.boat_data.fuel %}<div><span class="opacity-70">{% trans "Топливо:" %}</span> {{ offer.boat_data.fuel }}л</div>{% endif %}
+                            {% if offer.boat_data.fuel_type %}<div><span class="opacity-70">{% trans "Вид ТС:" %}</span> {{ offer.boat_data.fuel_type }}</div>{% endif %}
+                            {% if offer.boat_data.water_tank %}<div><span class="opacity-70">{% trans "Вода:" %}</span> {{ offer.boat_data.water_tank }}л</div>{% endif %}
+                            {% if offer.boat_data.maximum_speed %}<div><span class="opacity-70">{% trans "Скорость:" %}</span> {{ offer.boat_data.maximum_speed }} уз</div>{% endif %}
+                        </div>
                     </div>
                 </div>
-            </div>
+
+                <!-- Цена (правая колонка) -->
+                <div class="card bg-primary text-primary-content shadow h-full">
+                    <div class="card-body p-6 flex flex-col gap-4">
+                        <div>
+                            <div class="text-sm opacity-75 mb-1">{% trans "Период аренды" %}</div>
+                            <div class="text-lg font-semibold">{{ offer.check_in|date:"d.m.Y" }} — {{ offer.check_out|date:"d.m.Y" }}</div>
+                        </div>
+                        {% if display_old_price and display_discount_percent %}
+                        <div>
+                            <div class="text-sm opacity-60 line-through">{{ display_old_price|floatformat:0 }} {{ offer.currency }}</div>
+                            <div class="text-sm opacity-80">{% trans "Скидка" %} {{ display_discount_percent|floatformat:0 }}% (−{{ display_discount_amount|floatformat:0 }} {{ offer.currency }})</div>
+                        </div>
+                        {% endif %}
+                        <div>
+                            <div class="text-6xl font-bold">{{ offer.total_price|floatformat:0 }}</div>
+                            <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>
+                        </div>
+                        {% if can_book_from_offer %}
+                        <form method="post" action="{% url 'book_offer' offer.uuid %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-secondary btn-sm w-full">
+                                <i class="fas fa-calendar-check"></i>
+                                {% trans "Забронировать" %}
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if show_countdown and countdown_end_iso %}
+                        <div class="p-2 rounded bg-base-100/20 text-center">
+                            <div class="text-xs opacity-80">{% trans "Предложение действует" %}</div>
+                            <div id="offer-countdown" class="font-semibold text-sm">--:--:--</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>{# /grid параметры+цена #}
 
             <!-- Extras -->
             {% if offer.boat_data.extras and offer.boat_data.extras|length > 0 %}
@@ -363,5 +347,65 @@
     })();
     {% endif %}
 </script>
+
+{% if price_debug %}
+<div class="max-w-5xl mx-auto px-4 pb-8 mt-4">
+    <div class="border border-warning rounded-lg overflow-hidden text-xs font-mono">
+        <div class="bg-warning/20 px-4 py-2 border-b border-warning font-bold">
+            🔧 DEBUG: Формула расчёта цены — Агентский (капитанский) оффер
+        </div>
+        <table class="w-full">
+            <thead class="bg-base-200">
+                <tr>
+                    <th class="text-left px-4 py-1 font-semibold">Шаг</th>
+                    <th class="text-left px-4 py-1 font-semibold">Формула / Условие</th>
+                    <th class="text-right px-4 py-1 font-semibold">EUR</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-base-200">
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">Базовая цена (API price)</td>
+                    <td class="px-4 py-1 opacity-60">до применения скидок</td>
+                    <td class="px-4 py-1 text-right font-semibold">{{ price_debug.api_price }}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-1">Скидка без доп. (discount_without_extra)</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.api_price }} × (1 − {{ price_debug.discount_wo_extra_pct }}%)</td>
+                    <td class="px-4 py-1 text-right text-error">→ {{ price_debug.after_discount_wo_extra }}</td>
+                </tr>
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">После всех скидок (API totalPrice)</td>
+                    <td class="px-4 py-1 opacity-60">discount_without_extra + additional_discount + доп. скидка чартера</td>
+                    <td class="px-4 py-1 text-right font-semibold">{{ price_debug.api_total }}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-1 opacity-50" colspan="2">
+                        Доп. скидка: если additional_discount &lt; комиссии чартера →
+                        min({{ price_debug.extra_discount_max }}%, комиссия)
+                    </td>
+                    <td class="px-4 py-1 text-right opacity-50">применена в API total</td>
+                </tr>
+                {% if price_debug.adjustment %}
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">Корректировка цены</td>
+                    <td class="px-4 py-1 opacity-60">price_adjustment (надбавка / скидка)</td>
+                    <td class="px-4 py-1 text-right {% if price_debug.adjustment > 0 %}text-success{% else %}text-error{% endif %}">
+                        {% if price_debug.adjustment > 0 %}+{% endif %}{{ price_debug.adjustment }}
+                    </td>
+                </tr>
+                {% endif %}
+                <tr class="bg-warning/10 font-bold border-t-2 border-warning">
+                    <td class="px-4 py-2">ИТОГ</td>
+                    <td class="px-4 py-2 opacity-60">offer.total_price</td>
+                    <td class="px-4 py-2 text-right text-base">{{ price_debug.total_price }} EUR</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="px-4 py-2 bg-base-200 text-xs opacity-70 border-t border-warning">
+            Макс. доп. скидка (PriceSettings.extra_discount_max): {{ price_debug.extra_discount_max }}%
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}

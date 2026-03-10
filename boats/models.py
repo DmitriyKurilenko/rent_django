@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import User
 from django.urls import reverse
@@ -644,3 +645,91 @@ class BoatDetails(models.Model):
     
     def __str__(self):
         return f"{self.boat} - {self.get_language_display()} (details)"
+
+
+class PriceSettings(models.Model):
+    """Глобальные настройки цен — синглтон (pk=1)."""
+
+    # ---- Общие (поисковик + агентский оффер) --------------------------------
+    extra_discount_max = models.IntegerField(
+        'Макс. доп. скидка (%)',
+        default=5,
+        help_text='Условная доп. скидка при additional_discount < commission чартера',
+    )
+
+    # ---- Туристический оффер ------------------------------------------------
+    tourist_insurance_rate = models.DecimalField(
+        'Ставка страхования (доля)',
+        max_digits=6, decimal_places=4, default=Decimal('0.1000'),
+        help_text='Страховка депозита = total_price × rate',
+    )
+    tourist_insurance_min = models.DecimalField(
+        'Мин. страховка (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'),
+    )
+    tourist_turkey_base = models.DecimalField(
+        'Базовая цена Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('4400.00'),
+    )
+    tourist_seychelles_base = models.DecimalField(
+        'Базовая цена Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('4500.00'),
+    )
+    tourist_default_base = models.DecimalField(
+        'Базовая цена по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('4500.00'),
+    )
+    tourist_praslin_extra = models.DecimalField(
+        'Надбавка за Praslin Marina (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'),
+    )
+    tourist_length_extra = models.DecimalField(
+        'Надбавка за длину >14.2 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('200.00'),
+    )
+    tourist_cook_price = models.DecimalField(
+        'Стоимость повара (EUR)', max_digits=8, decimal_places=2, default=Decimal('1400.00'),
+    )
+    tourist_turkey_dish_base = models.DecimalField(
+        'Питание Турция EUR/чел', max_digits=8, decimal_places=2, default=Decimal('150.00'),
+    )
+    tourist_seychelles_dish_base = models.DecimalField(
+        'Питание Сейшелы EUR/чел', max_digits=8, decimal_places=2, default=Decimal('210.00'),
+    )
+    tourist_default_dish_base = models.DecimalField(
+        'Питание по умолчанию EUR/чел', max_digits=8, decimal_places=2, default=Decimal('210.00'),
+    )
+    tourist_max_double_cabins_free = models.IntegerField(
+        'Бесплатных двойных кают (Сейшелы)', default=4,
+    )
+    tourist_double_cabin_extra = models.DecimalField(
+        'Надбавка за доп. двойную каюту (EUR)', max_digits=8, decimal_places=2, default=Decimal('180.00'),
+    )
+    tourist_catamaran_length_extra = models.DecimalField(
+        'Надбавка длина катамарана Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('500.00'),
+    )
+    tourist_sailing_length_extra = models.DecimalField(
+        'Надбавка длина парусной яхты Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('300.00'),
+    )
+
+    updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Настройки цен'
+        verbose_name_plural = 'Настройки цен'
+
+    def __str__(self):
+        return 'Настройки цен'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        # Prevent IntegrityError when called via objects.create() (which passes force_insert=True)
+        kwargs.pop('force_insert', None)
+        self._state.adding = not type(self).objects.filter(pk=1).exists()
+        super().save(*args, **kwargs)
+        from django.core.cache import cache
+        cache.delete('price_settings')
+
+    @classmethod
+    def get_settings(cls):
+        """Получить настройки из кэша (5 мин) или БД."""
+        from django.core.cache import cache
+        settings = cache.get('price_settings')
+        if settings is None:
+            settings, _ = cls.objects.get_or_create(pk=1)
+            cache.set('price_settings', settings, 300)
+        return settings

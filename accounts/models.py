@@ -136,6 +136,10 @@ class UserProfile(models.Model):
         """Может управлять чартерными компаниями (только superadmin)"""
         return self.role == 'superadmin'
 
+    def can_manage_prices(self):
+        """Может управлять настройками цен (admin и superadmin)"""
+        return self.role in ['admin', 'superadmin']
+
     def can_use_no_branding(self):
         """Может использовать режим без брендинга в офферах"""
         return self.subscription_plan == 'advanced' or self.role in ['admin', 'superadmin']

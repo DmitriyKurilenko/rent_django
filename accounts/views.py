@@ -1,4 +1,7 @@
+from decimal import Decimal, InvalidOperation
+
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -99,6 +102,15 @@ def profile_view(request):
             context['offers_count'] = Offer.objects.count()
         else:
             context['offers_count'] = Offer.objects.filter(created_by=request.user).count()
+    if request.user.profile.can_manage_prices():
+        from boats.models import PriceSettings
+        ps = PriceSettings.get_settings()
+        context['price_searcher_fields'] = [
+            (f, l, t, getattr(ps, f)) for f, l, t in PRICE_FIELDS if not f.startswith('tourist_')
+        ]
+        context['price_tourist_fields'] = [
+            (f, l, t, getattr(ps, f)) for f, l, t in PRICE_FIELDS if f.startswith('tourist_')
+        ]
     return render(request, 'accounts/profile.html', context)
 
 
@@ -146,3 +158,72 @@ def charters_management_view(request):
         'query': query,
     }
     return render(request, 'accounts/charters_management.html', context)
+
+
+PRICE_FIELDS = [
+    # (field_name, label, field_type)  — field_type: 'decimal' | 'int'
+    # --- Общие ---
+    ('extra_discount_max', 'Макс. доп. скидка — поисковик + агент (%)', 'int'),
+    # --- Туристический оффер ---
+    ('tourist_insurance_rate', 'Ставка страхования (доля, напр. 0.10)', 'decimal'),
+    ('tourist_insurance_min', 'Мин. страховка (EUR)', 'decimal'),
+    ('tourist_turkey_base', 'Базовая цена Турция (EUR)', 'decimal'),
+    ('tourist_seychelles_base', 'Базовая цена Сейшелы (EUR)', 'decimal'),
+    ('tourist_default_base', 'Базовая цена по умолчанию (EUR)', 'decimal'),
+    ('tourist_praslin_extra', 'Надбавка за Praslin Marina (EUR)', 'decimal'),
+    ('tourist_length_extra', 'Надбавка за длину >14.2 м (EUR)', 'decimal'),
+    ('tourist_cook_price', 'Стоимость повара (EUR)', 'decimal'),
+    ('tourist_turkey_dish_base', 'Питание Турция EUR/чел', 'decimal'),
+    ('tourist_seychelles_dish_base', 'Питание Сейшелы EUR/чел', 'decimal'),
+    ('tourist_default_dish_base', 'Питание по умолчанию EUR/чел', 'decimal'),
+    ('tourist_max_double_cabins_free', 'Бесплатных двойных кают Сейшелы (шт)', 'int'),
+    ('tourist_double_cabin_extra', 'Надбавка за доп. двойную каюту (EUR)', 'decimal'),
+    ('tourist_catamaran_length_extra', 'Надбавка длина катамарана Турция (EUR)', 'decimal'),
+    ('tourist_sailing_length_extra', 'Надбавка длина парусной яхты Турция (EUR)', 'decimal'),
+]
+
+
+@login_required
+def price_settings_view(request):
+    """Настройки цен (только admin и superadmin)."""
+    if not request.user.profile.can_manage_prices():
+        return HttpResponseForbidden('Доступ запрещен')
+
+    from boats.models import PriceSettings
+    settings_obj, _ = PriceSettings.objects.get_or_create(pk=1)
+
+    errors = {}
+    if request.method == 'POST':
+        updates = {}
+        for field, label, ftype in PRICE_FIELDS:
+            raw = request.POST.get(field, '').strip()
+            if not raw:
+                errors[field] = f'{label}: обязательное поле'
+                continue
+            try:
+                if ftype == 'int':
+                    updates[field] = int(raw)
+                else:
+                    updates[field] = Decimal(raw)
+            except (ValueError, InvalidOperation):
+                errors[field] = f'{label}: неверное значение «{raw}»'
+
+        if not errors:
+            for field, value in updates.items():
+                setattr(settings_obj, field, value)
+            settings_obj.save()
+            messages.success(request, 'Настройки цен сохранены')
+            return redirect(reverse('profile') + '?tab=prices')
+
+    # Build list of (field, label, ftype, current_value) for the template
+    price_fields_with_values = [
+        (field, label, ftype, getattr(settings_obj, field))
+        for field, label, ftype in PRICE_FIELDS
+    ]
+
+    context = {
+        'settings': settings_obj,
+        'price_fields': price_fields_with_values,
+        'errors': errors,
+    }
+    return render(request, 'accounts/price_settings.html', context)

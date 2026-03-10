@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% load i18n l10n %}
+
+{% block title %}Настройки цен - Ахой!Rent{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-2xl font-bold">Настройки цен</h1>
+            <p class="text-sm opacity-70 mt-1">
+                Параметры расчёта цен для поисковика, туристического и агентского офферов.
+                Последнее обновление: {{ settings.updated_at|date:"d.m.Y H:i" }}
+            </p>
+        </div>
+        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost">
+            <i class="fas fa-arrow-left"></i> Назад в ЛК
+        </a>
+    </div>
+
+    {% if messages %}
+    <div class="space-y-2 mb-4">
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+
+        <!-- ── Поисковик + Агентский оффер ─────────────────────────────── -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body p-4">
+                <h2 class="font-bold text-base mb-1 flex items-center gap-2">
+                    <i class="fas fa-search text-primary"></i>
+                    Поисковик &amp; Агентский оффер
+                </h2>
+                <p class="text-xs opacity-60 mb-4">
+                    При дополнительной скидке меньше комиссии чартера к цене применяется условная скидка, не превышающая эту величину.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% for field, label, ftype, value in price_fields %}
+                    {% if field == 'extra_discount_max' %}
+                    <div class="form-control">
+                        <label class="label py-1">
+                            <span class="label-text text-sm font-medium">{{ label }}</span>
+                        </label>
+                        <input
+                            type="number"
+                            name="{{ field }}"
+                            value="{{ value|unlocalize }}"
+                            step="1"
+                            min="0"
+                            max="100"
+                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
+                            required
+                        >
+                        {% if errors and field in errors %}
+                        <label class="label py-0"><span class="label-text-alt text-error">{{ errors|dictsortreversed:field }}</span></label>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Туристический оффер ──────────────────────────────────────── -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body p-4">
+                <h2 class="font-bold text-base mb-3 flex items-center gap-2">
+                    <i class="fas fa-umbrella-beach text-secondary"></i>
+                    Туристический оффер
+                </h2>
+
+                <!-- Страхование -->
+                <p class="text-xs font-semibold uppercase opacity-50 mb-2 mt-1">Страхование депозита</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    {% for field, label, ftype, value in price_fields %}
+                    {% if field == 'tourist_insurance_rate' or field == 'tourist_insurance_min' %}
+                    <div class="form-control">
+                        <label class="label py-1">
+                            <span class="label-text text-sm font-medium">{{ label }}</span>
+                        </label>
+                        <input
+                            type="number"
+                            name="{{ field }}"
+                            value="{{ value|unlocalize }}"
+                            step="0.0001"
+                            min="0"
+                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
+                            required
+                        >
+                        {% if errors and field in errors %}
+                        <span class="text-error text-xs mt-1">{{ errors|dictsortreversed:field }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Базовая цена по стране -->
+                <p class="text-xs font-semibold uppercase opacity-50 mb-2">Базовая цена по стране (EUR)</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {% for field, label, ftype, value in price_fields %}
+                    {% if field == 'tourist_turkey_base' or field == 'tourist_seychelles_base' or field == 'tourist_default_base' %}
+                    <div class="form-control">
+                        <label class="label py-1">
+                            <span class="label-text text-sm font-medium">{{ label }}</span>
+                        </label>
+                        <input
+                            type="number"
+                            name="{{ field }}"
+                            value="{{ value|unlocalize }}"
+                            step="0.01"
+                            min="0"
+                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
+                            required
+                        >
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Надбавки -->
+                <p class="text-xs font-semibold uppercase opacity-50 mb-2">Надбавки (EUR)</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                    {% for field, label, ftype, value in price_fields %}
+                    {% if field == 'tourist_praslin_extra' or field == 'tourist_length_extra' or field == 'tourist_catamaran_length_extra' or field == 'tourist_sailing_length_extra' or field == 'tourist_double_cabin_extra' or field == 'tourist_max_double_cabins_free' %}
+                    <div class="form-control">
+                        <label class="label py-1">
+                            <span class="label-text text-sm font-medium">{{ label }}</span>
+                        </label>
+                        <input
+                            type="number"
+                            name="{{ field }}"
+                            value="{{ value|unlocalize }}"
+                            step="{% if ftype == 'int' %}1{% else %}0.01{% endif %}"
+                            min="0"
+                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
+                            required
+                        >
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+
+                <!-- Питание -->
+                <p class="text-xs font-semibold uppercase opacity-50 mb-2">Питание (EUR)</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {% for field, label, ftype, value in price_fields %}
+                    {% if field == 'tourist_cook_price' or field == 'tourist_turkey_dish_base' or field == 'tourist_seychelles_dish_base' or field == 'tourist_default_dish_base' %}
+                    <div class="form-control">
+                        <label class="label py-1">
+                            <span class="label-text text-sm font-medium">{{ label }}</span>
+                        </label>
+                        <input
+                            type="number"
+                            name="{{ field }}"
+                            value="{{ value|unlocalize }}"
+                            step="0.01"
+                            min="0"
+                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
+                            required
+                        >
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Сохранить настройки
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

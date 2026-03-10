@@ -29,6 +29,11 @@
                         <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
                         </a>
+                        {% if user.profile.can_manage_prices %}
+                        <a href="{% url 'profile' %}?tab=prices" class="btn btn-sm btn-ghost justify-start w-full">
+                            <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

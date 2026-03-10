@@ -39,7 +39,7 @@ TEST_USERS = [
         "role": "captain",
         "is_staff": False,
         "is_superuser": False,
-        "subscription_plan": "standard",
+        "subscription_plan": "advanced",
     },
     {
         "username": "tourist1",

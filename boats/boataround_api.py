@@ -1163,7 +1163,12 @@ def format_boat_data(boat: Dict) -> Dict:
                 commission = float(charter_obj.commission)
                 additional_discount_val = float(additional_discount) if additional_discount else 0
                 if additional_discount_val < commission:
-                    extra_discount = min(5, commission)
+                    try:
+                        from boats.models import PriceSettings
+                        extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
+                    except Exception:
+                        extra_discount_max = 5
+                    extra_discount = min(extra_discount_max, commission)
                     price = price * (1 - extra_discount / 100)
         else:
             from boats.helpers import calculate_final_price_with_discounts

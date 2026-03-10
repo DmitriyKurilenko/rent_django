@@ -87,10 +87,16 @@ def calculate_final_price_with_discounts(base_price, discount_without_extra, add
     if charter and charter.commission:
         commission = float(charter.commission)
         additional_discount_val = float(additional_discount) if additional_discount else 0
-        
-        # Если additional_discount < commission: применяем ещё 5% (но не более commission)
+
+        # Если additional_discount < commission: применяем доп. скидку (но не более commission)
+        try:
+            from boats.models import PriceSettings
+            extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
+        except Exception:
+            extra_discount_max = 5
+
         if additional_discount_val < commission:
-            extra_discount = min(5, commission)
+            extra_discount = min(extra_discount_max, commission)
             price = price * (1 - extra_discount / 100)
     
     return price
@@ -373,15 +379,18 @@ def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False
         dict: {'total_price': float, 'original_price': float, 'discount': float, 'nights': int}
     """
     from datetime import datetime
-    
+    from boats.models import PriceSettings
+
+    cfg = PriceSettings.get_settings()
+
     # Берём базовую цену из API
     total_price = float(boat_data.get('totalPrice') or boat_data.get('price') or 0)
     if not total_price:
         return {'total_price': 0, 'original_price': 0, 'discount': 0, 'nights': 1}
-    
+
     full_price = float(boat_data.get('price') or 0)
     boat_discount = float(boat_data.get('discount', 0) or 0)
-    
+
     # Количество ночей
     nights = 1
     if check_in and check_out:
@@ -393,55 +402,68 @@ def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False
             nights = max((check_out - check_in).days, 1)
         except (ValueError, TypeError):
             nights = 1
-    
-    # Параметры лодки
-    parameters = boat_data.get('parameters', {})
+
+    # Параметры лодки (могут быть вложены в 'parameters' или плоско в boat_data)
+    parameters = boat_data.get('parameters', {}) or {}
     country = boat_data.get('country', '').lower()
-    category = boat_data.get('category', '')
+    category = boat_data.get('category', '') or boat_data.get('type', '') or ''
     marina = boat_data.get('marina', '').lower()
-    length = float(parameters.get('length', 0) or 0)
-    max_sleeps = int(parameters.get('max_sleeps', 0) or parameters.get('berths', 0) or 0)
-    doubles = int(parameters.get('double_cabins', 0) or 0)
-    
+    length = float(parameters.get('length', 0) or boat_data.get('length', 0) or 0)
+    max_sleeps = int(
+        parameters.get('max_sleeps', 0) or parameters.get('berths', 0)
+        or boat_data.get('max_sleeps', 0) or boat_data.get('berths', 0) or 0
+    )
+    doubles = int(parameters.get('double_cabins', 0) or boat_data.get('double_cabins', 0) or 0)
+
+    insurance_rate = float(cfg.tourist_insurance_rate)
+    insurance_min = float(cfg.tourist_insurance_min)
+    max_double_free = int(cfg.tourist_max_double_cabins_free)
+    double_cabin_extra = float(cfg.tourist_double_cabin_extra)
+    praslin_extra = float(cfg.tourist_praslin_extra)
+    length_extra = float(cfg.tourist_length_extra)
+    catamaran_length_extra = float(cfg.tourist_catamaran_length_extra)
+    sailing_length_extra = float(cfg.tourist_sailing_length_extra)
+    cook_price = float(cfg.tourist_cook_price)
+
     # 1. Страхование депозита
-    insurance = max(total_price * INSURANCE_RATE, INSURANCE_MIN)
+    insurance = max(total_price * insurance_rate, insurance_min)
     total_price += insurance
-    
+
     # 2. Доплата за дополнительные каюты (Сейшелы)
-    if country in SEYCHELLES_NAMES and doubles > MAX_DOUBLE_CABINS_FREE:
-        extra_cabins = doubles - MAX_DOUBLE_CABINS_FREE
-        total_price += extra_cabins * DOUBLE_CABIN_EXTRA
-    
+    if country in SEYCHELLES_NAMES and doubles > max_double_free:
+        extra_cabins = doubles - max_double_free
+        total_price += extra_cabins * double_cabin_extra
+
     # 3. Базовая цена по стране
     if country in TURKEY_NAMES:
-        total_price += TURKEY_BASE_PRICE
-        dish_base = TURKEY_DISH_BASE
+        total_price += float(cfg.tourist_turkey_base)
+        dish_base = float(cfg.tourist_turkey_dish_base)
     elif country in SEYCHELLES_NAMES:
-        total_price += SEYCHELLES_BASE_PRICE
-        dish_base = SEYCHELLES_DISH_BASE
+        total_price += float(cfg.tourist_seychelles_base)
+        dish_base = float(cfg.tourist_seychelles_dish_base)
     else:
-        total_price += DEFAULT_BASE_PRICE
-        dish_base = DEFAULT_DISH_BASE
-    
+        total_price += float(cfg.tourist_default_base)
+        dish_base = float(cfg.tourist_default_dish_base)
+
     # 4. Доплата за марину Praslin
     if marina == 'praslin marina':
-        total_price += PRASLIN_EXTRA
-    
+        total_price += praslin_extra
+
     # 5. Доплата за длину > 14.2м (46 футов)
     if length > 14.2:
-        total_price += LENGTH_EXTRA
-    
+        total_price += length_extra
+
     # 6. Доплата за длину > 13.8м в Турции
     if length > 13.8 and country in TURKEY_NAMES:
         if category == 'Катамаран':
-            total_price += CATAMARAN_LENGTH_EXTRA
+            total_price += catamaran_length_extra
         elif category == 'Парусная Яхта':
-            total_price += SAILING_LENGTH_EXTRA
-    
+            total_price += sailing_length_extra
+
     # 7. Питание
     if dish and max_sleeps > 0:
-        total_price += (max_sleeps - 2) * dish_base + COOK_PRICE
-    
+        total_price += (max_sleeps - 2) * dish_base + cook_price
+
     # 8. Применение скидки/наценки
     if discount:
         total_price += discount

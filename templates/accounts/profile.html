@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n l10n %}
 
 {% block title %}{% trans "Личный кабинет" %} - Ахой!Rent{% endblock %}
 
 {% block extra_head %}{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-6" x-data="{ activeTab: 'dashboard' }">
+<div class="container mx-auto px-4 py-6" x-data="{ activeTab: new URLSearchParams(location.search).get('tab') || 'dashboard' }">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div class="hidden md:block md:col-span-1">
             <div class="card bg-base-100 shadow-sm sticky top-24">
@@ -30,6 +30,11 @@
                         <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
                             <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
                         </a>
+                        {% if user.profile.can_manage_prices %}
+                        <button type="button" class="btn btn-sm btn-ghost justify-start w-full" @click="activeTab = 'prices'">
+                            <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
+                        </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -131,6 +136,268 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Prices Tab -->
+            {% if user.profile.can_manage_prices %}
+            <div x-show="activeTab === 'prices'" x-data="{ priceTab: new URLSearchParams(location.search).get('price_tab') || 'searcher' }">
+                <div class="card bg-base-100 shadow-sm">
+                    <div class="card-body p-4">
+                        <h2 class="font-bold mb-4">{% trans "Настройки цен" %}</h2>
+
+                        <div class="flex flex-wrap gap-2 mb-6 border-b border-base-300 pb-4">
+                            <button type="button" class="btn btn-sm" :class="priceTab === 'searcher' ? 'btn-primary' : 'btn-ghost'" @click="priceTab = 'searcher'">
+                                <i class="fas fa-search"></i> {% trans "Поисковик" %}
+                            </button>
+                            <button type="button" class="btn btn-sm" :class="priceTab === 'tourist' ? 'btn-primary' : 'btn-ghost'" @click="priceTab = 'tourist'">
+                                <i class="fas fa-umbrella-beach"></i> {% trans "Туристический оффер" %}
+                            </button>
+                            <button type="button" class="btn btn-sm" :class="priceTab === 'agent' ? 'btn-primary' : 'btn-ghost'" @click="priceTab = 'agent'">
+                                <i class="fas fa-handshake"></i> {% trans "Агентский оффер" %}
+                            </button>
+                        </div>
+
+                        <form method="post" action="{% url 'price_settings' %}" class="space-y-4">
+                            {% csrf_token %}
+
+                            <!-- Поисковик section -->
+                            <div x-show="priceTab === 'searcher'" class="space-y-4">
+                                <div class="bg-base-200 rounded-lg p-3 text-sm space-y-1.5">
+                                    <p class="font-semibold">Логика расчёта скидки в поисковой выдаче</p>
+                                    <p class="text-base-content/70">Цена в поиске рассчитывается через три шага:</p>
+                                    <ol class="list-decimal list-inside text-base-content/70 space-y-0.5 ml-1">
+                                        <li>Применяется базовая скидка (<em>discount_without_extra</em>)</li>
+                                        <li>Применяется дополнительная скидка пользователя (<em>additional_discount</em>)</li>
+                                        <li>Если <em>additional_discount</em> &lt; комиссии чартера — автоматически добавляется доп. скидка: <code>min(макс.скидка, комиссия чартера)</code></li>
+                                    </ol>
+                                    <p class="text-base-content/70">Параметр ниже задаёт потолок этой автоматической скидки (шаг 3).</p>
+                                </div>
+
+                                {% for field, label, ftype, value in price_searcher_fields %}
+                                <div class="form-control">
+                                    <label class="label pb-0">
+                                        <span class="label-text font-medium text-sm">{{ label }}</span>
+                                    </label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}"
+                                               value="{{ value|unlocalize }}"
+                                               min="0" max="100" step="1"
+                                               class="input input-bordered input-sm w-32">
+                                        <span class="text-sm text-base-content/60">%</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 5%. Диапазон: 0–100%.</p>
+                                </div>
+                                {% endfor %}
+
+                                <div class="card-actions justify-end mt-2">
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-save"></i> {% trans "Сохранить" %}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Туристический оффер section -->
+                            <div x-show="priceTab === 'tourist'" class="space-y-4">
+                                <div class="bg-base-200 rounded-lg p-3 text-sm space-y-1.5">
+                                    <p class="font-semibold">Логика расчёта цены туристического оффера</p>
+                                    <p class="text-base-content/70">Цена считается последовательно от базовой стоимости аренды лодки (из API):</p>
+                                    <ol class="list-decimal list-inside text-base-content/70 space-y-0.5 ml-1">
+                                        <li><strong>Страховка депозита</strong>: <code>max(цена × ставка, мин.страховка)</code></li>
+                                        <li><strong>Доп. каюты (Сейшелы)</strong>: <code>(двойных кают − бесплатных) × надбавка</code>, если кают больше лимита</li>
+                                        <li><strong>Базовая надбавка по стране</strong>: Турция / Сейшелы / остальные</li>
+                                        <li><strong>Марина Praslin</strong>: фиксированная надбавка, если marina = «Praslin Marina»</li>
+                                        <li><strong>Длина &gt; 14.2 м</strong> (46 фут): фиксированная надбавка</li>
+                                        <li><strong>Турция, длина &gt; 13.8 м</strong>: надбавка за катамаран или парусную яхту</li>
+                                        <li><strong>Питание</strong>: <code>(кол-во гостей − 2) × ставка + стоимость повара</code></li>
+                                    </ol>
+                                </div>
+
+                                <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wide">Страхование</p>
+
+                                {% for field, label, ftype, value in price_tourist_fields %}{% if field == 'tourist_insurance_rate' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" max="1" step="0.001" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">доля от 0 до 1 (напр. 0.10 = 10%)</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 0.10</p>
+                                </div>
+                                {% elif field == 'tourist_insurance_min' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR — минимум, даже если % даёт меньше</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 400 EUR</p>
+                                </div>
+                                {% endif %}{% endfor %}
+
+                                <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wide pt-2">Базовые надбавки по стране</p>
+
+                                {% for field, label, ftype, value in price_tourist_fields %}{% if field == 'tourist_turkey_base' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 4 400 EUR</p>
+                                </div>
+                                {% elif field == 'tourist_seychelles_base' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 4 500 EUR</p>
+                                </div>
+                                {% elif field == 'tourist_default_base' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR — для всех стран кроме Турции и Сейшел</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 4 500 EUR</p>
+                                </div>
+                                {% endif %}{% endfor %}
+
+                                <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wide pt-2">Надбавки за параметры лодки</p>
+
+                                {% for field, label, ftype, value in price_tourist_fields %}{% if field == 'tourist_praslin_extra' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR — если marina = «Praslin Marina»</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 400 EUR</p>
+                                </div>
+                                {% elif field == 'tourist_length_extra' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR — если длина &gt; 14.2 м (46 фут)</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 200 EUR</p>
+                                </div>
+                                {% elif field == 'tourist_catamaran_length_extra' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR — Турция, катамаран, длина &gt; 13.8 м</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 500 EUR</p>
+                                </div>
+                                {% elif field == 'tourist_sailing_length_extra' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR — Турция, парусная яхта, длина &gt; 13.8 м</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 300 EUR</p>
+                                </div>
+                                {% elif field == 'tourist_max_double_cabins_free' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">шт. — сверх этого числа каюты платные (Сейшелы)</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 4</p>
+                                </div>
+                                {% elif field == 'tourist_double_cabin_extra' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR за каждую каюту сверх лимита (Сейшелы)</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 180 EUR</p>
+                                </div>
+                                {% endif %}{% endfor %}
+
+                                <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wide pt-2">Питание</p>
+
+                                {% for field, label, ftype, value in price_tourist_fields %}{% if field == 'tourist_cook_price' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR — фиксировано за всю поездку</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 1 400 EUR</p>
+                                </div>
+                                {% elif field == 'tourist_turkey_dish_base' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR/чел — формула: <code>(гостей − 2) × ставка</code></span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 150 EUR/чел</p>
+                                </div>
+                                {% elif field == 'tourist_seychelles_dish_base' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR/чел</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 210 EUR/чел</p>
+                                </div>
+                                {% elif field == 'tourist_default_dish_base' %}
+                                <div class="form-control">
+                                    <label class="label pb-0"><span class="label-text font-medium text-sm">{{ label }}</span></label>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="number" name="{{ field }}" value="{{ value|unlocalize }}" min="0" step="1" class="input input-bordered input-sm w-32">
+                                        <span class="text-xs text-base-content/50">EUR/чел — для всех стран кроме Турции и Сейшел</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">По умолчанию: 210 EUR/чел</p>
+                                </div>
+                                {% endif %}{% endfor %}
+
+                                <div class="card-actions justify-end mt-2">
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-save"></i> {% trans "Сохранить" %}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Агентский оффер section -->
+                            <div x-show="priceTab === 'agent'" class="space-y-4">
+                                <div class="bg-base-200 rounded-lg p-3 text-sm space-y-1.5">
+                                    <p class="font-semibold">Логика расчёта цены агентского оффера</p>
+                                    <p class="text-base-content/70">Агентский оффер формирует цену от базовой стоимости аренды с учётом скидок:</p>
+                                    <ol class="list-decimal list-inside text-base-content/70 space-y-0.5 ml-1">
+                                        <li>Применяется скидка без доп. опций (<em>discount_without_extra</em>)</li>
+                                        <li>Применяется дополнительная скидка агента (<em>additional_discount</em>)</li>
+                                        <li>Если <em>additional_discount</em> &lt; комиссии чартера — автоматически добавляется скидка: <code>min(макс.скидка, комиссия)</code></li>
+                                    </ol>
+                                    <p class="text-base-content/70">Параметр «максимальная скидка» является общим для поисковика и агентского оффера и задаётся в разделе Поисковик.</p>
+                                </div>
+                                <div class="alert alert-info text-sm py-2">
+                                    <i class="fas fa-link"></i>
+                                    <span>
+                                        Параметр настраивается в разделе
+                                        <button type="button" class="link font-semibold" @click="priceTab = 'searcher'">Поисковик</button>.
+                                        {% for field, label, ftype, value in price_searcher_fields %}
+                                        Текущее значение: <strong>{{ value|unlocalize }}%</strong>
+                                        {% endfor %}
+                                    </span>
+                                </div>
+                            </div>
+
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Profile Tab -->
             <div x-show="activeTab === 'profile'">

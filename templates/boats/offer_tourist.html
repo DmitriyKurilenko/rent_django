@@ -17,10 +17,6 @@
     <div class="mb-6 flex items-start justify-between">
         <div>
             <h1 class="text-2xl font-bold">{{ offer.title }}</h1>
-            <p class="text-sm text-base-content/60 mt-1">
-                {% if offer.boat_data.marina %}{{ offer.boat_data.marina }}, {% endif %}
-                {% if offer.boat_data.location %}{{ offer.boat_data.location }}{% endif %}
-            </p>
         </div>
         {% if user.is_authenticated %}
         <div class="flex gap-2">
@@ -90,50 +86,14 @@
             </div>
             {% endif %}
 
-            <!-- Description and Price Grid -->
+            <!-- Параметры + Цена -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <!-- Description (wider) -->
-                {% if offer.boat_data.description %}
-                <div class="lg:col-span-2 card bg-base-100 shadow">
-                    <div class="card-body gap-2">
-                        <h3 class="font-bold text-sm">{% trans "Описание" %}</h3>
-                        <p class="text-sm leading-relaxed">{{ offer.boat_data.description|linebreaks }}</p>
-                    </div>
-                </div>
-                {% endif %}
 
-                <!-- Price Block (narrower) -->
-                <div class="card bg-primary text-primary-content shadow">
-                    <div class="card-body gap-5 p-5">
-                        <h3 class="font-bold text-base">{% trans "Цена" %}</h3>
-                        {% if offer.total_price %}
-                            <div class="text-7xl font-bold mt-2">{{ offer.total_price|floatformat:0 }}</div>
-                            <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>
-                            <div class="text-xl opacity-75 mt-2">{{ offer.check_in|date:"d.m" }} - {{ offer.check_out|date:"d.m.Y" }} • {% nights_between offer.check_in offer.check_out %} {% trans "ночей" %}</div>
-                            
-                            <!-- Кнопка бронирования (только для туристов) -->
-                            {% if can_book_from_offer %}
-                                <form method="post" action="{% url 'book_offer' offer.uuid %}" class="mt-4">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-secondary btn-block btn-lg">
-                                        <i class="fas fa-calendar-check"></i>
-                                        {% trans "Забронировать" %}
-                                    </button>
-                                </form>
-                            {% endif %}
-                        {% else %}
-                            <div class="text-sm opacity-90">{% trans "Цена не доступна" %}</div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Boat Specs and Tech Combined -->
-            <div class="card bg-base-100 shadow">
+                <!-- Параметры (левая колонка) -->
+                <div class="lg:col-span-2 card bg-base-100 shadow h-full">
                 <div class="card-body gap-2">
                     <h3 class="font-bold text-sm mb-2">{% trans "Параметры" %}</h3>
-                    <div class="grid grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-                        {% if offer.boat_data.name %}<div><span class="opacity-70">{% trans "Название:" %}</span> {{ offer.boat_data.name }}</div>{% endif %}
+                    <div class="grid grid-cols-2 gap-2 text-sm">
                         {% if offer.boat_data.type %}<div><span class="opacity-70">{% trans "Тип:" %}</span> {{ offer.boat_data.type }}</div>{% endif %}
                         {% if offer.boat_data.manufacturer %}<div><span class="opacity-70">{% trans "Производитель:" %}</span> {{ offer.boat_data.manufacturer }}</div>{% endif %}
                         {% if offer.boat_data.model %}<div><span class="opacity-70">{% trans "Модель:" %}</span> {{ offer.boat_data.model }}</div>{% endif %}
@@ -154,7 +114,37 @@
                         {% if offer.boat_data.maximum_speed %}<div><span class="opacity-70">{% trans "Скорость:" %}</span> {{ offer.boat_data.maximum_speed }} уз</div>{% endif %}
                     </div>
                 </div>
-            </div>
+                </div>
+
+                <!-- Цена (правая колонка) -->
+                <div class="card bg-primary text-primary-content shadow h-full">
+                    <div class="card-body p-6 flex flex-col gap-4">
+                        {% if offer.total_price %}
+                        <div>
+                            <div class="text-sm opacity-75 mb-1">{% trans "Период аренды" %}</div>
+                            <div class="text-lg font-semibold">{{ offer.check_in|date:"d.m.Y" }} — {{ offer.check_out|date:"d.m.Y" }}</div>
+                            <div class="text-sm opacity-75 mt-1">{% nights_between offer.check_in offer.check_out %} {% trans "ночей" %}</div>
+                        </div>
+                        <div>
+                            <div class="text-7xl font-bold">{{ offer.total_price|floatformat:0 }}</div>
+                            <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>
+                        </div>
+                        {% if can_book_from_offer %}
+                        <form method="post" action="{% url 'book_offer' offer.uuid %}" class="mt-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-secondary btn-sm w-full">
+                                <i class="fas fa-calendar-check"></i>
+                                {% trans "Забронировать" %}
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% else %}
+                        <div class="text-sm opacity-90">{% trans "Цена не доступна" %}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>{# /grid параметры+цена #}
 
             <!-- Cockpit, Entertainment, Equipment Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -256,5 +246,99 @@
         });
     }
 </script>
+
+{% if price_debug %}
+<div class="max-w-5xl mx-auto px-4 pb-8 mt-4">
+    <div class="border border-warning rounded-lg overflow-hidden text-xs font-mono">
+        <div class="bg-warning/20 px-4 py-2 flex items-center gap-2 border-b border-warning">
+            <span class="font-bold">🔧 DEBUG: Формула расчёта цены — Туристический оффер</span>
+            <span class="opacity-60">{{ price_debug.country }} / {{ price_debug.marina }}</span>
+        </div>
+        <table class="w-full">
+            <thead class="bg-base-200">
+                <tr>
+                    <th class="text-left px-4 py-1 font-semibold">Шаг</th>
+                    <th class="text-left px-4 py-1 font-semibold">Формула / Условие</th>
+                    <th class="text-right px-4 py-1 font-semibold">EUR</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-base-200">
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">Аренда (API totalPrice)</td>
+                    <td class="px-4 py-1 opacity-60">базовая стоимость из API, уже со скидками чартера</td>
+                    <td class="px-4 py-1 text-right font-semibold">{{ price_debug.api_total }}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-1">Страхование депозита</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.insurance_formula }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.insurance }}</td>
+                </tr>
+                {% if price_debug.extra_cabins %}
+                <tr>
+                    <td class="px-4 py-1">Доп. каюты (Сейшелы)</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.extra_cabins_formula }} EUR/каюта</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.extra_cabins }}</td>
+                </tr>
+                {% endif %}
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">Базовая надбавка по стране</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.base_country_label }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.base_country }}</td>
+                </tr>
+                {% if price_debug.praslin %}
+                <tr>
+                    <td class="px-4 py-1">Марина Praslin</td>
+                    <td class="px-4 py-1 opacity-60">marina = «Praslin Marina»</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.praslin }}</td>
+                </tr>
+                {% endif %}
+                {% if price_debug.length_extra %}
+                <tr>
+                    <td class="px-4 py-1">Надбавка за длину</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.length }} м &gt; 14.2 м</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.length_extra }}</td>
+                </tr>
+                {% endif %}
+                {% if price_debug.turkey_length_extra %}
+                <tr>
+                    <td class="px-4 py-1">Надбавка длина Турция ({{ price_debug.turkey_length_note }})</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.length }} м &gt; 13.8 м, Турция</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.turkey_length_extra }}</td>
+                </tr>
+                {% endif %}
+                {% if price_debug.food %}
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">Питание</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.food_formula }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.food }}</td>
+                </tr>
+                {% endif %}
+                <tr class="bg-base-200 font-semibold">
+                    <td class="px-4 py-1">До корректировки</td>
+                    <td class="px-4 py-1 opacity-60">сумма всех шагов</td>
+                    <td class="px-4 py-1 text-right">{{ price_debug.subtotal }}</td>
+                </tr>
+                {% if price_debug.adjustment %}
+                <tr>
+                    <td class="px-4 py-1">Корректировка цены</td>
+                    <td class="px-4 py-1 opacity-60">price_adjustment (надбавка / скидка)</td>
+                    <td class="px-4 py-1 text-right {% if price_debug.adjustment > 0 %}text-success{% else %}text-error{% endif %}">
+                        {% if price_debug.adjustment > 0 %}+{% endif %}{{ price_debug.adjustment }}
+                    </td>
+                </tr>
+                {% endif %}
+                <tr class="bg-warning/10 font-bold border-t-2 border-warning">
+                    <td class="px-4 py-2">ИТОГ</td>
+                    <td class="px-4 py-2 opacity-60">offer.total_price</td>
+                    <td class="px-4 py-2 text-right text-base">{{ price_debug.total_price }} EUR</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="px-4 py-2 bg-base-200 text-xs opacity-70 border-t border-warning">
+            Параметры: длина={{ price_debug.length }} м, двойных кают={{ price_debug.double_cabins }}, мест={{ price_debug.max_sleeps }}, категория={{ price_debug.category }}, питание={{ price_debug.has_meal|yesno:"да,нет" }}
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}
