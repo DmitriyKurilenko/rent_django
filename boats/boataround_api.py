@@ -1098,49 +1098,7 @@ def format_boat_data(boat: Dict) -> Dict:
         images = [main_img]
     
     # === ЦЕНА ===
-    # Единая логика как на detail:
-    # 1) discount_without_additionalExtra
-    # 2) additional_discount
-    # 3) доп.скидка до 5% при additional_discount < charter.commission
-    base_price = 0
-    discount_without_extra = 0
-    additional_discount = 0
     avg_price = boat.get('avg_price', 0)  # Средняя цена за сутки
-
-    # Приоритет для выдачи поиска:
-    # - base_price берём из price (это базовая цена до скидок), fallback на totalPrice
-    # - additional_discount берём из additionalDiscount
-    # - discount_without_extra:
-    #     * если есть discount_without_additionalExtra -> используем его
-    #     * иначе вычисляем как (discount - additionalDiscount), потому что discount часто уже total
-    base_price = boat.get('price', 0) or boat.get('totalPrice', 0)
-    additional_discount = boat.get('additionalDiscount', 0) or boat.get('additional_discount', 0)
-
-    explicit_discount_wo_extra = boat.get('discount_without_additionalExtra', 0)
-    total_discount = boat.get('discount', 0)
-    if explicit_discount_wo_extra:
-        discount_without_extra = explicit_discount_wo_extra
-    elif total_discount and additional_discount:
-        discount_without_extra = max(float(total_discount) - float(additional_discount), 0)
-    else:
-        discount_without_extra = total_discount
-
-    # Fallback на policies[0].prices, если в выдаче нет нужных полей
-    policies = boat.get('policies', [])
-    if policies and len(policies) > 0:
-        prices = policies[0].get('prices', {})
-        if prices:
-            price_id = prices.get('price_id')
-            if not base_price:
-                base_price = prices.get('price', 0)
-            if not discount_without_extra:
-                discount_without_extra = prices.get('discount_without_additionalExtra', 0)
-            if not additional_discount:
-                additional_discount = prices.get('additional_discount', 0)
-            logger.debug(
-                f"[format_boat_data] Fallback prices from price_id={price_id}: "
-                f"price={base_price}, discount_without_extra={discount_without_extra}, additional_discount={additional_discount}"
-            )
 
     # Дополнительная информация (нужна для чартера/комиссии в расчёте)
     charter_info = boat.get('charter', '')
@@ -1167,44 +1125,20 @@ def format_boat_data(boat: Dict) -> Dict:
     # Чартер для расчёта комиссии (из in-memory кэша)
     charter_obj = _get_charter(charter_id_raw) if charter_id_raw else None
 
-    # Считаем из стабильных полей — totalPrice из API недетерминирован
-    try:
-        from boats.helpers import calculate_final_price_with_discounts
-        price = calculate_final_price_with_discounts(
-            base_price,
-            discount_without_extra,
-            additional_discount,
-            charter_obj,
-        )
-    except Exception as calc_err:
-        logger.warning(f"[format_boat_data] Price calc fallback due to error: {calc_err}")
-        price = base_price
-    
-    # Пытаемся конвертировать в float
-    try:
-        if isinstance(price, str):
-            price = float(price.replace(',', '.'))
-        elif price is None:
-            price = 0
-        else:
-            price = float(price)
-    except (ValueError, TypeError):
-        price = 0
-    
-    # Округляем до целого числа для отображения
-    price = int(price) if price else 0
+    # Единая логика ценообразования для поиска/детали/офферов.
+    from boats.pricing import extract_price_components, build_price_breakdown
 
-    # Старая цена и процент выгоды для UI
-    old_price = 0
-    discount_percent = 0
-    try:
-        base_price_float = float(base_price) if base_price else 0
-        if base_price_float > 0 and price > 0 and base_price_float > price:
-            old_price = int(base_price_float)
-            discount_percent = round((base_price_float - float(price)) / base_price_float * 100)
-    except (ValueError, TypeError):
-        old_price = 0
-        discount_percent = 0
+    base_price, discount_without_extra, additional_discount = extract_price_components(boat)
+    breakdown = build_price_breakdown(
+        base_price=base_price,
+        discount_without_extra=discount_without_extra,
+        additional_discount=additional_discount,
+        charter=charter_obj,
+        currency=boat.get('currency', 'EUR'),
+    )
+    price = int(breakdown['final_price']) if breakdown['final_price'] else 0
+    old_price = int(breakdown['old_price']) if breakdown['old_price'] else 0
+    discount_percent = int(breakdown['discount_percent']) if breakdown['discount_percent'] else 0
     
     # Цена за сутки (avg_price из API или считаем сами)
     price_per_day = 0
@@ -1214,7 +1148,7 @@ def format_boat_data(boat: Dict) -> Dict:
         except:
             price_per_day = 0
     
-    currency = boat.get('currency', 'EUR')
+    currency = breakdown['currency']
     
     # === ХАРАКТЕРИСТИКИ ===
     # Получаем параметры из 'parameters' (это основное поле в API ответе)

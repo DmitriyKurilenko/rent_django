@@ -7,10 +7,11 @@ from django.http import JsonResponse
 from django.utils.translation import get_language
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, BoatPrice
+from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails
 from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
+from .pricing import resolve_live_or_fallback_price
 from django.views.decorators.cache import cache_page
 import logging
 
@@ -42,7 +43,6 @@ def home(request):
 def boat_search(request):
     """Поиск лодок через API boataround.com с пагинацией и ценами"""
     from boats.boataround_api import BoataroundAPI, format_boat_data
-    from django.core.cache import cache
     import logging
     
     logger = logging.getLogger(__name__)
@@ -147,8 +147,7 @@ def boat_search(request):
         
         logger.info(f"[Search View] API returned: boats={len(search_results.get('boats', []))}, total={search_results.get('total', 0)}, pages={search_results.get('totalPages', 0)}")
         
-        # Форматируем данные лодок и кэшируем их
-        from boats.helpers import save_to_cache
+        # Форматируем данные лодок
         from boats.models import Favorite, ParsedBoat
 
         boats = []
@@ -172,34 +171,6 @@ def boat_search(request):
                 # Превью: CDN если есть, иначе thumb из API
                 cdn_preview = preview_map.get(formatted_boat.get('slug', ''))
                 formatted_boat['preview'] = cdn_preview or boat.get('thumb', '')
-
-                # Стабилизируем цену в выдаче по slug+датам (чтобы не прыгала при refresh)
-                if check_in and check_out and formatted_boat.get('slug'):
-                    price_cache_key = f"search_price_v2:{formatted_boat['slug']}:{check_in}:{check_out}:EUR"
-                    cached_price_data = cache.get(price_cache_key)
-
-                    if cached_price_data:
-                        logger.info(
-                            f"[Search View] Price cache HIT slug={formatted_boat['slug']} "
-                            f"price={cached_price_data.get('price')}"
-                        )
-                        formatted_boat['price'] = cached_price_data.get('price', formatted_boat.get('price', 0))
-                        formatted_boat['old_price'] = cached_price_data.get('old_price', formatted_boat.get('old_price', 0))
-                        formatted_boat['discount_percent'] = cached_price_data.get('discount_percent', formatted_boat.get('discount_percent', 0))
-                    else:
-                        logger.info(
-                            f"[Search View] Price cache MISS slug={formatted_boat['slug']} "
-                            f"price={formatted_boat.get('price')}"
-                        )
-                        cache.set(
-                            price_cache_key,
-                            {
-                                'price': formatted_boat.get('price', 0),
-                                'old_price': formatted_boat.get('old_price', 0),
-                                'discount_percent': formatted_boat.get('discount_percent', 0),
-                            },
-                            timeout=60 * 60,
-                        )
 
                 # Добавляем информацию об избранном
                 formatted_boat['is_favorite'] = formatted_boat.get('slug') in favorite_slugs
@@ -715,114 +686,39 @@ def boat_detail_api(request, boat_id):
             api_check_out = (today + timedelta(days=14)).strftime('%Y-%m-%d')
 
         slug = boat_static['slug']
-        search_price_key = f'search_price_v2:{slug}:{api_check_in}:{api_check_out}:EUR'
-        price_cache_key = f'boat_price:{boat_id}:{api_check_in}:{api_check_out}'
-        price_info = cache.get(price_cache_key)
+        charter_commission = float(boat_static.get('_charter_commission', 0))
 
-        if not price_info:
-            from boats.boataround_api import BoataroundAPI
-            price_data = BoataroundAPI.get_price(
-                slug=slug,
-                check_in=api_check_in,
-                check_out=api_check_out,
-                currency='EUR',
-                lang=db_lang
+        class _Charter:
+            commission = charter_commission
+
+        quote = resolve_live_or_fallback_price(
+            slug=slug,
+            check_in=api_check_in,
+            check_out=api_check_out,
+            lang=db_lang,
+            charter=_Charter() if charter_commission else None,
+            rental_days=rental_days,
+            currency='EUR',
+        )
+
+        if quote.get('source') == 'db':
+            logger.warning(
+                f"[Boat Detail] Price API unavailable for {slug}, using DB fallback price "
+                f"for {api_check_in}..{api_check_out}"
+            )
+        elif quote.get('source') == 'none':
+            logger.warning(
+                f"[Boat Detail] Price unavailable for {slug} ({api_check_in}..{api_check_out})"
             )
 
-            price = 0.0
-            discount = 0.0
-            total_price = 0.0
-            old_price = 0.0
-            discount_percent = 0
-            if price_data:
-                from boats.helpers import calculate_final_price_with_discounts
-
-                base_price = float(price_data.get('price', 0))
-                discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
-                additional_discount = float(price_data.get('additional_discount', 0))
-                discount = discount_without_extra
-                charter_commission = float(boat_static.get('_charter_commission', 0))
-
-                class _Charter:
-                    commission = charter_commission
-
-                # Считаем из стабильных полей — totalPrice из API недетерминирован
-                total_price = calculate_final_price_with_discounts(
-                    base_price, discount_without_extra, additional_discount,
-                    _Charter() if charter_commission else None
-                )
-                price = base_price
-            else:
-                # Если live-цена не пришла, пробуем fallback:
-                # 1) старый кэш цены из поиска на те же даты
-                # 2) сохраненная в БД базовая цена лодки
-                stale_search_price = cache.get(search_price_key) or {}
-                stale_total = float(stale_search_price.get('price') or 0)
-                stale_old = float(stale_search_price.get('old_price') or 0)
-                stale_discount = float(stale_search_price.get('discount_percent') or 0)
-
-                if stale_total > 0:
-                    total_price = stale_total
-                    price = stale_old if stale_old > 0 else stale_total
-                    old_price = stale_old if stale_old > 0 else 0.0
-                    discount_percent = int(round(stale_discount)) if stale_discount > 0 else 0
-                    logger.warning(
-                        f"[Boat Detail] Price API unavailable for {slug}, using cached search price "
-                        f"for {api_check_in}..{api_check_out}"
-                    )
-                else:
-                    fallback_days = rental_days if rental_days and rental_days > 0 else 7
-                    db_price = (
-                        BoatPrice.objects.filter(boat__slug=slug, currency='EUR').first()
-                        or BoatPrice.objects.filter(boat__slug=slug).first()
-                    )
-                    if db_price:
-                        per_day = float(db_price.price_per_day or 0)
-                        per_week = float(db_price.price_per_week or 0)
-                        if per_day > 0:
-                            total_price = round(per_day * fallback_days, 2)
-                            price = total_price
-                        elif per_week > 0:
-                            total_price = round((per_week / 7) * fallback_days, 2)
-                            price = total_price
-                        logger.warning(
-                            f"[Boat Detail] Price API unavailable for {slug}, using DB fallback price "
-                            f"(days={fallback_days}, currency={db_price.currency})"
-                        )
-                    else:
-                        logger.warning(
-                            f"[Boat Detail] Price API unavailable for {slug} and no cached/DB fallback found"
-                        )
-
-            try:
-                if not old_price and price and total_price and float(price) > float(total_price):
-                    old_price = float(price)
-                    discount_percent = round((float(price) - float(total_price)) / float(price) * 100)
-            except (ValueError, TypeError, ZeroDivisionError):
-                old_price = 0.0
-                discount_percent = 0
-
-            price_info = {
-                'price': price,
-                'discount': discount,
-                'total_price': total_price,
-                'old_price': old_price,
-                'discount_percent': discount_percent,
-                'currency': 'EUR',
-            }
-            if total_price > 0 or price > 0:
-                # Пишем в оба кэша — чтобы следующие запросы (и поиск, и деталь) видели одно
-                cache.set(price_cache_key, price_info, 60 * 60)
-                cache.set(search_price_key, {
-                    'price': total_price if total_price > 0 else price,
-                    'old_price': old_price,
-                    'discount_percent': discount_percent,
-                }, 60 * 60)
-            else:
-                # Не кэшируем "нулевую" цену после сбоя API, чтобы не отравлять кэш.
-                logger.warning(
-                    f"[Boat Detail] Skip empty price cache write for {slug} ({api_check_in}..{api_check_out})"
-                )
+        price_info = {
+            'price': quote.get('base_price', 0),
+            'discount': quote.get('discount_without_extra', 0),
+            'total_price': quote.get('final_price', 0),
+            'old_price': quote.get('old_price', 0),
+            'discount_percent': quote.get('discount_percent', 0),
+            'currency': quote.get('currency', 'EUR'),
+        }
 
         # Собираем boat_dict из кэшированных данных + цены
         boat_dict = {**boat_static, **price_info}
@@ -1338,13 +1234,17 @@ def offers_list_api(request):
     return JsonResponse({'offers': offers_data})
 
 
+@login_required
 def offers_list(request):
     """Список офферов (для агентов/менеджеров/админов)"""
     if not request.user.profile.can_create_offers():
         messages.error(request, 'У вас нет прав для доступа к этой странице')
         return redirect('home')
 
-    offers_qs = Offer.objects.filter(created_by=request.user)
+    if request.user.profile.role == 'admin':
+        offers_qs = Offer.objects.all()
+    else:
+        offers_qs = Offer.objects.filter(created_by=request.user)
 
     search_query = request.GET.get('q', '').strip()
     if search_query:
@@ -1543,51 +1443,40 @@ def create_offer(request):
                 else:
                     return ajax_error('Укажите даты заезда и выезда', form=form)
             
-            # ВСЕГДА получаем цену через BoataroundAPI.get_price()
-            from boats.boataround_api import BoataroundAPI
-            
-            logger.info(f'[Create Offer] Calling BoataroundAPI.get_price for slug={slug}, check_in={check_in}, check_out={check_out}')
-            price_data = BoataroundAPI.get_price(
+            parsed_boat = ParsedBoat.objects.filter(slug=slug).first()
+            charter = parsed_boat.charter if parsed_boat else None
+
+            rental_days = None
+            try:
+                rental_days = max(
+                    (datetime.strptime(check_out, '%Y-%m-%d').date() - datetime.strptime(check_in, '%Y-%m-%d').date()).days,
+                    1
+                )
+            except (ValueError, TypeError):
+                rental_days = None
+
+            quote = resolve_live_or_fallback_price(
                 slug=slug,
                 check_in=check_in,
                 check_out=check_out,
+                lang='ru_RU',
+                charter=charter,
+                rental_days=rental_days,
                 currency='EUR',
-                lang='ru_RU'
             )
-            logger.info(f'[Create Offer] Price API response: {price_data}')
-            
-            if not price_data:
-                logger.error(f'[Create Offer] API returned no price data!')
-                return ajax_error('Не удалось получить цену из API', form=form)
-            
-            # Извлекаем цены из API ответа
-            api_price = float(price_data.get('price', 0))
-            discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
-            additional_discount = float(price_data.get('additional_discount', 0))
-            
-            # Используем discount_without_additionalExtra как правильную скидку
-            api_discount = discount_without_extra
-            
-            # Рассчитываем финальную цену с учётом всех скидок и комиссии
-            from boats.helpers import calculate_final_price_with_discounts
-            try:
-                parsed_boat = ParsedBoat.objects.get(slug=slug)
-                api_total_price = calculate_final_price_with_discounts(
-                    api_price,
-                    discount_without_extra,
-                    additional_discount,
-                    parsed_boat.charter
-                )
-                logger.info(f'[Create Offer] Prices - base: {api_price}, discount_wo_extra: {discount_without_extra}%, additional: {additional_discount}%, charter_commission: {parsed_boat.charter.commission if parsed_boat.charter else 0}%, final: {api_total_price}')
-            except ParsedBoat.DoesNotExist:
-                logger.warning(f'[Create Offer] ParsedBoat not found for slug={slug}, calculating without charter')
-                # Рассчитываем без чартера
-                api_total_price = calculate_final_price_with_discounts(
-                    api_price,
-                    discount_without_extra,
-                    additional_discount,
-                    None
-                )
+
+            if quote.get('source') == 'none':
+                logger.error(f'[Create Offer] Price unavailable for slug={slug} ({check_in}..{check_out})')
+                return ajax_error('Не удалось получить цену: нет данных API и fallback из БД', form=form)
+
+            api_price = float(quote.get('base_price', 0))
+            api_discount = float(quote.get('discount_without_extra', 0))
+            api_total_price = float(quote.get('final_price', 0))
+
+            logger.info(
+                f"[Create Offer] Unified price quote source={quote.get('source')} slug={slug} "
+                f"base={api_price} discount={api_discount}% total={api_total_price}"
+            )
             
             # Сохраняем в boat_data для шаблона
             boat_data['price'] = api_price
@@ -2060,51 +1949,36 @@ def quick_create_offer(request, boat_slug):
                 messages.error(request, 'Не удалось загрузить данные лодки')
                 return redirect('boat_detail_api', boat_id=boat_slug)
         
-        # ВСЕГДА получаем цену из BoataroundAPI.get_price()
-        from boats.boataround_api import BoataroundAPI
-        
-        logger.info(f'[Quick Offer] Calling BoataroundAPI.get_price for slug={boat_slug}, check_in={check_in}, check_out={check_out}')
-        price_data = BoataroundAPI.get_price(
+        rental_days = None
+        try:
+            rental_days = max(
+                (datetime.strptime(check_out, '%Y-%m-%d').date() - datetime.strptime(check_in, '%Y-%m-%d').date()).days,
+                1
+            )
+        except (ValueError, TypeError):
+            rental_days = None
+
+        quote = resolve_live_or_fallback_price(
             slug=boat_slug,
             check_in=check_in,
             check_out=check_out,
+            lang='ru_RU',
+            charter=parsed_boat.charter if parsed_boat else None,
+            rental_days=rental_days,
             currency='EUR',
-            lang='ru_RU'
         )
-        logger.info(f'[Quick Offer] Price API response: {price_data}')
-        
-        if not price_data:
-            logger.error(f'[Quick Offer] API returned no price data!')
-            messages.error(request, 'Не удалось получить цену из API')
+        if quote.get('source') == 'none':
+            logger.error(f'[Quick Offer] Price unavailable for slug={boat_slug} ({check_in}..{check_out})')
+            messages.error(request, 'Не удалось получить цену: нет данных API и fallback из БД')
             return redirect('boat_detail_api', boat_id=boat_slug)
-        
-        # Извлекаем цены из API ответа
-        api_price = float(price_data.get('price', 0))
-        discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
-        additional_discount = float(price_data.get('additional_discount', 0))
-        
-        # Используем discount_without_additionalExtra как правильную скидку
-        api_discount = discount_without_extra
-        
-        # Рассчитываем финальную цену с учётом всех скидок и комиссии
-        from boats.helpers import calculate_final_price_with_discounts
-        try:
-            parsed_boat = ParsedBoat.objects.get(slug=boat_slug)
-            api_total_price = calculate_final_price_with_discounts(
-                api_price,
-                discount_without_extra,
-                additional_discount,
-                parsed_boat.charter
-            )
-            logger.info(f'[Quick Offer] Prices - base: {api_price}, discount_wo_extra: {discount_without_extra}%, additional: {additional_discount}%, charter_commission: {parsed_boat.charter.commission if parsed_boat.charter else 0}%, final: {api_total_price}')
-        except ParsedBoat.DoesNotExist:
-            logger.warning(f'[Quick Offer] ParsedBoat not found for slug={boat_slug}, calculating without charter')
-            api_total_price = calculate_final_price_with_discounts(
-                api_price,
-                discount_without_extra,
-                additional_discount,
-                None
-            )
+
+        api_price = float(quote.get('base_price', 0))
+        api_discount = float(quote.get('discount_without_extra', 0))
+        api_total_price = float(quote.get('final_price', 0))
+        logger.info(
+            f"[Quick Offer] Unified price quote source={quote.get('source')} slug={boat_slug} "
+            f"base={api_price} discount={api_discount}% total={api_total_price}"
+        )
         
         # Сохраняем в boat_data для шаблона
         boat_data['price'] = api_price
@@ -2112,7 +1986,6 @@ def quick_create_offer(request, boat_slug):
         boat_data['totalPrice'] = api_total_price
         
         # Создаем оффер
-        from datetime import datetime
         offer = Offer()
         offer.created_by = request.user
         offer.source_url = source_url
@@ -2271,53 +2144,37 @@ def book_boat(request, boat_slug):
     # Получаем данные лодки из кэша
     parsed_boat = get_object_or_404(ParsedBoat, slug=boat_slug)
     
-    # Получаем цену из API ТОЧНО ТАК ЖЕ как в boat_detail_api
-    try:
-        # Получаем текущий язык
-        current_lang = get_language()
-        lang_map = {
-            'ru': 'ru_RU',
-            'en': 'en_EN',
-            'de': 'de_DE',
-            'es': 'es_ES',
-            'fr': 'fr_FR',
-        }
-        db_lang = lang_map.get(current_lang, 'ru_RU')
-        
-        logger.info(f"[Book Boat] Calling price API for slug={parsed_boat.slug}, check_in={check_in_str}, check_out={check_out_str}")
-        price_data = BoataroundAPI.get_price(
-            slug=parsed_boat.slug,
-            check_in=check_in_str,
-            check_out=check_out_str,
-            currency='EUR',
-            lang=db_lang
+    # Единый расчет цены (API -> fallback DB), как в detail/offers.
+    current_lang = get_language()
+    lang_map = {
+        'ru': 'ru_RU',
+        'en': 'en_EN',
+        'de': 'de_DE',
+        'es': 'es_ES',
+        'fr': 'fr_FR',
+    }
+    db_lang = lang_map.get(current_lang, 'ru_RU')
+    rental_days = max((check_out - check_in).days, 1)
+
+    quote = resolve_live_or_fallback_price(
+        slug=parsed_boat.slug,
+        check_in=check_in_str,
+        check_out=check_out_str,
+        lang=db_lang,
+        charter=parsed_boat.charter,
+        rental_days=rental_days,
+        currency='EUR',
+    )
+    total_price = float(quote.get('final_price', 0))
+    currency = quote.get('currency', 'EUR')
+
+    if total_price <= 0:
+        logger.error(
+            f"[Book Boat] Price unavailable for booking slug={parsed_boat.slug} "
+            f"({check_in_str}..{check_out_str}), source={quote.get('source')}"
         )
-        logger.info(f"[Book Boat] Price API response: {price_data}")
-        
-        if price_data:
-            base_price = float(price_data.get('price', 0))
-            discount_without_extra = float(price_data.get('discount_without_additionalExtra', 0))
-            additional_discount = float(price_data.get('additional_discount', 0))
-            
-            # Рассчитываем финальную цену с учётом всех скидок и комиссии
-            from boats.helpers import calculate_final_price_with_discounts
-            total_price = calculate_final_price_with_discounts(
-                base_price,
-                discount_without_extra,
-                additional_discount,
-                parsed_boat.charter
-            )
-            
-            currency = 'EUR'
-            logger.info(f"[Book Boat] Calculated price - base: {base_price}, discount_wo_extra: {discount_without_extra}%, additional: {additional_discount}%, charter_commission: {parsed_boat.charter.commission if parsed_boat.charter else 0}%, final: {total_price}")
-        else:
-            logger.error(f"[Book Boat] API returned no price data!")
-            total_price = 0
-            currency = 'EUR'
-    except Exception as e:
-        logger.error(f'[Book Boat] Error getting price: {e}')
-        total_price = 0
-        currency = 'EUR'
+        messages.error(request, 'Не удалось рассчитать стоимость бронирования. Попробуйте позже.')
+        return redirect('boat_detail_api', boat_id=boat_slug)
     
     # Создаем бронирование БЕЗ копирования данных - используем связь
     booking = Booking.objects.create(
