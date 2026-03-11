@@ -787,80 +787,34 @@ def boat_detail_api(request, boat_id):
         class _Charter:
             commission = charter_commission
 
-        def _to_float(value):
-            try:
-                if value in (None, ""):
-                    return 0.0
-                if isinstance(value, str):
-                    normalized = (
-                        value.replace('\xa0', '')
-                        .replace(' ', '')
-                        .replace(',', '.')
-                        .strip()
-                    )
-                    if not normalized:
-                        return 0.0
-                    return float(normalized)
-                return float(value)
-            except (TypeError, ValueError):
-                return 0.0
+        quote = resolve_live_or_fallback_price(
+            slug=slug,
+            check_in=api_check_in,
+            check_out=api_check_out,
+            lang=db_lang,
+            charter=_Charter() if charter_commission else None,
+            rental_days=rental_days,
+            currency='EUR',
+        )
 
-        quoted_total = _to_float(request.GET.get('q_total'))
-        quoted_old = _to_float(request.GET.get('q_old'))
-        quoted_discount = _to_float(request.GET.get('q_discount'))
-        quoted_currency = (request.GET.get('q_currency') or 'EUR').strip() or 'EUR'
-
-        if quoted_total > 0 and has_url_dates:
-            old_price = quoted_old if quoted_old > quoted_total else 0.0
-            base_price = old_price if old_price > 0 else quoted_total
-            discount_percent = int(round(quoted_discount)) if quoted_discount else 0
-            if not discount_percent and old_price > 0:
-                try:
-                    discount_percent = int(round((old_price - quoted_total) / old_price * 100))
-                except ZeroDivisionError:
-                    discount_percent = 0
-
-            price_info = {
-                'price': base_price,
-                'discount': 0,
-                'total_price': quoted_total,
-                'old_price': old_price,
-                'discount_percent': discount_percent,
-                'currency': quoted_currency,
-            }
-            logger.info(
-                f"[Boat Detail] Using price snapshot from search for {slug}: "
-                f"total={quoted_total}, old={old_price}, discount={discount_percent}%"
+        if quote.get('source') == 'db':
+            logger.warning(
+                f"[Boat Detail] Price API unavailable for {slug}, using DB fallback price "
+                f"for {api_check_in}..{api_check_out}"
             )
-        else:
-            quote = resolve_live_or_fallback_price(
-                slug=slug,
-                check_in=api_check_in,
-                check_out=api_check_out,
-                lang=db_lang,
-                charter=_Charter() if charter_commission else None,
-                rental_days=rental_days,
-                currency='EUR',
+        elif quote.get('source') == 'none':
+            logger.warning(
+                f"[Boat Detail] Price unavailable for {slug} ({api_check_in}..{api_check_out})"
             )
 
-            if quote.get('source') == 'db':
-                logger.warning(
-                    f"[Boat Detail] Price API unavailable for {slug}, using DB fallback price "
-                    f"for {api_check_in}..{api_check_out}"
-                )
-            elif quote.get('source') == 'none':
-                logger.warning(
-                    f"[Boat Detail] Price unavailable for {slug} ({api_check_in}..{api_check_out})"
-                )
-
-            price_info = {
-                'price': quote.get('base_price', 0),
-                'discount': quote.get('discount_without_extra', 0),
-                'total_price': quote.get('final_price', 0),
-                'old_price': quote.get('old_price', 0),
-                'discount_percent': quote.get('discount_percent', 0),
-                'currency': quote.get('currency', 'EUR'),
-            }
+        price_info = {
+            'price': quote.get('base_price', 0),
+            'discount': quote.get('discount_without_extra', 0),
+            'total_price': quote.get('final_price', 0),
+            'old_price': quote.get('old_price', 0),
+            'discount_percent': quote.get('discount_percent', 0),
+            'currency': quote.get('currency', 'EUR'),
+        }
 
         # Собираем boat_dict из кэшированных данных + цены
         boat_dict = {**boat_static, **price_info}

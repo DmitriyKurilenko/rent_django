@@ -97,7 +97,8 @@ class BoatViewsTest(TestCase):
         self.assertContains(response, 'sm:h-56')
         self.assertContains(response, 'data-testid="search-boat-preview"')
         self.assertContains(response, 'h-full overflow-hidden')
-        self.assertContains(response, 'q_total=')
+        self.assertContains(response, '?check_in=')
+        self.assertContains(response, '&check_out=')
 
     @patch('boats.boataround_api.format_boat_data')
     @patch('boats.boataround_api.BoataroundAPI.search')

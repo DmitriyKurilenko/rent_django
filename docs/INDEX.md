@@ -22,6 +22,13 @@ Start here for architectural understanding and code patterns:
   - Pull request process
   - Testing guidelines
 
+### 🧠 Engineering Memory (Must read before code changes)
+- **[../AGENTS.md](../AGENTS.md)** - persistent protocol for agents and guardrails
+- **[TASK_STATE.md](./TASK_STATE.md)** - current priorities, done scope, open decisions
+- **[DECISIONS.md](./DECISIONS.md)** - accepted behavior decisions (ADR-lite)
+- **[KNOWN_ISSUES.md](./KNOWN_ISSUES.md)** - active bugs/risks and current mitigations
+- **[DEV_LOG.md](./DEV_LOG.md)** - concise chronological development log
+
 ### 🔒 Security
 Security policies and best practices:
 - **[../SECURITY.md](../SECURITY.md)** 🆕 - Security policy
@@ -132,6 +139,10 @@ Environment and infrastructure setup:
 ```
 docs/
 ├── INDEX.md (this file)
+├── TASK_STATE.md               # Current priorities and progress
+├── DECISIONS.md                # ADR-lite decisions and invariants
+├── KNOWN_ISSUES.md             # Active bugs/risks and mitigations
+├── DEV_LOG.md                  # Chronological engineering log
 ├── QUICK_DEPLOY.md              # Fast bash deployment (~30 min)
 ├── PRODUCTION_UBUNTU_DEPLOYMENT.md  # Detailed step-by-step guide
 ├── PRODUCTION_INIT.md           # S3 & database initialization
@@ -143,6 +154,7 @@ docs/
 ├── .github/
 │   └── copilot-instructions.md  # AI agent architecture guide
 ├── .env.example                 # Unified .env template
+├── AGENTS.md                    # Persistent working protocol for agents
 ├── README.md                    # Main project documentation
 ├── deploy.sh, setup-ssl.sh      # Deployment scripts
 ├── docker-compose.yml           # Local dev environment
