@@ -37,6 +37,44 @@ class PricingExtractionTest(SimpleTestCase):
         self.assertEqual(breakdown["old_price"], 1000)
         self.assertEqual(breakdown["discount_percent"], 10)
 
+    def test_extract_price_components_prefers_policy_prices_over_unstable_top_level(self):
+        payload = {
+            "price": 9150,
+            "totalPrice": 3650.85,
+            "discount": 61,
+            "additionalDiscount": 5,
+            "policies": [
+                {
+                    "prices": {
+                        "price": 9150,
+                        "discount_without_additionalExtra": 60,
+                        "additional_discount": 5,
+                        "totalPrice": 3477,
+                    }
+                }
+            ],
+        }
+        base_price, discount_without_extra, additional_discount = extract_price_components(payload)
+        self.assertEqual(base_price, 9150)
+        self.assertEqual(discount_without_extra, 60)
+        self.assertEqual(additional_discount, 5)
+
+    def test_extract_price_components_reconciles_with_total_price_when_policy_missing(self):
+        payload = {
+            "price": 9150,
+            "totalPrice": 3477,
+            "discount": 63,
+            "discountWithoutAdditional": 58,
+            "additionalDiscount": 5,
+            "policies": [],
+        }
+
+        base_price, discount_without_extra, additional_discount = extract_price_components(payload)
+
+        self.assertEqual(base_price, 9150)
+        self.assertEqual(round(discount_without_extra, 2), 60.0)
+        self.assertEqual(additional_discount, 5)
+
 
 class PricingResolverTest(TestCase):
     def setUp(self):

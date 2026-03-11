@@ -95,6 +95,7 @@ class BoatViewsTest(TestCase):
         self.assertContains(response, 'sm:h-56')
         self.assertContains(response, 'data-testid="search-boat-preview"')
         self.assertContains(response, 'h-full overflow-hidden')
+        self.assertContains(response, 'q_total=')
 
 
 class BoatAuthenticationTest(TestCase):

@@ -654,7 +654,8 @@ class BoataroundAPI:
             url = f"{BoataroundAPI.BASE_URL}/search"
             params = {
                 'slug': slug,
-                'limit': 1,
+                # slug-фильтр API бывает нестабильным; берём больше и фильтруем точно локально
+                'limit': 50,
                 'lang': 'en_EN'
             }
             
@@ -671,15 +672,20 @@ class BoataroundAPI:
                 if isinstance(data, dict) and 'status' in data:
                     # Структура ответа: {"status": "OK", "data": [{"data": [...]}]}
                     results = data.get('data', [])
+                    target_slug = str(slug or '').strip('/').lower()
                     if results and isinstance(results, list):
                         for result_group in results:
                             boats = result_group.get('data', [])
-                            if boats and len(boats) > 0:
-                                boat_data = boats[0]
-                                logger.info(f"[search_by_slug] ✅ Found: {boat_data.get('title')}")
+                            if not boats:
+                                continue
+                            for boat_data in boats:
+                                current_slug = str(boat_data.get('slug', '')).strip('/').lower()
+                                if current_slug != target_slug:
+                                    continue
+                                logger.info(f"[search_by_slug] ✅ Found exact slug: {boat_data.get('title')}")
                                 return format_boat_data(boat_data)
             
-            logger.warning(f"[search_by_slug] No boats found for {slug}")
+            logger.warning(f"[search_by_slug] No exact slug match for {slug}")
             return {}
             
         except Exception as e:
@@ -928,7 +934,8 @@ class BoataroundAPI:
             url = f"{BoataroundAPI.BASE_URL}/search"
             params = {
                 'slug': boat_id_or_slug,
-                'limit': 1,
+                # slug-фильтр API бывает нестабильным; ищем точное совпадение в расширенной выборке
+                'limit': 50,
                 'lang': 'en_EN'
             }
             
@@ -945,14 +952,19 @@ class BoataroundAPI:
                 if isinstance(data, dict) and 'status' in data and 'data' in data:
                     inner_data = data.get('data', [])
                     
+                    target_slug = str(boat_id_or_slug or '').strip('/').lower()
                     if isinstance(inner_data, list) and len(inner_data) > 0:
-                        actual_data = inner_data[0]
-                        boats = actual_data.get('data', [])
-                        
-                        if boats and len(boats) > 0:
-                            boat_data = boats[0]
-                            logger.info(f"[Boat Detail API Fallback] Found boat: {boat_data.get('title')}")
-                            return format_boat_data(boat_data)
+                        for actual_data in inner_data:
+                            boats = actual_data.get('data', [])
+                            if not boats:
+                                continue
+                            for boat_data in boats:
+                                current_slug = str(boat_data.get('slug', '')).strip('/').lower()
+                                if current_slug != target_slug:
+                                    continue
+                                logger.info(f"[Boat Detail API Fallback] Found exact boat: {boat_data.get('title')}")
+                                return format_boat_data(boat_data)
+                    logger.warning(f"[Boat Detail API Fallback] No exact slug match for {boat_id_or_slug}")
         
         except Exception as e:
             logger.error(f"[Boat Detail API Fallback] Error: {e}")
@@ -962,19 +974,43 @@ class BoataroundAPI:
 
 
 _charter_cache = {}
+_charter_name_cache = {}
 _charter_cache_loaded = False
 
-def _get_charter(charter_id: str):
-    """Получает чартер из in-memory кэша (загружает все чартеры при первом вызове)."""
-    global _charter_cache, _charter_cache_loaded
+def _normalize_charter_name(name: str) -> str:
+    return " ".join(str(name or "").strip().lower().split())
+
+
+def _get_charter(charter_id: str = "", charter_name: str = ""):
+    """
+    Получает чартер из in-memory кэша (загружает все чартеры при первом вызове).
+    Сначала ищет по charter_id, затем по нормализованному имени.
+    """
+    global _charter_cache, _charter_name_cache, _charter_cache_loaded
     if not _charter_cache_loaded:
         from boats.models import Charter
-        _charter_cache = {c.charter_id: c for c in Charter.objects.all()}
+        _charter_cache = {}
+        _charter_name_cache = {}
+        for c in Charter.objects.all():
+            if c.charter_id:
+                _charter_cache[str(c.charter_id).strip()] = c
+            norm_name = _normalize_charter_name(c.name)
+            if norm_name and norm_name not in _charter_name_cache:
+                _charter_name_cache[norm_name] = c
         _charter_cache_loaded = True
-    return _charter_cache.get(str(charter_id))
+
+    charter_id_key = str(charter_id or "").strip()
+    if charter_id_key and charter_id_key in _charter_cache:
+        return _charter_cache[charter_id_key]
+
+    charter_name_key = _normalize_charter_name(charter_name)
+    if charter_name_key and charter_name_key in _charter_name_cache:
+        return _charter_name_cache[charter_name_key]
+
+    return None
 
 
-def format_boat_data(boat: Dict) -> Dict:
+def format_boat_data(boat: Dict, charter_override=None) -> Dict:
     """
     Форматирование данных лодки из API для отображения в шаблоне
     
@@ -1122,8 +1158,20 @@ def format_boat_data(boat: Dict) -> Dict:
         elif isinstance(params_charter, str):
             charter_info = params_charter
 
-    # Чартер для расчёта комиссии (из in-memory кэша)
-    charter_obj = _get_charter(charter_id_raw) if charter_id_raw else None
+    # Чартер для расчёта комиссии:
+    # 1) override из view (если заранее взяли из БД),
+    # 2) по charter_id из payload,
+    # 3) fallback по slug из ParsedBoat.
+    charter_obj = charter_override
+    if not charter_obj:
+        charter_obj = _get_charter(charter_id=charter_id_raw, charter_name=charter_info)
+    if not charter_obj and slug:
+        try:
+            from boats.models import ParsedBoat
+            pb = ParsedBoat.objects.select_related('charter').filter(slug=slug).first()
+            charter_obj = pb.charter if pb else None
+        except Exception:
+            charter_obj = None
 
     # Единая логика ценообразования для поиска/детали/офферов.
     from boats.pricing import extract_price_components, build_price_breakdown

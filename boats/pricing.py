@@ -22,33 +22,82 @@ def extract_price_components(payload: Dict[str, Any]) -> Tuple[float, float, flo
     Supports both search payload and /price/<slug> payload.
     Returns: (base_price, discount_without_extra, additional_discount)
     """
-    base_price = _to_float(payload.get("price") or payload.get("totalPrice"))
-    additional_discount = _to_float(
-        payload.get("additional_discount") or payload.get("additionalDiscount")
-    )
+    def _extract_with_presence(container: Dict[str, Any], *keys: str) -> Tuple[float, bool]:
+        if not isinstance(container, dict):
+            return 0.0, False
+        for key in keys:
+            if key not in container:
+                continue
+            raw = container.get(key)
+            if raw is None or raw == "":
+                continue
+            return _to_float(raw), True
+        return 0.0, False
 
-    explicit_discount_wo_extra = _to_float(payload.get("discount_without_additionalExtra"))
-    total_discount = _to_float(payload.get("discount"))
-
-    if explicit_discount_wo_extra > 0:
-        discount_without_extra = explicit_discount_wo_extra
-    elif total_discount > 0 and additional_discount > 0:
-        discount_without_extra = max(total_discount - additional_discount, 0)
-    else:
-        discount_without_extra = total_discount
-
-    # Fallback: nested policies[0].prices can contain canonical values
+    # Canonical values: policies[0].prices. Верхний уровень search API нестабилен
+    # (totalPrice/discount могут колебаться между одинаковыми запросами).
+    policy_prices: Dict[str, Any] = {}
     policies = payload.get("policies") or []
     if isinstance(policies, list) and policies:
         first_policy = policies[0] or {}
-        prices = first_policy.get("prices") or {}
-        if isinstance(prices, dict):
-            if base_price <= 0:
-                base_price = _to_float(prices.get("price"))
-            if discount_without_extra <= 0:
-                discount_without_extra = _to_float(prices.get("discount_without_additionalExtra"))
-            if additional_discount <= 0:
-                additional_discount = _to_float(prices.get("additional_discount"))
+        maybe_prices = first_policy.get("prices") or {}
+        if isinstance(maybe_prices, dict):
+            policy_prices = maybe_prices
+
+    policy_base_price, has_policy_base = _extract_with_presence(policy_prices, "price")
+    policy_discount_wo_extra, has_policy_discount_wo_extra = _extract_with_presence(
+        policy_prices, "discount_without_additionalExtra"
+    )
+    policy_additional_discount, has_policy_additional_discount = _extract_with_presence(
+        policy_prices, "additional_discount"
+    )
+
+    top_base_price, has_top_base = _extract_with_presence(payload, "price", "totalPrice")
+    top_total_price, has_top_total = _extract_with_presence(payload, "totalPrice")
+    top_additional_discount, has_top_additional_discount = _extract_with_presence(
+        payload, "additional_discount", "additionalDiscount"
+    )
+    top_explicit_discount_wo_extra, has_top_explicit_discount_wo_extra = _extract_with_presence(
+        payload, "discount_without_additionalExtra", "discountWithoutAdditional"
+    )
+    total_discount, has_total_discount = _extract_with_presence(payload, "discount")
+
+    base_price = policy_base_price if has_policy_base else top_base_price
+    additional_discount = (
+        policy_additional_discount
+        if has_policy_additional_discount
+        else top_additional_discount
+    )
+
+    if has_policy_discount_wo_extra:
+        discount_without_extra = policy_discount_wo_extra
+    elif has_top_explicit_discount_wo_extra:
+        discount_without_extra = top_explicit_discount_wo_extra
+    elif has_total_discount and (has_policy_additional_discount or has_top_additional_discount):
+        discount_without_extra = max(total_discount - additional_discount, 0)
+    elif has_total_discount:
+        discount_without_extra = total_discount
+    else:
+        discount_without_extra = 0.0
+
+    # Fallback для search payload без policies.prices:
+    # иногда top-level discount поля противоречат totalPrice.
+    # В этом случае приводим discount_without_extra к значению,
+    # которое воспроизводит totalPrice.
+    if (not has_policy_discount_wo_extra) and has_top_total and base_price > 0:
+        calc_final = base_price * (1 - discount_without_extra / 100)
+        if additional_discount:
+            calc_final = calc_final * (1 - additional_discount / 100)
+
+        if abs(calc_final - top_total_price) > 1:
+            base_after_additional = base_price
+            if additional_discount:
+                base_after_additional = base_price * (1 - additional_discount / 100)
+            if base_after_additional > 0:
+                discount_without_extra = max(
+                    min((1 - (top_total_price / base_after_additional)) * 100, 100),
+                    0,
+                )
 
     return base_price, discount_without_extra, additional_discount
 

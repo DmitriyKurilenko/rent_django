@@ -67,3 +67,30 @@ class BoatDetailPriceNoCacheTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_get_price.call_count, 1)
         self.assertGreater(float(response.context["boat"]["total_price"]), 0)
+
+    @patch("boats.boataround_api.BoataroundAPI.search_by_slug", return_value=None)
+    @patch("boats.boataround_api.BoataroundAPI.get_price")
+    def test_uses_search_snapshot_price_when_present_in_query(self, mock_get_price, _mock_search_by_slug):
+        mock_get_price.return_value = {
+            "price": 9150,
+            "discount_without_additionalExtra": 58,
+            "additional_discount": 5,
+        }
+
+        response = self.client.get(
+            reverse("boat_detail_api", kwargs={"boat_id": self.parsed_boat.slug}),
+            {
+                "check_in": "2026-03-14",
+                "check_out": "2026-03-21",
+                "q_total": "3477",
+                "q_old": "9150",
+                "q_discount": "62",
+                "q_currency": "EUR",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(float(response.context["boat"]["total_price"]), 3477.0)
+        self.assertEqual(float(response.context["boat"]["old_price"]), 9150.0)
+        self.assertEqual(int(response.context["boat"]["discount_percent"]), 62)
+        self.assertEqual(mock_get_price.call_count, 0)

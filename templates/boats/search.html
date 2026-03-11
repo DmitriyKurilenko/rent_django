@@ -385,7 +385,7 @@
                                         <i class="far fa-heart"></i>
                                     </button>
                                     {% endif %}
-                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" class="btn btn-primary btn-xs sm:btn-sm flex-1 sm:flex-none">
+                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}{% if boat.price %}&q_total={{ boat.price|floatformat:2 }}{% endif %}{% if boat.old_price %}&q_old={{ boat.old_price|floatformat:2 }}{% endif %}{% if boat.discount_percent %}&q_discount={{ boat.discount_percent|floatformat:0 }}{% endif %}&q_currency={{ boat.currency|default:'EUR' }}" class="btn btn-primary btn-xs sm:btn-sm flex-1 sm:flex-none">
                                         Подробно
                                     </a>
                                 </div>

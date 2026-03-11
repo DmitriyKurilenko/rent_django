@@ -156,17 +156,32 @@ def boat_search(request):
         if request.user.is_authenticated:
             favorite_slugs = set(Favorite.objects.filter(user=request.user).values_list('boat_slug', flat=True))
 
-        # CDN-превью: один запрос на всю страницу по slug
+        # Один запрос к ParsedBoat на всю страницу:
+        # - CDN-превью для карточек
+        # - связанный чартер для консистентного расчёта цены
         api_boats = search_results.get('boats', [])
         slugs = [b.get('slug', '') for b in api_boats if b.get('slug')]
-        preview_map = dict(
-            ParsedBoat.objects.filter(slug__in=slugs, preview_cdn_url__gt='')
-            .values_list('slug', 'preview_cdn_url')
-        ) if slugs else {}
+        preview_map = {}
+        charter_map = {}
+        if slugs:
+            parsed_boats = (
+                ParsedBoat.objects
+                .select_related('charter')
+                .filter(slug__in=slugs)
+            )
+            for parsed_boat in parsed_boats:
+                if parsed_boat.preview_cdn_url:
+                    preview_map[parsed_boat.slug] = parsed_boat.preview_cdn_url
+                if parsed_boat.charter:
+                    charter_map[parsed_boat.slug] = parsed_boat.charter
 
         for boat in api_boats:
             try:
-                formatted_boat = format_boat_data(boat)
+                slug = boat.get('slug', '')
+                formatted_boat = format_boat_data(
+                    boat,
+                    charter_override=charter_map.get(slug)
+                )
 
                 # Превью: CDN если есть, иначе thumb из API
                 cdn_preview = preview_map.get(formatted_boat.get('slug', ''))
@@ -691,34 +706,70 @@ def boat_detail_api(request, boat_id):
         class _Charter:
             commission = charter_commission
 
-        quote = resolve_live_or_fallback_price(
-            slug=slug,
-            check_in=api_check_in,
-            check_out=api_check_out,
-            lang=db_lang,
-            charter=_Charter() if charter_commission else None,
-            rental_days=rental_days,
-            currency='EUR',
-        )
+        def _to_float(value):
+            try:
+                if value in (None, ""):
+                    return 0.0
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
 
-        if quote.get('source') == 'db':
-            logger.warning(
-                f"[Boat Detail] Price API unavailable for {slug}, using DB fallback price "
-                f"for {api_check_in}..{api_check_out}"
+        quoted_total = _to_float(request.GET.get('q_total'))
+        quoted_old = _to_float(request.GET.get('q_old'))
+        quoted_discount = _to_float(request.GET.get('q_discount'))
+        quoted_currency = (request.GET.get('q_currency') or 'EUR').strip() or 'EUR'
+
+        if quoted_total > 0 and has_url_dates:
+            old_price = quoted_old if quoted_old > quoted_total else 0.0
+            base_price = old_price if old_price > 0 else quoted_total
+            discount_percent = int(round(quoted_discount)) if quoted_discount else 0
+            if not discount_percent and old_price > 0:
+                try:
+                    discount_percent = int(round((old_price - quoted_total) / old_price * 100))
+                except ZeroDivisionError:
+                    discount_percent = 0
+
+            price_info = {
+                'price': base_price,
+                'discount': 0,
+                'total_price': quoted_total,
+                'old_price': old_price,
+                'discount_percent': discount_percent,
+                'currency': quoted_currency,
+            }
+            logger.info(
+                f"[Boat Detail] Using price snapshot from search for {slug}: "
+                f"total={quoted_total}, old={old_price}, discount={discount_percent}%"
             )
-        elif quote.get('source') == 'none':
-            logger.warning(
-                f"[Boat Detail] Price unavailable for {slug} ({api_check_in}..{api_check_out})"
+        else:
+            quote = resolve_live_or_fallback_price(
+                slug=slug,
+                check_in=api_check_in,
+                check_out=api_check_out,
+                lang=db_lang,
+                charter=_Charter() if charter_commission else None,
+                rental_days=rental_days,
+                currency='EUR',
             )
 
-        price_info = {
-            'price': quote.get('base_price', 0),
-            'discount': quote.get('discount_without_extra', 0),
-            'total_price': quote.get('final_price', 0),
-            'old_price': quote.get('old_price', 0),
-            'discount_percent': quote.get('discount_percent', 0),
-            'currency': quote.get('currency', 'EUR'),
-        }
+            if quote.get('source') == 'db':
+                logger.warning(
+                    f"[Boat Detail] Price API unavailable for {slug}, using DB fallback price "
+                    f"for {api_check_in}..{api_check_out}"
+                )
+            elif quote.get('source') == 'none':
+                logger.warning(
+                    f"[Boat Detail] Price unavailable for {slug} ({api_check_in}..{api_check_out})"
+                )
+
+            price_info = {
+                'price': quote.get('base_price', 0),
+                'discount': quote.get('discount_without_extra', 0),
+                'total_price': quote.get('final_price', 0),
+                'old_price': quote.get('old_price', 0),
+                'discount_percent': quote.get('discount_percent', 0),
+                'currency': quote.get('currency', 'EUR'),
+            }
 
         # Собираем boat_dict из кэшированных данных + цены
         boat_dict = {**boat_static, **price_info}
