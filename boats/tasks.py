@@ -130,8 +130,13 @@ def refresh_boat_amenities(self, boat_slug):
             return {'status': 'skipped', 'slug': boat_slug, 'reason': 'not found'}
 
         updated = 0
+        failed_languages = []
         for lang in SUPPORTED_LANGUAGES:
             lang_data = _fetch_language_page_data(boat_slug, lang)
+            if not lang_data.get('_fetch_ok'):
+                failed_languages.append(lang)
+                logger.warning(f'[Celery] refresh_amenities {boat_slug}: пропуск {lang}, страница не загружена')
+                continue
             amenities = lang_data['amenities']
             rows = BoatDetails.objects.filter(boat=boat, language=lang)
             if rows.exists():
@@ -151,6 +156,31 @@ def refresh_boat_amenities(self, boat_slug):
                     extras=[], additional_services=[], delivery_extras=[], not_included=[],
                 )
                 updated += 1
+
+        if updated == 0:
+            logger.error(
+                f'[Celery] ❌ refresh_amenities {boat_slug}: не удалось загрузить ни один язык '
+                f'({", ".join(failed_languages) if failed_languages else "unknown"})'
+            )
+            return {
+                'status': 'failed',
+                'slug': boat_slug,
+                'languages_updated': 0,
+                'failed_languages': failed_languages,
+                'reason': 'all language pages failed',
+            }
+
+        if failed_languages:
+            logger.warning(
+                f'[Celery] ⚠️ refresh_amenities {boat_slug}: частично, обновлено {updated}, '
+                f'ошибки языков: {", ".join(failed_languages)}'
+            )
+            return {
+                'status': 'partial',
+                'slug': boat_slug,
+                'languages_updated': updated,
+                'failed_languages': failed_languages,
+            }
 
         logger.info(f'[Celery] ✅ refresh_amenities {boat_slug}: обновлено {updated} языков')
         return {'status': 'success', 'slug': boat_slug, 'languages_updated': updated}

@@ -246,8 +246,14 @@ class Command(BaseCommand):
                     failed += 1
                     continue
 
+                failed_languages = []
+                updated_languages = 0
                 for lang in SUPPORTED_LANGUAGES:
                     lang_data = _fetch_language_page_data(slug, lang)
+                    if not lang_data.get('_fetch_ok'):
+                        failed_languages.append(lang)
+                        logger.warning(f'refresh_amenities sync skip {slug} {lang}: page not loaded')
+                        continue
                     amenities = lang_data['amenities']
                     rows = BoatDetails.objects.filter(boat=boat, language=lang)
                     if rows.exists():
@@ -256,6 +262,7 @@ class Command(BaseCommand):
                             entertainment=amenities['entertainment'],
                             equipment=amenities['equipment'],
                         )
+                        updated_languages += 1
                     else:
                         BoatDetails.objects.create(
                             boat=boat, language=lang,
@@ -264,8 +271,28 @@ class Command(BaseCommand):
                             equipment=amenities['equipment'],
                             extras=[], additional_services=[], delivery_extras=[], not_included=[],
                         )
+                        updated_languages += 1
 
-                success += 1
+                if updated_languages == 0:
+                    failed += 1
+                    self.stdout.write(
+                        self.style.ERROR(
+                            f'  [{idx}/{total}] ошибка {slug}: не удалось загрузить ни один язык'
+                        )
+                    )
+                    continue
+
+                if failed_languages:
+                    failed += 1
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'  [{idx}/{total}] частично: {slug}, обновлено {updated_languages}, '
+                            f'ошибки языков: {", ".join(failed_languages)}'
+                        )
+                    )
+                else:
+                    success += 1
+
                 if idx % 10 == 0 or idx == total:
                     self.stdout.write(f'  [{idx}/{total}] успешно: {success}, ошибок: {failed}')
 

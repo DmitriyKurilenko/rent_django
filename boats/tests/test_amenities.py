@@ -76,6 +76,15 @@ class ExtractAmenitiesFromHTMLTest(TestCase):
         result = _extract_amenities_from_html(soup)
         self.assertEqual(list(result['cockpit'][0].keys()), ['name'])
 
+    @patch('boats.parser.fetch_page', return_value=None)
+    def test_fetch_language_page_data_marks_fetch_failed(self, _mock_fetch_page):
+        from boats.parser import _fetch_language_page_data
+
+        result = _fetch_language_page_data('lagoon-46-maryna', 'es_ES')
+
+        self.assertFalse(result.get('_fetch_ok'))
+        self.assertEqual(result['amenities'], {'cockpit': [], 'entertainment': [], 'equipment': []})
+
 
 class FormatBoatDataEquipmentTest(TestCase):
     """format_boat_data must not populate cockpit/entertainment/equipment from search API."""

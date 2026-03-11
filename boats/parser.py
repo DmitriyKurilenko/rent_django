@@ -661,6 +661,7 @@ def _fetch_language_page_data(slug: str, lang: str) -> dict:
         'descriptions': {'title': '', 'description': '', 'location': '', 'marina': ''},
         'services': {'extras': [], 'additional_services': [], 'delivery_extras': [], 'not_included': []},
         'amenities': {'cockpit': [], 'entertainment': [], 'equipment': []},
+        '_fetch_ok': False,
     }
     try:
         url = get_boat_url_for_language(slug, lang)
@@ -718,7 +719,12 @@ def _fetch_language_page_data(slug: str, lang: str) -> dict:
             f'cockpit={len(amenities["cockpit"])}, entertainment={len(amenities["entertainment"])}, '
             f'equipment={len(amenities["equipment"])}'
         )
-        return {'descriptions': descriptions, 'services': services, 'amenities': amenities}
+        return {
+            'descriptions': descriptions,
+            'services': services,
+            'amenities': amenities,
+            '_fetch_ok': True,
+        }
 
     except Exception as e:
         import traceback
@@ -1436,4 +1442,3 @@ def parse_boataround_url_minimal(url: str) -> Optional[dict]:
         import traceback
         logger.error(traceback.format_exc())
         return None
-

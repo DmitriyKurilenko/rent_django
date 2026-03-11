@@ -95,6 +95,7 @@ services:
       - ./logs:/app/logs
     networks:
       - backend
+      - frontend
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY:-change-me-secret}
@@ -121,6 +122,7 @@ services:
       - ./logs:/app/logs
     networks:
       - backend
+      - frontend
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY:-change-me-secret}
@@ -170,4 +172,4 @@ networks:
     driver: bridge
     internal: true  # Изолированная сеть для бэкенда
   frontend:
-    driver: bridge  # Публичная сеть для nginx и web
+    driver: bridge  # Сеть с внешним egress (nginx/web/celery worker/beat)
