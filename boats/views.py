@@ -43,6 +43,7 @@ def home(request):
 def boat_search(request):
     """Поиск лодок через API boataround.com с пагинацией и ценами"""
     from boats.boataround_api import BoataroundAPI, format_boat_data
+    from django.core.cache import cache
     import logging
     
     logger = logging.getLogger(__name__)
@@ -175,6 +176,35 @@ def boat_search(request):
                 if parsed_boat.charter:
                     charter_map[parsed_boat.slug] = parsed_boat.charter
 
+        # Защита от "скачков" цены в поиске:
+        # переключаем отображаемую цену только после 2 одинаковых новых наблюдений подряд.
+        def _to_float(value):
+            try:
+                if value in (None, ''):
+                    return 0.0
+                return float(value)
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _snapshot_from_boat(item):
+            return {
+                'price': round(_to_float(item.get('price')), 2),
+                'old_price': round(_to_float(item.get('old_price')), 2),
+                'discount_percent': int(round(_to_float(item.get('discount_percent')))),
+                'price_per_day': round(_to_float(item.get('price_per_day')), 2),
+                'currency': str(item.get('currency') or 'EUR'),
+            }
+
+        def _same_snapshot(a, b):
+            if not isinstance(a, dict) or not isinstance(b, dict):
+                return False
+            return (
+                abs(_to_float(a.get('price')) - _to_float(b.get('price'))) < 0.01
+                and abs(_to_float(a.get('old_price')) - _to_float(b.get('old_price'))) < 0.01
+                and int(round(_to_float(a.get('discount_percent')))) == int(round(_to_float(b.get('discount_percent'))))
+                and str(a.get('currency') or 'EUR') == str(b.get('currency') or 'EUR')
+            )
+
         for boat in api_boats:
             try:
                 slug = boat.get('slug', '')
@@ -182,6 +212,57 @@ def boat_search(request):
                     boat,
                     charter_override=charter_map.get(slug)
                 )
+
+                if slug and check_in and check_out:
+                    key = f"search_price_consensus:{slug}:{check_in}:{check_out}:{formatted_boat.get('currency', 'EUR')}"
+                    state = cache.get(key) or {}
+                    current = _snapshot_from_boat(formatted_boat)
+                    confirmed = state.get('confirmed')
+                    candidate = state.get('candidate')
+                    candidate_hits = int(state.get('candidate_hits') or 0)
+
+                    if confirmed:
+                        if _same_snapshot(current, confirmed):
+                            candidate = None
+                            candidate_hits = 0
+                            display = confirmed
+                        else:
+                            if _same_snapshot(current, candidate):
+                                candidate_hits += 1
+                            else:
+                                candidate = current
+                                candidate_hits = 1
+                            if candidate_hits >= 2:
+                                confirmed = current
+                                candidate = None
+                                candidate_hits = 0
+                            display = confirmed
+                    else:
+                        if _same_snapshot(current, candidate):
+                            candidate_hits += 1
+                        else:
+                            candidate = current
+                            candidate_hits = 1
+                        if candidate_hits >= 2:
+                            confirmed = current
+                            candidate = None
+                            candidate_hits = 0
+                            display = confirmed
+                        else:
+                            display = current
+
+                    state = {
+                        'confirmed': confirmed,
+                        'candidate': candidate,
+                        'candidate_hits': candidate_hits,
+                    }
+                    cache.set(key, state, 60 * 60 * 6)
+
+                    formatted_boat['price'] = display.get('price', formatted_boat.get('price', 0))
+                    formatted_boat['old_price'] = display.get('old_price', formatted_boat.get('old_price', 0))
+                    formatted_boat['discount_percent'] = display.get('discount_percent', formatted_boat.get('discount_percent', 0))
+                    formatted_boat['price_per_day'] = display.get('price_per_day', formatted_boat.get('price_per_day', 0))
+                    formatted_boat['currency'] = display.get('currency', formatted_boat.get('currency', 'EUR'))
 
                 # Превью: CDN если есть, иначе thumb из API
                 cdn_preview = preview_map.get(formatted_boat.get('slug', ''))
@@ -710,6 +791,16 @@ def boat_detail_api(request, boat_id):
             try:
                 if value in (None, ""):
                     return 0.0
+                if isinstance(value, str):
+                    normalized = (
+                        value.replace('\xa0', '')
+                        .replace(' ', '')
+                        .replace(',', '.')
+                        .strip()
+                    )
+                    if not normalized:
+                        return 0.0
+                    return float(normalized)
                 return float(value)
             except (TypeError, ValueError):
                 return 0.0

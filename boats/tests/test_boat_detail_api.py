@@ -82,8 +82,8 @@ class BoatDetailPriceNoCacheTest(TestCase):
             {
                 "check_in": "2026-03-14",
                 "check_out": "2026-03-21",
-                "q_total": "3477",
-                "q_old": "9150",
+                "q_total": "3 477,00",
+                "q_old": "9 150,00",
                 "q_discount": "62",
                 "q_currency": "EUR",
             },

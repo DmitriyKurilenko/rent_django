@@ -5,6 +5,7 @@ from unittest.mock import patch
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from boats.models import Boat, ParsedBoat, Booking, Offer
 
 
@@ -13,6 +14,7 @@ class BoatViewsTest(TestCase):
     
     def setUp(self):
         """Setup для каждого теста"""
+        cache.clear()
         self.client = Client()
         self.user = User.objects.create_user(
             username='testuser',
@@ -96,6 +98,80 @@ class BoatViewsTest(TestCase):
         self.assertContains(response, 'data-testid="search-boat-preview"')
         self.assertContains(response, 'h-full overflow-hidden')
         self.assertContains(response, 'q_total=')
+
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_confirms_new_price_only_after_second_identical_observation(self, mock_search, mock_format_boat_data):
+        mock_search.return_value = {
+            'boats': [{'slug': 'stable-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.side_effect = [
+            {
+                'slug': 'stable-boat',
+                'id': 'stable-boat-id',
+                'name': 'Stable Boat',
+                'country': 'Croatia',
+                'marina': 'Split',
+                'berths': 8,
+                'cabins': 4,
+                'length': 12.5,
+                'year': 2022,
+                'rating': 4.9,
+                'price': 1500,
+                'old_price': 2000,
+                'discount_percent': 25,
+                'price_per_day': 214,
+                'currency': 'EUR',
+            },
+            {
+                'slug': 'stable-boat',
+                'id': 'stable-boat-id',
+                'name': 'Stable Boat',
+                'country': 'Croatia',
+                'marina': 'Split',
+                'berths': 8,
+                'cabins': 4,
+                'length': 12.5,
+                'year': 2022,
+                'rating': 4.9,
+                'price': 1400,  # внешнее API "прыгнуло"
+                'old_price': 2000,
+                'discount_percent': 30,
+                'price_per_day': 200,
+                'currency': 'EUR',
+            },
+            {
+                'slug': 'stable-boat',
+                'id': 'stable-boat-id',
+                'name': 'Stable Boat',
+                'country': 'Croatia',
+                'marina': 'Split',
+                'berths': 8,
+                'cabins': 4,
+                'length': 12.5,
+                'year': 2022,
+                'rating': 4.9,
+                'price': 1400,
+                'old_price': 2000,
+                'discount_percent': 30,
+                'price_per_day': 200,
+                'currency': 'EUR',
+            },
+        ]
+
+        params = {'destination': 'croatia', 'check_in': '2026-03-14', 'check_out': '2026-03-21'}
+        response1 = self.client.get(reverse('boat_search'), params)
+        response2 = self.client.get(reverse('boat_search'), params)
+        response3 = self.client.get(reverse('boat_search'), params)
+
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response3.status_code, 200)
+        self.assertEqual(response1.context['boats'][0]['price'], 1500)
+        self.assertEqual(response2.context['boats'][0]['price'], 1400)
+        self.assertEqual(response3.context['boats'][0]['price'], 1400)
 
 
 class BoatAuthenticationTest(TestCase):
