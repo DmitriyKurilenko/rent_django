@@ -2,7 +2,6 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 
 from boats.management.commands.refresh_amenities import Command
@@ -48,14 +47,18 @@ class RefreshAmenitiesAsyncCommandTest(SimpleTestCase):
     def setUp(self):
         self.command = Command()
 
-    def test_run_async_raises_when_no_active_workers(self):
+    @patch('boats.tasks.refresh_amenities_batch.delay')
+    def test_run_async_continues_when_no_active_workers_detected(self, mock_delay):
+        mock_delay.return_value = SimpleNamespace(id='task-1')
+
         with patch.object(self.command, '_get_active_workers', return_value={}):
-            with self.assertRaises(CommandError):
-                self.command._run_async(
-                    slugs=['boat-a'],
-                    batch_size=1,
-                    wait_for_completion=False,
-                )
+            self.command._run_async(
+                slugs=['boat-a'],
+                batch_size=1,
+                wait_for_completion=False,
+            )
+
+        self.assertEqual(mock_delay.call_count, 1)
 
     @patch('boats.tasks.refresh_amenities_batch.delay')
     def test_run_async_waits_and_aggregates_results(self, mock_delay):

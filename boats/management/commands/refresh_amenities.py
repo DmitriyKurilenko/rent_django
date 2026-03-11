@@ -293,9 +293,16 @@ class Command(BaseCommand):
 
         active_workers = self._get_active_workers()
         if not active_workers:
-            raise CommandError(
-                'Celery worker недоступен. Проверьте контейнер `celery_worker` '
-                'или запустите команду в --sync режиме.'
+            self.stdout.write(self.style.WARNING(
+                'Celery inspect не вернул активных воркеров. '
+                'Продолжаю отправку батчей в очередь; '
+                'проверьте сервис `celery_worker` '
+                '(`docker compose logs -f celery_worker`, '
+                'контейнер обычно `rent_django-celery_worker-1`).'
+            ))
+        else:
+            self.stdout.write(
+                f"Активные Celery workers: {', '.join(sorted(active_workers.keys()))}"
             )
 
         batches = [slugs[i:i + batch_size] for i in range(0, len(slugs), batch_size)]
@@ -320,7 +327,10 @@ class Command(BaseCommand):
         )
 
         if not wait_for_completion:
-            self.stdout.write('Мониторинг: docker compose logs -f celery_worker')
+            self.stdout.write(
+                'Мониторинг: docker compose logs -f celery_worker '
+                '(контейнер обычно rent_django-celery_worker-1)'
+            )
             return
 
         self.stdout.write(
@@ -348,14 +358,29 @@ class Command(BaseCommand):
     def _get_active_workers(self):
         from celery import current_app
 
-        inspect = current_app.control.inspect(timeout=1)
-        if not inspect:
-            return {}
-        try:
-            workers = inspect.ping() or {}
-        except Exception:
-            workers = {}
-        return workers
+        # В проде inspect.ping() с timeout=1 может давать ложный "нет воркеров".
+        # Пробуем несколько таймаутов и fallback на inspect.stats().
+        last_error = None
+        for timeout in (1, 3, 5):
+            try:
+                inspect = current_app.control.inspect(timeout=timeout)
+                if not inspect:
+                    continue
+
+                workers = inspect.ping() or {}
+                if workers:
+                    return workers
+
+                stats = inspect.stats() or {}
+                if stats:
+                    return {name: {'ok': 'stats-only'} for name in stats.keys()}
+            except Exception as e:
+                last_error = e
+                logger.warning(f'Celery inspect failed (timeout={timeout}s): {e}')
+
+        if last_error:
+            logger.warning(f'Celery worker detection failed, last error: {last_error}')
+        return {}
 
     def _wait_for_async_batches(self, task_ids, timeout=7200, poll_interval=5):
         from celery.result import AsyncResult
