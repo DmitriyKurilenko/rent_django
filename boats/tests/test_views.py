@@ -174,6 +174,73 @@ class BoatViewsTest(TestCase):
         self.assertEqual(response2.context['boats'][0]['price'], 1400)
         self.assertEqual(response3.context['boats'][0]['price'], 1400)
 
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_persists_sort_in_session_and_reuses_without_query_param(self, mock_search, mock_format_boat_data):
+        mock_search.return_value = {
+            'boats': [{'slug': 'sort-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'sort-boat',
+            'id': 'sort-boat-id',
+            'name': 'Sort Boat',
+            'country': 'Croatia',
+            'marina': 'Split',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+        }
+
+        response1 = self.client.get(reverse('boat_search'), {'destination': 'croatia', 'sort': 'priceDown'})
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response1.context['sort'], 'priceDown')
+        self.assertEqual(self.client.session.get('boat_search_sort'), 'priceDown')
+        self.assertEqual(mock_search.call_args_list[0].kwargs.get('sort'), 'priceDown')
+
+        response2 = self.client.get(reverse('boat_search'), {'destination': 'croatia'})
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.context['sort'], 'priceDown')
+        self.assertEqual(mock_search.call_args_list[1].kwargs.get('sort'), 'priceDown')
+
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_saves_rank_when_user_selects_rank(self, mock_search, mock_format_boat_data):
+        mock_search.return_value = {
+            'boats': [{'slug': 'rank-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'rank-boat',
+            'id': 'rank-boat-id',
+            'name': 'Rank Boat',
+            'country': 'Croatia',
+            'marina': 'Split',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+        }
+
+        session = self.client.session
+        session['boat_search_sort'] = 'priceUp'
+        session.save()
+
+        response = self.client.get(reverse('boat_search'), {'destination': 'croatia', 'sort': 'rank'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['sort'], 'rank')
+        self.assertEqual(self.client.session.get('boat_search_sort'), 'rank')
+        self.assertEqual(mock_search.call_args.kwargs.get('sort'), 'rank')
+
 
 class BoatAuthenticationTest(TestCase):
     """Tests для аутентификации в views"""

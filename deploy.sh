@@ -70,6 +70,63 @@ get_env_value() {
     fi
 }
 
+pin_runtime_env_from_file() {
+    # Docker Compose interpolation prefers shell env over --env-file.
+    # Pin critical keys from .env to avoid accidental overrides from CI/shell.
+    print_info "Pinning runtime env from ${ENV_FILE}..."
+
+    export DEBUG="$(get_env_value "DEBUG" "False")"
+    export SECURE_SSL_REDIRECT="$(get_env_value "SECURE_SSL_REDIRECT" "True")"
+    export SESSION_COOKIE_SECURE="$(get_env_value "SESSION_COOKIE_SECURE" "True")"
+    export CSRF_COOKIE_SECURE="$(get_env_value "CSRF_COOKIE_SECURE" "True")"
+    export USE_X_FORWARDED_HOST="$(get_env_value "USE_X_FORWARDED_HOST" "True")"
+    export SECURE_CONTENT_TYPE_NOSNIFF="$(get_env_value "SECURE_CONTENT_TYPE_NOSNIFF" "True")"
+    export SECURE_HSTS_INCLUDE_SUBDOMAINS="$(get_env_value "SECURE_HSTS_INCLUDE_SUBDOMAINS" "True")"
+    export SECURE_HSTS_PRELOAD="$(get_env_value "SECURE_HSTS_PRELOAD" "True")"
+
+    print_success "Pinned runtime env values from ${ENV_FILE}"
+}
+
+is_valid_bool() {
+    local value_lower
+    value_lower=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+
+    case "$value_lower" in
+        true|false|1|0|yes|no|on|off|'')
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+validate_bool_env() {
+    local key="$1"
+    local default_value="$2"
+    local value
+    value=$(get_env_value "$key" "$default_value")
+
+    if ! is_valid_bool "$value"; then
+        print_error "Invalid boolean value for ${key}: '${value}'"
+        print_info "Allowed values: true/false, 1/0, yes/no, on/off"
+        exit 1
+    fi
+}
+
+validate_env_values() {
+    print_info "Validating .env values format..."
+    validate_bool_env "DEBUG" "False"
+    validate_bool_env "SECURE_SSL_REDIRECT" "True"
+    validate_bool_env "SESSION_COOKIE_SECURE" "True"
+    validate_bool_env "CSRF_COOKIE_SECURE" "True"
+    validate_bool_env "USE_X_FORWARDED_HOST" "True"
+    validate_bool_env "SECURE_CONTENT_TYPE_NOSNIFF" "True"
+    validate_bool_env "SECURE_HSTS_INCLUDE_SUBDOMAINS" "True"
+    validate_bool_env "SECURE_HSTS_PRELOAD" "True"
+    print_success ".env values format is valid"
+}
+
 check_required_env() {
     local missing=()
     local required_keys=(
@@ -252,12 +309,14 @@ main() {
     
     # Step 1: Check requirements
     check_requirements
+    pin_runtime_env_from_file
 
     # Step 2: Validate compose config
     validate_compose
 
     # Step 2.3: Validate required environment values
     check_required_env
+    validate_env_values
 
     if [ "$DRY_RUN" = true ]; then
         print_success "Dry run passed. No deployment actions executed."

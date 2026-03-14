@@ -66,8 +66,18 @@ def boat_search(request):
     except (ValueError, TypeError):
         page = 1
     page = max(1, page)  # Минимум 1 страница
-    
-    sort = request.GET.get('sort', 'rank').strip()
+
+    # Сохраняем сортировку пользователя в сессии, чтобы не выбирать каждый раз заново
+    allowed_sorts = {'rank', 'priceUp', 'priceDown', 'discountDown'}
+    sort_session_key = 'boat_search_sort'
+    raw_sort = request.GET.get('sort')
+    if raw_sort is not None:
+        sort_candidate = raw_sort.strip()
+        sort = sort_candidate if sort_candidate in allowed_sorts else 'rank'
+        request.session[sort_session_key] = sort
+    else:
+        saved_sort = request.session.get(sort_session_key, 'rank')
+        sort = saved_sort if saved_sort in allowed_sorts else 'rank'
     
     logger.info(f"[Search View] ============== NEW SEARCH ==============")
     logger.info(f"[Search View] destination='{destination}'")

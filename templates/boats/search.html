@@ -201,11 +201,7 @@
                             class="select select-bordered select-sm max-w-xs"
                             onchange="(function(){
                                 const urlObj = new window.URL(window.location.href);
-                                if (this.value && this.value !== 'rank') {
-                                    urlObj.searchParams.set('sort', this.value);
-                                } else {
-                                    urlObj.searchParams.delete('sort');
-                                }
+                                urlObj.searchParams.set('sort', this.value || 'rank');
                                 urlObj.searchParams.set('page', '1');
                                 window.location.href = urlObj.toString();
                             }).call(this)">
