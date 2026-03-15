@@ -6,6 +6,13 @@
 {% block content %}
 
 <div class="max-w-5xl mx-auto px-4 py-6">
+    {% if data_error %}
+    <div class="alert alert-error mb-4">
+        <i class="fas fa-triangle-exclamation"></i>
+        <span>{{ data_error }}</span>
+    </div>
+    {% endif %}
+
     {% if is_custom_branding %}
     <div class="alert alert-info mb-4">
         <i class="fas fa-paint-brush"></i>

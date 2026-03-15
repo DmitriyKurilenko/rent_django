@@ -6,7 +6,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from boats.models import Boat, ParsedBoat, Booking, Offer
+from boats.models import Boat, ParsedBoat, Booking, Offer, BoatDescription, BoatDetails, BoatGallery
 
 
 class BoatViewsTest(TestCase):
@@ -344,17 +344,24 @@ class BoatAuthenticationTest(TestCase):
 
     @patch('boats.views.resolve_live_or_fallback_price')
     @patch('boats.views._build_boat_data_from_db')
-    def test_create_offer_uses_unified_resolver_price(self, mock_build_boat_data, mock_resolve_price):
+    @patch('boats.views._ensure_boat_data_for_critical_flow')
+    def test_create_offer_uses_unified_resolver_price(
+        self,
+        mock_ensure_boat_data,
+        mock_build_boat_data,
+        mock_resolve_price,
+    ):
         """Create offer flow must save price from unified resolver."""
         self.user.profile.subscription_plan = 'standard'
         self.user.profile.save(update_fields=['subscription_plan'])
-        ParsedBoat.objects.create(
+        parsed_boat = ParsedBoat.objects.create(
             boat_id='offer-boat-1',
             slug='offer-boat-slug',
             manufacturer='Bali',
             model='4.2',
             year=2020,
         )
+        mock_ensure_boat_data.return_value = (parsed_boat, None)
         mock_build_boat_data.return_value = {
             'title': 'Bali 4.2',
             'manufacturer': 'Bali',
@@ -393,7 +400,13 @@ class BoatAuthenticationTest(TestCase):
 
     @patch('boats.views.resolve_live_or_fallback_price')
     @patch('boats.views._build_boat_data_from_db')
-    def test_quick_create_offer_uses_unified_resolver_price(self, mock_build_boat_data, mock_resolve_price):
+    @patch('boats.views._ensure_boat_data_for_critical_flow')
+    def test_quick_create_offer_uses_unified_resolver_price(
+        self,
+        mock_ensure_boat_data,
+        mock_build_boat_data,
+        mock_resolve_price,
+    ):
         """Quick offer flow must save price from unified resolver."""
         self.user.profile.subscription_plan = 'standard'
         self.user.profile.save(update_fields=['subscription_plan'])
@@ -404,6 +417,7 @@ class BoatAuthenticationTest(TestCase):
             model='42',
             year=2021,
         )
+        mock_ensure_boat_data.return_value = (parsed_boat, None)
         mock_build_boat_data.return_value = {
             'title': 'Lagoon 42',
             'manufacturer': 'Lagoon',
@@ -433,3 +447,90 @@ class BoatAuthenticationTest(TestCase):
         self.assertEqual(float(offer.discount), 12.0)
         self.assertEqual(float(offer.boat_data.get('totalPrice')), 1400.0)
         self.assertEqual(mock_resolve_price.call_count, 1)
+
+
+class OfferDetailHydrationTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='offer_user', password='testpass123')
+        self.parsed_boat = ParsedBoat.objects.create(
+            boat_id='offer-hydrate-1',
+            slug='offer-hydrate-boat',
+            manufacturer='Lagoon',
+            model='42',
+            year=2021,
+        )
+        BoatDescription.objects.create(
+            boat=self.parsed_boat,
+            language='ru_RU',
+            title='Lagoon 42 | Test',
+            description='Boat desc',
+            location='Seychelles',
+            marina='Eden Island',
+        )
+        BoatDetails.objects.create(
+            boat=self.parsed_boat,
+            language='ru_RU',
+            extras=[],
+            additional_services=[],
+            delivery_extras=[],
+            not_included=[],
+            cockpit=[],
+            entertainment=[],
+            equipment=[],
+        )
+        BoatGallery.objects.create(
+            boat=self.parsed_boat,
+            cdn_url='https://cdn2.prvms.ru/yachts/offer-hydrate-1/photo.jpg',
+            order=1,
+        )
+
+    def test_offer_detail_hydrates_missing_images_from_parsed_boat(self):
+        offer = Offer.objects.create(
+            created_by=self.user,
+            offer_type='captain',
+            source_url='https://www.boataround.com/ru/yachta/offer-hydrate-boat/?checkIn=2026-03-14&checkOut=2026-03-21',
+            check_in='2026-03-14',
+            check_out='2026-03-21',
+            boat_data={
+                'slug': 'offer-hydrate-boat',
+                'boat_id': 'offer-hydrate-1',
+                'manufacturer': 'Lagoon',
+                'model': '42',
+                'images': [],
+            },
+            total_price=1400,
+            discount=10,
+            currency='EUR',
+            title='Lagoon 42',
+        )
+
+        response = self.client.get(reverse('offer_detail', kwargs={'uuid': offer.uuid}))
+
+        self.assertEqual(response.status_code, 200)
+        offer.refresh_from_db()
+        self.assertEqual(
+            offer.boat_data.get('images'),
+            ['https://cdn2.prvms.ru/yachts/offer-hydrate-1/photo.jpg'],
+        )
+        self.assertIsNone(response.context.get('data_error'))
+
+    @patch('boats.views._ensure_boat_data_for_critical_flow', return_value=(None, 'critical data error'))
+    def test_offer_detail_shows_clear_error_when_hydration_fails(self, _mock_ensure):
+        offer = Offer.objects.create(
+            created_by=self.user,
+            offer_type='captain',
+            source_url='https://www.boataround.com/ru/yachta/missing-boat/?checkIn=2026-03-14&checkOut=2026-03-21',
+            check_in='2026-03-14',
+            check_out='2026-03-21',
+            boat_data={'slug': 'missing-boat', 'images': []},
+            total_price=1400,
+            discount=10,
+            currency='EUR',
+            title='Missing boat',
+        )
+
+        response = self.client.get(reverse('offer_detail', kwargs={'uuid': offer.uuid}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context.get('data_error'), 'critical data error')

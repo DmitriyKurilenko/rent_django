@@ -6,6 +6,8 @@ import json
 import logging
 import re
 import os
+import hashlib
+from html import unescape
 from pathlib import Path
 from typing import Optional
 from bs4 import BeautifulSoup
@@ -40,6 +42,11 @@ CDN_URL = 'https://cdn2.prvms.ru'
 MEDIA_ROOT = '/app/media/boats'  # Docker path
 
 BOAT_ID_PATTERN = re.compile(r'/boats/([a-f0-9]{24})/')
+BOAT_ID_FROM_PICTURE_PATTERN = re.compile(r'^boats/([^/]+)/', re.IGNORECASE)
+NORMALIZED_PICTURE_PATH_PATTERN = re.compile(
+    r'^boats/[^/]+/[^/?#]+\.(?:jpg|jpeg|png|webp)$',
+    re.IGNORECASE,
+)
 SLUG_FROM_URL_PATTERN = re.compile(r'/(?:boat|yachta)/([^/?#]+)')
 
 
@@ -87,28 +94,21 @@ def download_and_save_image(image_path: str) -> Optional[str]:
     Returns:
         str: CDN URL вроде 'https://cdn2.prvms.ru/yachts/{boat_id}/{filename}' или None
     """
+    normalized_path = _normalize_picture_path(image_path)
+    if not normalized_path:
+        logger.error(f"Невалидный путь изображения: {image_path}")
+        return None
+
+    image_path = normalized_path
+    source_url = f"https://{IMAGE_HOST}/{image_path}?method=fit&width=1920&height=1080&format=jpeg"
+
     try:
-        # Извлекаем boat_id и имя файла из пути
-        # Пример: 'boats/62b96d157a9323583a5a4880/650d96fa43b7cac28800ead4.jpg'
-        # -> boat_id='62b96d157a9323583a5a4880', filename='650d96fa43b7cac28800ead4.jpg'
         parts = image_path.strip('/').split('/')
-        boat_id = None
-        filename = None
-        if len(parts) >= 2:
-            # Последний элемент - имя файла
-            filename = parts[-1]
-            # Элемент перед ним (или перед 'boats') - boat_id (24-символ MongoDB ObjectId)
-            for i, part in enumerate(parts):
-                if len(part) == 24 and all(c in '0123456789abcdef' for c in part.lower()):
-                    boat_id = part
-                    break
-        
-        if not boat_id or not filename:
-            logger.warning(f"Не удалось извлечь boat_id или filename из пути {image_path}")
+        if len(parts) < 3:
+            logger.error(f"Не удалось распарсить путь изображения: {image_path}")
             return None
-        
-        # Формируем URL изображения
-        source_url = f"https://{IMAGE_HOST}/{image_path}?method=fit&width=1920&height=1080&format=jpeg"
+        boat_id = parts[1]
+        filename = parts[-1]
         
         # Создаем локальный путь
         local_path = Path(MEDIA_ROOT) / image_path
@@ -123,10 +123,17 @@ def download_and_save_image(image_path: str) -> Optional[str]:
             logger.info(f"Изображение уже в S3: {s3_key} - используем CDN URL")
             return cdn_url
         
-        # Если файл уже существует локально, просто возвращаем CDN URL
+        # Если файл уже существует локально — требуем успешную загрузку в S3.
         if local_path.exists():
             logger.info(f"Изображение уже существует локально: {image_path}")
-            return cdn_url
+            try:
+                uploaded = upload_file_to_s3(local_path, s3_key, skip_existing=True)
+                if uploaded or check_s3_exists(s3_key):
+                    return cdn_url
+            except Exception as e:
+                logger.error(f"Ошибка загрузки локального файла в S3: {e}")
+            logger.error(f"Критическая ошибка: изображение {image_path} не загружено в S3")
+            return None
         
         # Скачиваем
         logger.info(f"Скачивание изображения: {source_url}")
@@ -144,13 +151,14 @@ def download_and_save_image(image_path: str) -> Optional[str]:
         try:
             # skip_existing=True: не загружаем, если уже в S3
             uploaded = upload_file_to_s3(local_path, s3_key, skip_existing=True)
-            if uploaded:
+            if uploaded or check_s3_exists(s3_key):
                 logger.info(f"Изображение загружено в S3: {s3_key}")
+                return cdn_url
         except Exception as e:
-            logger.warning(f"Ошибка при загрузке в S3: {e}")
+            logger.error(f"Ошибка при загрузке в S3: {e}")
 
-        # ⭐ Возвращаем CDN URL
-        return cdn_url
+        logger.error(f"Критическая ошибка: CDN URL не получен для {image_path}")
+        return None
         
     except Exception as e:
         logger.error(f"Ошибка скачивания изображения {image_path}: {e}")
@@ -392,50 +400,111 @@ def fetch_page(url: str) -> Optional[str]:
 # ИЗВЛЕЧЕНИЕ ИЗОБРАЖЕНИЙ
 # =============================================================================
 
+def _normalize_picture_path(value: str) -> Optional[str]:
+    """
+    Нормализует любое представление картинки к виду:
+    boats/{boat_id}/{filename}.{ext}
+    """
+    if not value:
+        return None
+
+    from urllib.parse import urlparse
+
+    raw = unescape(str(value)).replace('\\/', '/').strip().strip('"').strip("'")
+    if not raw:
+        return None
+
+    if raw.startswith('//'):
+        raw = f'https:{raw}'
+
+    path = raw
+    if '://' in raw:
+        parsed = urlparse(raw)
+        path = (parsed.path or '').lstrip('/')
+        if parsed.netloc == 'cdn2.prvms.ru' and path.startswith('yachts/'):
+            path = f"boats/{path[len('yachts/'):]}"
+
+    path = path.split('?', 1)[0].split('#', 1)[0].lstrip('/')
+    if '/boats/' in path:
+        path = path[path.find('boats/'):]
+    if path.startswith('yachts/'):
+        path = f"boats/{path[len('yachts/'):]}"
+
+    if not NORMALIZED_PICTURE_PATH_PATTERN.match(path):
+        return None
+
+    return path
+
+
 def _extract_pictures_from_gallery_component(soup: BeautifulSoup) -> list:
-    """Извлекает изображения из Vue-компонента <gallery-mobile :gallery='[...]'>"""
+    """Извлекает изображения из компонентов с атрибутами :gallery/:images."""
     pics = []
-    
-    gallery_mobile = soup.find('gallery-mobile')
-    if not gallery_mobile:
-        logger.warning("Компонент gallery-mobile не найден")
+    seen = set()
+
+    components = [
+        tag for tag in soup.find_all(True)
+        if tag.has_attr(':gallery') or tag.has_attr(':images')
+    ]
+    if not components:
+        logger.warning("Компоненты с атрибутами :gallery/:images не найдены")
         return pics
-    
-    gallery_json = gallery_mobile.get(':gallery')
-    if not gallery_json:
-        logger.warning("Атрибут :gallery не найден")
-        return pics
-    
-    try:
-        gallery_data = json.loads(gallery_json)
-        
-        for item in gallery_data:
-            path = item.get('path', '')
-            if path:
-                path = path.replace('\\/', '/')
-                if path.startswith('boats/'):
-                    pics.append(path)
-        
-        logger.info(f"Извлечено {len(pics)} фото из gallery-mobile")
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"Ошибка парсинга JSON: {e}")
+
+    def _push(candidate):
+        normalized = _normalize_picture_path(candidate)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            pics.append(normalized)
+
+    for component in components:
+        for attr_name in (':gallery', ':images'):
+            payload = component.get(attr_name)
+            if not payload:
+                continue
+            try:
+                data = json.loads(unescape(payload))
+            except Exception as e:
+                logger.warning(f"Ошибка парсинга JSON в {component.name}{attr_name}: {e}")
+                continue
+
+            if isinstance(data, dict):
+                for key in ('images', 'gallery', 'data'):
+                    if isinstance(data.get(key), list):
+                        data = data[key]
+                        break
+
+            if not isinstance(data, list):
+                continue
+
+            for item in data:
+                if isinstance(item, dict):
+                    for field in ('path', 'url', 'src', 'main_img', 'thumb'):
+                        _push(item.get(field))
+                elif isinstance(item, str):
+                    _push(item)
+
+    logger.info(f"Извлечено {len(pics)} фото из gallery-mobile")
     
     return pics
 
 
 def _extract_pictures_fallback(html_content: str) -> list:
     """Запасной метод — regex."""
-    pics = set()
-    pattern = re.compile(r'boats/([a-f0-9]{24})/([a-f0-9]+)\.(jpg|jpeg|png|webp)', re.IGNORECASE)
-    
+    pics = []
+    seen = set()
+    pattern = re.compile(
+        r'boats/([^/"\'\s]+)/([^"\'\s?]+?\.(?:jpg|jpeg|png|webp))',
+        re.IGNORECASE,
+    )
+
     for match in pattern.finditer(html_content):
         folder_id = match.group(1)
-        image_id = match.group(2)
-        ext = match.group(3).lower()
-        pics.add(f"boats/{folder_id}/{image_id}.{ext}")
-    
-    return list(pics)
+        filename = match.group(2)
+        normalized = _normalize_picture_path(f"boats/{folder_id}/{filename}")
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            pics.append(normalized)
+
+    return pics
 
 
 def extract_pictures(html_content: str, soup: BeautifulSoup = None) -> list:
@@ -443,13 +512,20 @@ def extract_pictures(html_content: str, soup: BeautifulSoup = None) -> list:
     if soup is None:
         soup = BeautifulSoup(html_content, 'html.parser')
     
-    pics = _extract_pictures_from_gallery_component(soup)
-    
-    if not pics:
+    primary = _extract_pictures_from_gallery_component(soup)
+    fallback = _extract_pictures_fallback(html_content)
+
+    if not primary and fallback:
         logger.warning("Используем fallback для фото")
-        pics = _extract_pictures_fallback(html_content)
-    
-    return pics
+
+    result = []
+    seen = set()
+    for path in primary + fallback:
+        if path not in seen:
+            seen.add(path)
+            result.append(path)
+
+    return result
 
 
 # =============================================================================
@@ -1054,6 +1130,23 @@ def _extract_boat_id(html_content: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def _extract_boat_id_from_pictures(pictures: list) -> Optional[str]:
+    """Извлекает boat_id из путей картинок вида boats/{boat_id}/{filename}."""
+    for pic_path in pictures or []:
+        if not isinstance(pic_path, str):
+            continue
+        match = BOAT_ID_FROM_PICTURE_PATTERN.match(pic_path.strip('/'))
+        if match:
+            return match.group(1)
+    return None
+
+
+def _build_fallback_boat_id(slug: str) -> str:
+    """Стабильный fallback boat_id для случаев, когда источник не отдал ID."""
+    digest = hashlib.sha1((slug or '').encode('utf-8')).hexdigest()[:16]
+    return f"slug-{digest}"
+
+
 # =============================================================================
 # ОСНОВНЫЕ ФУНКЦИИ
 # =============================================================================
@@ -1096,6 +1189,8 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     # Извлекаем данные
     boat_id = _extract_boat_id(html_content)
     pics = extract_pictures(html_content, soup)
+    if not boat_id:
+        boat_id = _extract_boat_id_from_pictures(pics)
     boat_info = _extract_boat_info(soup, html_content)
     prices = _extract_prices(soup, html_content)
     extras = _extract_extras_from_component(soup)
@@ -1124,6 +1219,12 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
             downloaded_pics.append(saved_path)
     
     logger.info(f"Успешно скачано {len(downloaded_pics)}/{len(pics_to_download)} фото")
+    if pics_to_download and not downloaded_pics:
+        logger.error(
+            f"[parser] Критическая ошибка: не удалось сохранить ни одного фото для slug={slug}. "
+            "Вероятно, недоступен S3/CDN."
+        )
+        return None
 
     # Формируем результат с полной структурой
     result = {
@@ -1172,25 +1273,69 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     )
     
     # Сохраняем в базу
-    if save_to_db and boat_id and slug:
+    if save_to_db and slug and slug != 'unknown':
         try:
             from boats.models import (
                 ParsedBoat, BoatTechnicalSpecs, BoatDescription, 
                 BoatPrice, BoatGallery, BoatDetails
             )
             from decimal import Decimal
-            
-            # Получаем или создаем ParsedBoat
-            parsed_boat, created = ParsedBoat.objects.update_or_create(
-                boat_id=boat_id,
-                defaults={
-                    'slug': slug,
-                    'manufacturer': boat_info.get('manufacturer', ''),
-                    'model': boat_info.get('model', ''),
-                    'year': int(boat_info.get('year', 0)) if boat_info.get('year') else None,
-                    'source_url': url,
-                }
+
+            # Получаем или создаем ParsedBoat.
+            # Важно: boat_id у источника может отсутствовать в HTML.
+            existing_by_slug = ParsedBoat.objects.filter(slug=slug).first()
+            effective_boat_id = (
+                boat_id
+                or (existing_by_slug.boat_id if existing_by_slug else None)
+                or _build_fallback_boat_id(slug)
             )
+            result['boat_id'] = effective_boat_id
+
+            created = False
+            parsed_boat = ParsedBoat.objects.filter(boat_id=effective_boat_id).first()
+            if not parsed_boat:
+                parsed_boat = existing_by_slug
+
+            if (
+                parsed_boat
+                and parsed_boat.boat_id != effective_boat_id
+                and ParsedBoat.objects.filter(boat_id=effective_boat_id).exclude(pk=parsed_boat.pk).exists()
+            ):
+                logger.error(
+                    f"[parser] Конфликт boat_id={effective_boat_id} для slug={slug}. "
+                    f"Сохраняю текущий boat_id={parsed_boat.boat_id}."
+                )
+                effective_boat_id = parsed_boat.boat_id
+                result['boat_id'] = effective_boat_id
+
+            if parsed_boat:
+                parsed_boat.boat_id = effective_boat_id
+                parsed_boat.slug = slug
+                parsed_boat.manufacturer = boat_info.get('manufacturer', '')
+                parsed_boat.model = boat_info.get('model', '')
+                parsed_boat.year = int(boat_info.get('year', 0)) if boat_info.get('year') else None
+                parsed_boat.source_url = url
+                parsed_boat.save(
+                    update_fields=[
+                        'boat_id',
+                        'slug',
+                        'manufacturer',
+                        'model',
+                        'year',
+                        'source_url',
+                        'updated_at',
+                    ]
+                )
+            else:
+                parsed_boat = ParsedBoat.objects.create(
+                    boat_id=effective_boat_id,
+                    slug=slug,
+                    manufacturer=boat_info.get('manufacturer', ''),
+                    model=boat_info.get('model', ''),
+                    year=int(boat_info.get('year', 0)) if boat_info.get('year') else None,
+                    source_url=url,
+                )
+                created = True
             
             # Сохраняем технические параметры (BoatTechnicalSpecs)
             BoatTechnicalSpecs.objects.update_or_create(
@@ -1288,7 +1433,7 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
                 parsed_boat.save(update_fields=['parse_count'])
 
             action = "создан" if created else "обновлен"
-            logger.info(f"ParsedBoat {action}: {slug} (ID: {boat_id})")
+            logger.info(f"ParsedBoat {action}: {slug} (ID: {effective_boat_id})")
 
         except Exception as e:
             import traceback

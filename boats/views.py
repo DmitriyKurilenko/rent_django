@@ -627,6 +627,69 @@ def boat_detail(request, pk):
     return render(request, 'boats/detail.html', context)
 
 
+def _boat_data_completeness(parsed_boat, lang_code='ru_RU'):
+    """Проверка полноты данных лодки в БД для критичных сценариев (detail/offer)."""
+    has_description = (
+        parsed_boat.descriptions.filter(language=lang_code).exclude(title='').exists()
+        or parsed_boat.descriptions.filter(language='ru_RU').exclude(title='').exists()
+    )
+    has_details = (
+        parsed_boat.details.filter(language=lang_code).exists()
+        or parsed_boat.details.filter(language='ru_RU').exists()
+    )
+    has_gallery = parsed_boat.gallery.exists()
+    return {
+        'has_description': has_description,
+        'has_details': has_details,
+        'has_gallery': has_gallery,
+        'is_complete': bool(has_description and has_details and has_gallery),
+    }
+
+
+def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
+    """
+    Для detail/offer: данные должны быть в БД и быть полными.
+    Если запись отсутствует или неполная — выполняем парсинг.
+    Если после парсинга данные всё ещё неполные — возвращаем явную ошибку.
+    """
+    parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
+    completeness = _boat_data_completeness(parsed_boat, lang_code) if parsed_boat else {'is_complete': False}
+
+    if parsed_boat and completeness['is_complete']:
+        return parsed_boat, None
+
+    logger.warning(
+        f"[Boat Data] Missing/incomplete DB data for {boat_slug}, parsing now "
+        f"(state={completeness})"
+    )
+    boat_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/'
+    parsed_result = parse_boataround_url(boat_url, save_to_db=True)
+    if not parsed_result:
+        return None, (
+            f"Критическая ошибка данных лодки {boat_slug}: "
+            "не удалось получить полные данные из источника. "
+            "Проверьте доступ к Boataround и S3."
+        )
+
+    parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
+    if not parsed_boat:
+        return None, (
+            f"Критическая ошибка данных лодки {boat_slug}: "
+            "запись не была сохранена в БД после парсинга."
+        )
+
+    completeness = _boat_data_completeness(parsed_boat, lang_code)
+    if not completeness['is_complete']:
+        return None, (
+            f"Критическая ошибка данных лодки {boat_slug}: "
+            "после парсинга данные остались неполными "
+            f"(описание={completeness['has_description']}, "
+            f"детали={completeness['has_details']}, фото={completeness['has_gallery']})."
+        )
+
+    return parsed_boat, None
+
+
 def boat_detail_api(request, boat_id):
     """
     Детальная страница лодки
@@ -668,58 +731,64 @@ def boat_detail_api(request, boat_id):
         }
         db_lang = lang_map.get(current_lang, 'ru_RU')
 
+        parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(boat_id, db_lang)
+        if parse_error:
+            logger.error(f"[Boat Detail] {parse_error} slug={boat_id}")
+            return render(request, 'boats/detail.html', {
+                'boat': {
+                    'slug': boat_id,
+                    'name': boat_id,
+                    'images': [],
+                    'gallery': [],
+                    'total_price': 0,
+                    'old_price': 0,
+                    'discount_percent': 0,
+                },
+                'error': parse_error,
+                'check_in': check_in if has_url_dates else '',
+                'check_out': check_out if has_url_dates else '',
+                'rental_days': rental_days,
+                'current_language': current_lang,
+                'is_favorite': False,
+            })
+
+        # Автопривязка чартера
+        from boats.boataround_api import BoataroundAPI
+        if not parsed_boat.charter:
+            try:
+                from boats.helpers import get_or_create_charter
+                search_boat = BoataroundAPI.search_by_slug(parsed_boat.slug)
+                if search_boat:
+                    charter_obj = get_or_create_charter(
+                        search_boat.get('charter'),
+                        search_boat.get('charter_id'),
+                        search_boat.get('charter_logo'),
+                    )
+                    if charter_obj:
+                        parsed_boat.charter = charter_obj
+                        parsed_boat.save(update_fields=['charter'])
+                        logger.info(f"[Boat Detail] Auto-linked charter for {parsed_boat.slug}: {charter_obj.name} ({charter_obj.commission}%)")
+            except Exception as charter_err:
+                logger.warning(f"[Boat Detail] Failed to auto-link charter for {parsed_boat.slug}: {charter_err}")
+
         # --- Кэшированные данные лодки (БД, без цен) ---
         boat_cache_key = f'boat_data:{boat_id}:{db_lang}'
         boat_static = cache.get(boat_cache_key)
+        if boat_static:
+            cached_images = boat_static.get('images') or boat_static.get('gallery') or []
+            has_required_cache_fields = (
+                bool(boat_static.get('slug'))
+                and bool(boat_static.get('name'))
+                and bool(cached_images)
+                and ('extras' in boat_static)
+                and ('equipment' in boat_static)
+            )
+            if not has_required_cache_fields:
+                logger.info(f"[Boat Detail] Cached boat data for {boat_id} is incomplete, invalidating cache")
+                cache.delete(boat_cache_key)
+                boat_static = None
 
         if not boat_static:
-            # Шаг 1: Ищем в БД по slug
-            parsed_boat = ParsedBoat.objects.filter(slug=boat_id).first()
-
-            if not parsed_boat:
-                logger.info(f"[Boat Detail] Not in DB, parsing: {boat_id}")
-
-                # Парсим через парсер (save_to_db=True сохранит в БД)
-                boat_url = f'https://www.boataround.com/ru/yachta/{boat_id}/'
-                boat_data_raw = parse_boataround_url(boat_url, save_to_db=True)
-
-                if not boat_data_raw:
-                    logger.error(f"[Boat Detail] Failed to parse boat: {boat_id}")
-                    return render(request, 'boats/detail.html', {
-                        'boat': None,
-                        'error': 'Лодка не найдена',
-                    })
-
-                # Переполучаем ParsedBoat из БД
-                parsed_boat = ParsedBoat.objects.filter(slug=boat_id).first()
-                if not parsed_boat:
-                    logger.error(f"[Boat Detail] ParsedBoat not found after parsing: {boat_id}")
-                    return render(request, 'boats/detail.html', {
-                        'boat': None,
-                        'error': 'Ошибка при сохранении данных',
-                    })
-
-                logger.info(f"[Boat Detail] Parsed and cached: {boat_id}")
-
-            # Автопривязка чартера
-            from boats.boataround_api import BoataroundAPI
-            if not parsed_boat.charter:
-                try:
-                    from boats.helpers import get_or_create_charter
-                    search_boat = BoataroundAPI.search_by_slug(parsed_boat.slug)
-                    if search_boat:
-                        charter_obj = get_or_create_charter(
-                            search_boat.get('charter'),
-                            search_boat.get('charter_id'),
-                            search_boat.get('charter_logo'),
-                        )
-                        if charter_obj:
-                            parsed_boat.charter = charter_obj
-                            parsed_boat.save(update_fields=['charter'])
-                            logger.info(f"[Boat Detail] Auto-linked charter for {parsed_boat.slug}: {charter_obj.name} ({charter_obj.commission}%)")
-                except Exception as charter_err:
-                    logger.warning(f"[Boat Detail] Failed to auto-link charter for {parsed_boat.slug}: {charter_err}")
-
             # Получаем описание на текущем языке
             description = parsed_boat.descriptions.filter(language=db_lang).first()
             if not description:
@@ -1468,6 +1537,59 @@ def _build_boat_data_from_db(parsed_boat):
     }
 
 
+def _extract_slug_from_boat_url(url: str) -> str:
+    """Извлекает slug лодки из boataround URL."""
+    import re
+    if not url:
+        return ''
+    match = re.search(r'/(?:boat|yachta)/([^/?#]+)', str(url))
+    return match.group(1) if match else ''
+
+
+def _hydrate_offer_boat_data_if_needed(offer):
+    """
+    Для старых офферов без фото в snapshot:
+    подтягивает актуальные данные лодки из ParsedBoat и сохраняет в offer.boat_data.
+    """
+    boat_data = offer.boat_data if isinstance(offer.boat_data, dict) else {}
+    images = boat_data.get('images') or boat_data.get('gallery') or boat_data.get('pictures') or []
+    if images:
+        return None
+
+    slug = (
+        boat_data.get('slug')
+        or boat_data.get('boat_info', {}).get('slug')
+        or _extract_slug_from_boat_url(offer.source_url)
+    )
+    if not slug:
+        return 'Критическая ошибка оффера: не удалось определить slug лодки.'
+
+    parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(slug, 'ru_RU')
+    if parse_error:
+        return parse_error
+
+    refreshed_data = _build_boat_data_from_db(parsed_boat)
+    refreshed_images = refreshed_data.get('images') or []
+    if not refreshed_images:
+        return f'Критическая ошибка оффера: после обновления у лодки {slug} нет фото.'
+
+    merged = dict(boat_data)
+    for key, value in refreshed_data.items():
+        merged[key] = value
+
+    # Сохраняем ценовой snapshot оффера, если он уже был установлен.
+    for price_key in ('price', 'discount', 'totalPrice'):
+        if price_key in boat_data:
+            merged[price_key] = boat_data[price_key]
+
+    merged['slug'] = slug
+    merged['images'] = refreshed_images
+    merged['gallery'] = refreshed_images
+    offer.boat_data = merged
+    offer.save(update_fields=['boat_data', 'updated_at'])
+    return None
+
+
 @login_required
 def create_offer(request):
     """Создание нового оффера"""
@@ -1510,26 +1632,13 @@ def create_offer(request):
             if not slug:
                 return ajax_error('Не удалось извлечь информацию о лодке из URL. Проверьте формат URL.', form=form)
             
-            # Сначала берём данные из БД
-            parsed_boat = ParsedBoat.objects.filter(slug=slug).first()
+            parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(slug, 'ru_RU')
+            if parse_error:
+                logger.error(f"[Create Offer] {parse_error} slug={slug}")
+                return ajax_error(parse_error, form=form)
 
-            if parsed_boat:
-                boat_data = _build_boat_data_from_db(parsed_boat)
-                logger.info(f'[Create Offer] Boat data from DB for {slug}')
-            else:
-                # Лодки нет в БД — парсим
-                from boats.parser import parse_boataround_url
-                import traceback
-                try:
-                    logger.info(f'[Create Offer] Boat not in DB, parsing {slug}')
-                    url = f'https://www.boataround.com/ru/yachta/{slug}/'
-                    boat_data = parse_boataround_url(url, save_to_db=True)
-                    if not boat_data:
-                        return ajax_error('Не удалось загрузить данные о лодке с сайта', form=form)
-                except Exception as e:
-                    error_msg = f'Ошибка парсинга: {str(e)}\n{traceback.format_exc()}'
-                    logger.error(error_msg)
-                    return ajax_error(f'Ошибка парсинга: {str(e)}', form=form)
+            boat_data = _build_boat_data_from_db(parsed_boat)
+            logger.info(f'[Create Offer] Boat data from DB for {slug}')
             
             # Извлекаем даты из source_url или формы
             import re
@@ -1549,7 +1658,6 @@ def create_offer(request):
                 else:
                     return ajax_error('Укажите даты заезда и выезда', form=form)
             
-            parsed_boat = ParsedBoat.objects.filter(slug=slug).first()
             charter = parsed_boat.charter if parsed_boat else None
 
             rental_days = None
@@ -1727,6 +1835,9 @@ def create_offer(request):
 def offer_detail(request, uuid):
     """Просмотр деталей оффера (публичный доступ по ссылке)"""
     offer = get_object_or_404(Offer, uuid=uuid)
+    data_error = _hydrate_offer_boat_data_if_needed(offer)
+    if data_error:
+        logger.error(f"[Offer Detail] {data_error} offer={offer.uuid}")
     
     # Увеличиваем счетчик просмотров
     offer.increment_views()
@@ -1784,6 +1895,7 @@ def offer_detail(request, uuid):
         'is_custom_branding': is_custom_branding,
         'can_view_internal_notes': can_view_internal_notes,
         'can_book_from_offer': can_book_from_offer,
+        'data_error': data_error,
     }
 
     if request.user.is_authenticated and request.user.profile.role in ('manager', 'admin', 'superadmin'):
@@ -2040,20 +2152,13 @@ def quick_create_offer(request, boat_slug):
         # Формируем source_url
         source_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/?checkIn={check_in}&checkOut={check_out}&currency=EUR'
 
-        # Сначала берём данные из БД (ParsedBoat) — быстро и без API
-        parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
-
-        if parsed_boat:
-            boat_data = _build_boat_data_from_db(parsed_boat)
-            logger.info(f'[Quick Offer] Boat data from DB for {boat_slug}')
-        else:
-            # Лодки нет в БД — парсим
-            from boats.parser import parse_boataround_url
-            logger.info(f'[Quick Offer] Boat not in DB, parsing {boat_slug}')
-            boat_data = parse_boataround_url(f'https://www.boataround.com/ru/yachta/{boat_slug}/', save_to_db=True)
-            if not boat_data:
-                messages.error(request, 'Не удалось загрузить данные лодки')
-                return redirect('boat_detail_api', boat_id=boat_slug)
+        parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(boat_slug, 'ru_RU')
+        if parse_error:
+            logger.error(f"[Quick Offer] {parse_error} slug={boat_slug}")
+            messages.error(request, parse_error)
+            return redirect('boat_detail_api', boat_id=boat_slug)
+        boat_data = _build_boat_data_from_db(parsed_boat)
+        logger.info(f'[Quick Offer] Boat data from DB for {boat_slug}')
         
         rental_days = None
         try:
