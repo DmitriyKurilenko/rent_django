@@ -6,6 +6,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.utils.translation import override
 from boats.models import Boat, ParsedBoat, Booking, Offer, BoatDescription, BoatDetails, BoatGallery
 
 
@@ -240,6 +241,104 @@ class BoatViewsTest(TestCase):
         self.assertEqual(response.context['sort'], 'rank')
         self.assertEqual(self.client.session.get('boat_search_sort'), 'rank')
         self.assertEqual(mock_search.call_args.kwargs.get('sort'), 'rank')
+
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_uses_localized_destination_display_and_locale_api_lang(self, mock_search, mock_format_boat_data):
+        mock_search.return_value = {
+            'boats': [{'slug': 'locale-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'locale-boat',
+            'id': 'locale-boat-id',
+            'name': 'Locale Boat',
+            'country': 'Seychelles',
+            'marina': 'Mahe',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+        }
+
+        with override('ru'):
+            response = self.client.get(reverse('boat_search'), {'destination': 'seychelles'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['destination_display'], 'Сейшелы')
+        self.assertEqual(mock_search.call_args.kwargs.get('lang'), 'ru_RU')
+
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_localizes_destination_display_for_prefixed_or_mixed_slug(self, mock_search, mock_format_boat_data):
+        mock_search.return_value = {
+            'boats': [{'slug': 'locale-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'locale-boat',
+            'id': 'locale-boat-id',
+            'name': 'Locale Boat',
+            'country': 'Seychelles',
+            'marina': 'Mahe',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+        }
+
+        with override('ru'):
+            response_prefixed = self.client.get(reverse('boat_search'), {'destination': '_seychelles'})
+            response_mixed = self.client.get(reverse('boat_search'), {'destination': 'Seychelles'})
+
+        self.assertEqual(response_prefixed.status_code, 200)
+        self.assertEqual(response_mixed.status_code, 200)
+        self.assertEqual(response_prefixed.context['destination_display'], 'Сейшелы')
+        self.assertEqual(response_mixed.context['destination_display'], 'Сейшелы')
+
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_destination_field_has_autocomplete_behavior_like_home(self, mock_search, mock_format_boat_data):
+        mock_search.return_value = {
+            'boats': [{'slug': 'auto-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'auto-boat',
+            'id': 'auto-boat-id',
+            'name': 'Auto Boat',
+            'country': 'Croatia',
+            'marina': 'Split',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+        }
+
+        response = self.client.get(
+            reverse('boat_search'),
+            {'destination': 'croatia'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'x-data="searchFiltersForm(')
+        self.assertContains(response, '@input.debounce.500ms="fetchLocations"')
+        self.assertContains(response, '@submit.prevent="submitSearch($el)"')
+        self.assertContains(response, 'name="destination"')
+        self.assertNotContains(response, 'name="destination_label"')
+        self.assertContains(response, 'autocomplete/?query=${encodeURIComponent(query)}')
 
 
 class BoatAuthenticationTest(TestCase):

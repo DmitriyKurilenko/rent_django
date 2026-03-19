@@ -1,6 +1,6 @@
 # TASK STATE
 
-Last updated: 2026-03-11 (Europe/Moscow)
+Last updated: 2026-03-19 (Europe/Moscow)
 
 ## Current priorities
 
@@ -32,6 +32,7 @@ Last updated: 2026-03-11 (Europe/Moscow)
 - Destination-based amenities refresh selection now deduplicates and intersects with existing slugs in DB.
 - Async amenities command now verifies active Celery worker and can wait with timeout/poll summary.
 - Tests added for pricing extraction/resolver, detail snapshot behavior, amenities command async behavior.
+- Added `import_charter_commissions` management command to import charter commissions from `.xlsx` by charter name normalization (including `d.o.o.` suffix stripping), with CSV audit outputs (`loaded` / `not_loaded`).
 
 ## Open risks / watch items
 - Upstream Boataround API may return different `totalPrice` for identical query windows.

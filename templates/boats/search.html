@@ -49,21 +49,52 @@
                         <i class="fas fa-filter"></i> {% trans "Фильтры" %}
                     </h2>
 
-                    <form method="GET" class="space-y-4">
+                    <form
+                        method="GET"
+                        class="space-y-4"
+                        x-data="searchFiltersForm('{{ destination_display|default:''|escapejs }}', '{{ destination|default:''|escapejs }}')"
+                        @submit.prevent="submitSearch($el)"
+                    >
+                        <input type="hidden" name="destination" x-ref="destinationSlug" value="{{ destination|default:'' }}">
                         <!-- Search Destination -->
-                        <div class="form-control">
+                        <div class="form-control relative">
                             <label class="label" for="search_destination">
                                 <span class="label-text font-semibold">{% trans "Направление" %}</span>
                             </label>
-                            <input 
-                                id="search_destination"
-                                type="text" 
-                                name="destination" 
-                                value="{{ destination|default:'' }}" 
-                                placeholder="Введите место (например, Греция)" 
-                                class="input input-bordered input-sm"
-                                required
+                            <div class="relative">
+                                <input
+                                    id="search_destination"
+                                    type="text"
+                                    x-model="location"
+                                    @input.debounce.500ms="fetchLocations"
+                                    @focus="if(suggestions.length > 0 && location.trim().length >= 2) showSuggestions = true"
+                                    placeholder="{% trans 'Введите место (например, Греция)' %}"
+                                    class="input input-bordered input-sm w-full"
+                                    autocomplete="off"
+                                    required
+                                >
+                                <div x-show="loadingSuggestions" class="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <span class="loading loading-spinner loading-sm"></span>
+                                </div>
+                            </div>
+
+                            <div
+                                x-show="showSuggestions && suggestions.length > 0"
+                                x-cloak
+                                @click.away="showSuggestions = false"
+                                class="absolute z-50 w-full top-full mt-1 bg-base-100 rounded-lg shadow-xl max-h-80 overflow-y-auto border border-base-300"
                             >
+                                <template x-for="suggestion in suggestions" :key="suggestion.value">
+                                    <div
+                                        @click="selectLocation(suggestion)"
+                                        class="px-4 py-3 hover:bg-primary hover:text-primary-content cursor-pointer transition-colors border-b border-base-200 last:border-0"
+                                    >
+                                        <div class="font-medium" x-text="suggestion.name"></div>
+                                        <div class="text-xs text-base-content/90" x-show="suggestion.country" x-text="suggestion.country"></div>
+                                        <div class="text-xs text-base-content/50" x-show="suggestion.total" x-text="suggestion.total + ' лодок'"></div>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
 
                         <!-- Category -->
@@ -223,7 +254,7 @@
                 <div class="mb-6 p-3 bg-base-200 rounded-lg">
                     <div class="flex flex-wrap items-center gap-2 text-sm">
                         <span class="font-semibold text-base-content/70">Активные фильтры:</span>
-                        {% if destination %}<span class="badge badge-outline">{{ destination }}</span>{% endif %}
+                        {% if destination_display %}<span class="badge badge-outline">{{ destination_display }}</span>{% endif %}
                         {% if request.GET.category %}<span class="badge badge-outline">{{ request.GET.category }}</span>{% endif %}
                         {% if check_in %}<span class="badge badge-outline">Заезд: {{ check_in }}</span>{% endif %}
                         {% if check_out %}<span class="badge badge-outline">Выезд: {{ check_out }}</span>{% endif %}
@@ -459,4 +490,61 @@
         </div>
     </div>
 </div>
+<script>
+function searchFiltersForm(initialLocation, initialDestinationSlug) {
+    return {
+        location: initialLocation || '',
+        selectedDestination: initialDestinationSlug || '',
+        suggestions: [],
+        showSuggestions: false,
+        loadingSuggestions: false,
+
+        async fetchLocations() {
+            const query = this.location.trim();
+            this.selectedDestination = '';
+            if (query.length < 2) {
+                this.suggestions = [];
+                this.showSuggestions = false;
+                return;
+            }
+
+            this.loadingSuggestions = true;
+            try {
+                const response = await fetch(`{% url 'autocomplete_api' %}?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                    this.suggestions = data.data;
+                    this.showSuggestions = true;
+                } else {
+                    this.suggestions = [];
+                    this.showSuggestions = false;
+                }
+            } catch (error) {
+                console.error('Autocomplete error:', error);
+                this.suggestions = [];
+                this.showSuggestions = false;
+            } finally {
+                this.loadingSuggestions = false;
+            }
+        },
+
+        selectLocation(suggestion) {
+            this.location = suggestion.name || suggestion.label || '';
+            this.selectedDestination = suggestion.value || suggestion.slug || '';
+            this.suggestions = [];
+            this.showSuggestions = false;
+        },
+
+        submitSearch(formEl) {
+            const destination = (this.selectedDestination || this.location || '').trim();
+            if (!destination) {
+                alert('{% trans "Выберите направление" %}');
+                return;
+            }
+            this.$refs.destinationSlug.value = destination;
+            formEl.submit();
+        },
+    };
+}
+</script>
 {% endblock %}

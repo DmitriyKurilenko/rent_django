@@ -258,7 +258,7 @@ function searchForm() {
             this.loadingSuggestions = true;
             
             try {
-                const response = await fetch(`/boats/api/autocomplete/?query=${encodeURIComponent(query)}`);
+                const response = await fetch(`{% url 'autocomplete_api' %}?query=${encodeURIComponent(query)}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {

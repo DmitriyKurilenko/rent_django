@@ -69,7 +69,6 @@
         <div class="navbar-end hidden lg:flex">
             <ul class="menu menu-horizontal px-1">
                 <li><a href="{% url 'home' %}"><i class="fas fa-home mr-2"></i>{% trans "Главная" %}</a></li>
-                <li><a href="{% url 'boat_search' %}"><i class="fas fa-search mr-2"></i>{% trans "Поиск" %}</a></li>
                 {% if user.is_authenticated %}
                     <li><a href="{% url 'profile' %}"><i class="fas fa-user mr-2"></i>{% trans "Кабинет" %}</a></li>
                     <li><a href="{% url 'logout' %}"><i class="fas fa-sign-out-alt mr-2"></i>{% trans "Выйти" %}</a></li>

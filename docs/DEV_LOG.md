@@ -2,6 +2,33 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-03-19
+- Change:
+  - Added `import_charter_commissions` management command for loading commissions from `.xlsx`.
+  - Added decimal commission handling with explicit rounding to integer (`ROUND_HALF_UP`).
+  - Added second-level charter name matching by `lower()+no spaces` with ambiguity guard.
+  - Added CSV reports for import results: loaded and not_loaded rows with reasons/status.
+  - Added legal suffix normalization (`d.o.o.` stripped during matching) with ambiguity guard for normalized exact keys.
+  - Applied `d.o.o.` cleanup to report names and newly created charter names, so CSV outputs no longer contain this suffix in names.
+  - Added rule to skip rows with commission `20%` from import/report processing (default commission noise reduction).
+  - Extended trailing legal suffix cleanup (`ltd`, `co`, `sl`, etc.) and duplicated-letter fallback (`albatros` -> `albatross`) with ambiguity guards.
+  - Added tests for update/create/validation scenarios.
+- Files:
+  - `boats/management/commands/import_charter_commissions.py`
+  - `boats/tests/test_import_charter_commissions_command.py`
+  - `docs/TASK_STATE.md`
+  - `docs/DECISIONS.md`
+- Why:
+  - Need repeatable commission sync from `charters.xlsx` without adding dependencies.
+- Validation:
+  - `docker compose down`
+  - `docker compose up -d --build`
+  - `docker compose run --rm web python manage.py check`
+  - `docker compose run --rm web python manage.py test boats.tests.test_import_charter_commissions_command`
+  - `docker compose run --rm web python manage.py import_charter_commissions --file charters.xlsx --dry-run`
+- Risks / follow-up:
+  - Matching is by normalized `Charter.name`; if Excel names differ semantically from DB names, rows will be reported as missing unless `--create-missing` is used.
+
 ## 2026-03-11
 - Created persistent project memory files:
   - `AGENTS.md`

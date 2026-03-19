@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-03-11 (Europe/Moscow)
+Last updated: 2026-03-19 (Europe/Moscow)
 
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
@@ -49,3 +49,9 @@ Last updated: 2026-03-11 (Europe/Moscow)
 - Context: `refresh_amenities --async` reported no visible results in some runs.
 - Decision: command checks active Celery workers, dispatches batches, and can wait with timeout/poll summary.
 - Consequence: operator sees deterministic command outcome and partial completion info.
+
+## DR-009: Charter commissions import from XLSX without extra dependencies
+- Date: 2026-03-19
+- Context: commissions must be regularly loaded from `charters.xlsx`, while stack must stay unchanged.
+- Decision: implement management command `import_charter_commissions` with native XLSX parsing (`zipfile` + XML), matching charters by normalized `name`.
+- Consequence: no new dependency like `openpyxl`; import is deterministic and test-covered; optional creation of missing charters is explicit (`--create-missing`); decimal commissions from XLSX are rounded to integer (`ROUND_HALF_UP`) for `Charter.commission`; matching has second level by `lower()+без пробелов`, plus controlled fallback for duplicated letters (e.g. `Albatros` vs `Albatross`) with ambiguity protection; normalization strips trailing legal suffixes (`d.o.o.`, `ltd`, `co`, `sl`, etc.) and punctuation noise; rows with default commission `20%` are skipped from processing/reports; each run writes two CSV reports (`loaded` / `not_loaded`) for manual audit.

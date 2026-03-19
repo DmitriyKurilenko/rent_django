@@ -4,9 +4,10 @@ from django.contrib import messages
 from django.db.models import Q, Avg
 from django.core.paginator import Paginator
 from django.http import JsonResponse
-from django.utils.translation import get_language
+from django.utils.translation import get_language, gettext as _
 from django.utils import timezone
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails
 from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm
 from .parser import parse_boataround_url, get_full_image_url
@@ -16,6 +17,45 @@ from django.views.decorators.cache import cache_page
 import logging
 
 logger = logging.getLogger(__name__)
+
+LANG_TO_API = {
+    'ru': 'ru_RU',
+    'en': 'en_EN',
+    'de': 'de_DE',
+    'fr': 'fr_FR',
+    'es': 'es_ES',
+}
+
+DESTINATION_SLUG_LABELS = {
+    'turkey': 'Турция',
+    'greece': 'Греция',
+    'seychelles': 'Сейшелы',
+    'croatia': 'Хорватия',
+    'spain': 'Испания',
+    'italy': 'Италия',
+    'france': 'Франция',
+}
+
+
+def _request_lang_prefix(request) -> str:
+    current = get_language() or ''
+    if not current:
+        current = request.LANGUAGE_CODE if hasattr(request, 'LANGUAGE_CODE') else ''
+    return str(current).split('-')[0].lower() or 'ru'
+
+
+def _request_api_lang(request) -> str:
+    return LANG_TO_API.get(_request_lang_prefix(request), 'en_EN')
+
+
+def _localized_destination_display(destination: str) -> str:
+    slug = str(destination or '').strip().lower().lstrip('_')
+    if not slug:
+        return ''
+    base_label = DESTINATION_SLUG_LABELS.get(slug)
+    if base_label:
+        return _(base_label)
+    return destination
 
 
 def home(request):
@@ -50,6 +90,7 @@ def boat_search(request):
     
     # Получаем параметры поиска
     destination = request.GET.get('destination', request.GET.get('location', '')).strip()
+    destination_display = _localized_destination_display(destination)
     category = request.GET.get('category', request.GET.get('boat_type', '')).strip()
     check_in = request.GET.get('check_in', request.GET.get('checkIn', '')).strip()
     check_out = request.GET.get('check_out', request.GET.get('checkOut', '')).strip()
@@ -102,6 +143,7 @@ def boat_search(request):
             'previous_page': 0,
             'next_page': 2,
             'destination': '',
+            'destination_display': '',
             'category': '',
             'check_in': '',
             'check_out': '',
@@ -153,7 +195,7 @@ def boat_search(request):
             page=page,
             limit=18,  # 18 лодок на страницу
             sort=sort,
-            lang='en_EN'
+            lang=_request_api_lang(request),
         )
         
         logger.info(f"[Search View] API returned: boats={len(search_results.get('boats', []))}, total={search_results.get('total', 0)}, pages={search_results.get('totalPages', 0)}")
@@ -300,28 +342,28 @@ def boat_search(request):
             logger.warning(f"[Search View] Page {page} exceeded total pages {total_pages}, adjusting")
         
         # Строка параметров для пагинации
-        query_params = []
+        query_params = {}
         if destination:
-            query_params.append(f"destination={destination}")
+            query_params['destination'] = destination
         if category:
-            query_params.append(f"category={category}")
+            query_params['category'] = category
         if check_in:
-            query_params.append(f"check_in={check_in}")
+            query_params['check_in'] = check_in
         if check_out:
-            query_params.append(f"check_out={check_out}")
+            query_params['check_out'] = check_out
         if cabins:
-            query_params.append(f"cabins={cabins}")
+            query_params['cabins'] = cabins
         if year_from:
-            query_params.append(f"year_from={year_from}")
+            query_params['year_from'] = year_from
         if year_to:
-            query_params.append(f"year_to={year_to}")
+            query_params['year_to'] = year_to
         if price_from:
-            query_params.append(f"price_from={price_from}")
+            query_params['price_from'] = price_from
         if price_to:
-            query_params.append(f"price_to={price_to}")
+            query_params['price_to'] = price_to
         if sort:
-            query_params.append(f"sort={sort}")
-        search_query_str = "&" + "&".join(query_params) if query_params else ""
+            query_params['sort'] = sort
+        search_query_str = "&" + urlencode(query_params) if query_params else ""
         
         # ⭐ Расчет количества дней аренды
         rental_days = None
@@ -358,6 +400,7 @@ def boat_search(request):
             'page_plus_1': page_plus_1,
             'page_plus_2': page_plus_2,
             'destination': destination,
+            'destination_display': destination_display,
             'category': category,
             'check_in': check_in,
             'check_out': check_out,
@@ -391,6 +434,7 @@ def boat_search(request):
             'previous_page': 0,
             'next_page': 2,
             'destination': destination,
+            'destination_display': destination_display,
             'category': category,
             'check_in': check_in,
             'check_out': check_out,
@@ -413,31 +457,32 @@ def autocomplete_api(request):
     import json
     import os
     from boats.boataround_api import BoataroundAPI
-    
+
     query = request.GET.get('query', '').strip()
-    
+
     if len(query) < 2:
         return JsonResponse({'success': True, 'data': []})
-    
+
     query_lower = query.lower()
-    
+    preferred_api_lang = _request_api_lang(request)
+
     # ==========================================
     # ШАГ 1: Локальный поиск в destinations.json
     # ==========================================
     json_path = os.path.join(os.path.dirname(__file__), 'destinations.json')
     local_results = []
-    
+
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
+
         destinations = data.get('data', [])
-        
+
         # Поиск по всей иерархии
         for country in destinations:
             country_name = country.get('lang', '').lower()
             country_slug = country.get('search_slug', '')
-            
+
             # Проверяем страну
             if query_lower in country_name:
                 local_results.append({
@@ -449,12 +494,12 @@ def autocomplete_api(request):
                     'type': 'country',
                     'boats': country.get('boats', 0)
                 })
-            
+
             # Проверяем регионы
             for region in country.get('regions', []):
                 region_name = region.get('lang', '').lower()
                 region_slug = region.get('search_slug', '')
-                
+
                 if query_lower in region_name:
                     local_results.append({
                         'name': region.get('lang', ''),
@@ -465,12 +510,12 @@ def autocomplete_api(request):
                         'type': 'region',
                         'boats': region.get('boats', 0)
                     })
-                
+
                 # Проверяем города
                 for city in region.get('cities', []):
                     city_name = city.get('lang', '').lower()
                     city_slug = city.get('search_slug', '')
-                    
+
                     if query_lower in city_name:
                         local_results.append({
                             'name': city.get('lang', ''),
@@ -481,12 +526,12 @@ def autocomplete_api(request):
                             'type': 'city',
                             'boats': city.get('boats', 0)
                         })
-                    
+
                     # Проверяем марины
                     for marina in city.get('marinas', []):
                         marina_name = marina.get('_id', '').lower()
                         marina_slug = marina.get('search_slug', '')
-                        
+
                         if query_lower in marina_name:
                             local_results.append({
                                 'name': marina.get('_id', ''),
@@ -497,44 +542,38 @@ def autocomplete_api(request):
                                 'type': 'marina',
                                 'boats': marina.get('boats', 0)
                             })
-            
+
             # Ограничиваем локальные результаты
             if len(local_results) >= 10:
                 break
-        
-        # Если есть локальные результаты, возвращаем их
-        if local_results:
-            return JsonResponse({
-                'success': True, 
-                'data': local_results[:10],
-                'source': 'local'
-            })
-                
+
     except Exception as e:
         print(f"Error in local search: {e}")
-    
+
     # ==========================================
     # ШАГ 2: Fallback на внешний API
     # ==========================================
+    api_results = []
     try:
-        # Пробуем оба языка
+        # Пробуем сначала язык текущей локали, затем en_EN как fallback
         print(f"[View Autocomplete] Trying API with query={query}")
-        api_results_en = BoataroundAPI.autocomplete(query, language='en_EN', limit=10)
-        print(f"[View Autocomplete] EN results: {len(api_results_en)}")
-        
-        api_results_ru = BoataroundAPI.autocomplete(query, language='ru_RU', limit=10)
-        print(f"[View Autocomplete] RU results: {len(api_results_ru)}")
-        
-        # Объединяем результаты - ПРИОРИТЕТ РУССКИМ!
+        api_results_primary = BoataroundAPI.autocomplete(query, language=preferred_api_lang, limit=10)
+        print(f"[View Autocomplete] PRIMARY({preferred_api_lang}) results: {len(api_results_primary)}")
+
+        api_results_fallback = []
+        if preferred_api_lang != 'en_EN':
+            api_results_fallback = BoataroundAPI.autocomplete(query, language='en_EN', limit=10)
+            print(f"[View Autocomplete] EN fallback results: {len(api_results_fallback)}")
+
+        # Объединяем результаты: приоритет текущему языку
         combined = {}
-        
-        # Сначала добавляем английские (как fallback)
-        for item in api_results_en:
+
+        for item in api_results_fallback:
             item_id = item.get('id', '')
             if item_id:
                 expression = item.get('expression', '')
                 clean_expression = expression.replace('<em>', '').replace('</em>', '')
-                
+
                 combined[item_id] = {
                     'name': item.get('name', ''),
                     'name_en': item.get('name_en', ''),
@@ -547,17 +586,15 @@ def autocomplete_api(request):
                     'boats': item.get('total', 0),
                     'total': item.get('total', 0)
                 }
-        
-        # Затем ПЕРЕЗАПИСЫВАЕМ русскими (если есть)
-        for item in api_results_ru:
+
+        for item in api_results_primary:
             item_id = item.get('id', '')
             if item_id:
                 expression = item.get('expression', '')
                 clean_expression = expression.replace('<em>', '').replace('</em>', '')
-                
-                # ПЕРЕЗАПИСЫВАЕМ английские данные русскими
+
                 combined[item_id] = {
-                    'name': item.get('name', ''),  # Это будет русское название!
+                    'name': item.get('name', ''),
                     'name_en': item.get('name_en', ''),
                     'label': clean_expression,
                     'value': item_id,
@@ -568,29 +605,40 @@ def autocomplete_api(request):
                     'boats': item.get('total', 0),
                     'total': item.get('total', 0)
                 }
-        
+
         api_results = list(combined.values())[:10]
         print(f"[View Autocomplete] Final API results: {len(api_results)}")
         if api_results:
             print(f"[View Autocomplete] First result: {api_results[0]}")
-        
-        if api_results:
-            return JsonResponse({
-                'success': True, 
-                'data': api_results,
-                'source': 'api'
-            })
-        
+
     except Exception as e:
         print(f"Error in API search: {e}")
         import traceback
         print(traceback.format_exc())
-    
+
     # ==========================================
-    # ШАГ 3: Пустой результат
+    # ШАГ 3: Сливаем API + local
+    # ==========================================
+    merged = []
+    seen = set()
+    for item in api_results + local_results:
+        item_id = str(item.get('value') or item.get('slug') or item.get('name') or '')
+        if not item_id or item_id in seen:
+            continue
+        seen.add(item_id)
+        merged.append(item)
+        if len(merged) >= 10:
+            break
+
+    if merged:
+        source = 'api' if api_results else 'local'
+        return JsonResponse({'success': True, 'data': merged, 'source': source})
+
+    # ==========================================
+    # ШАГ 4: Пустой результат
     # ==========================================
     return JsonResponse({
-        'success': True, 
+        'success': True,
         'data': [],
         'source': 'none'
     })

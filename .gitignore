@@ -80,6 +80,8 @@ nginx/ssl/*.crt
 .pytest_cache/
 .tox/
 htmlcov/
+*.csv
+*.xlsx
 
 # OS
 Thumbs.db
