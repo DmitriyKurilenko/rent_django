@@ -139,6 +139,41 @@
                                 class="textarea textarea-bordered textarea-sm"></textarea>
                         </div>
 
+                        <!-- Client Selection -->
+                        <div class="form-control" x-data="clientSelector()" x-init="init()">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Клиент" %}</span>
+                                <a href="{% url 'client_create' %}?next={% url 'create_offer' %}" class="label-text-alt link link-primary text-xs">
+                                    <i class="fas fa-plus mr-1"></i>{% trans "Новый клиент" %}
+                                </a>
+                            </label>
+                            <div class="relative">
+                                <input type="text" x-model="searchQuery" @input.debounce.300ms="search()"
+                                       @focus="showDropdown = results.length > 0"
+                                       placeholder="{% trans 'Поиск по имени, телефону...' %}"
+                                       class="input input-bordered input-sm w-full"
+                                       x-show="!selectedClient">
+                                <div x-show="selectedClient" class="flex items-center gap-2 input input-bordered input-sm w-full bg-base-200">
+                                    <span class="flex-1 text-sm" x-text="selectedClient ? selectedClient.full_name + ' (' + selectedClient.phone + ')' : ''"></span>
+                                    <button type="button" @click="clearSelection()" class="btn btn-ghost btn-xs">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <input type="hidden" name="client_id" :value="selectedClient ? selectedClient.id : ''">
+                                <!-- Dropdown -->
+                                <div x-show="showDropdown && results.length > 0" @click.outside="showDropdown = false"
+                                     class="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-box shadow-lg max-h-48 overflow-y-auto">
+                                    <template x-for="r in results" :key="r.id">
+                                        <button type="button" @click="selectClient(r)"
+                                                class="w-full text-left px-3 py-2 hover:bg-base-200 text-sm border-b border-base-200 last:border-0">
+                                            <span class="font-medium" x-text="r.full_name"></span>
+                                            <span class="text-xs text-base-content/60 ml-2" x-text="r.phone"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Buttons -->
                         <div class="card-actions justify-between pt-2">
                             <a href="{% url 'offers_list' %}" class="btn btn-ghost btn-sm">{% trans "Назад" %}</a>
@@ -345,6 +380,12 @@ function offerForm() {
                 }
                 formData.append('price_adjustment', this.form.price_adjustment || '0');
                 formData.append('notes', this.form.notes);
+
+                // Client
+                const clientInput = document.querySelector('input[name="client_id"]');
+                if (clientInput && clientInput.value) {
+                    formData.append('client_id', clientInput.value);
+                }
                 
                 const response = await fetch('{% url "create_offer" %}', {
                     method: 'POST',
@@ -391,6 +432,48 @@ function offerForm() {
             });
         }
     }
+}
+
+function clientSelector() {
+    return {
+        searchQuery: '',
+        results: [],
+        selectedClient: null,
+        showDropdown: false,
+        init() {
+            // Auto-select client from URL param (after redirect from client_create)
+            const params = new URLSearchParams(window.location.search);
+            const clientId = params.get('client_id');
+            if (clientId) {
+                fetch(`{% url 'client_search_api' %}?q=` + clientId)
+                    .then(r => r.json())
+                    .then(data => {
+                        const found = data.results.find(c => c.id == clientId);
+                        if (found) this.selectedClient = found;
+                    });
+            }
+        },
+        async search() {
+            if (this.searchQuery.length < 2) {
+                this.results = [];
+                this.showDropdown = false;
+                return;
+            }
+            const resp = await fetch(`{% url 'client_search_api' %}?q=${encodeURIComponent(this.searchQuery)}`);
+            const data = await resp.json();
+            this.results = data.results;
+            this.showDropdown = this.results.length > 0;
+        },
+        selectClient(client) {
+            this.selectedClient = client;
+            this.showDropdown = false;
+            this.searchQuery = '';
+        },
+        clearSelection() {
+            this.selectedClient = null;
+            this.searchQuery = '';
+        }
+    };
 }
 </script>
 {% endblock %}

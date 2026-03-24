@@ -2,9 +2,10 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from .models import UserProfile
+from boats.forms import DaisyUIMixin
 
 
-class RegisterForm(UserCreationForm):
+class RegisterForm(DaisyUIMixin, UserCreationForm):
     email = forms.EmailField(required=True)
     subscription_plan = forms.ChoiceField(
         choices=UserProfile.SUBSCRIPTION_CHOICES,
@@ -36,7 +37,7 @@ class RegisterForm(UserCreationForm):
         return user
 
 
-class ProfileUpdateForm(forms.ModelForm):
+class ProfileUpdateForm(DaisyUIMixin, forms.ModelForm):
     first_name = forms.CharField(max_length=30, required=False, label='Имя')
     last_name = forms.CharField(max_length=30, required=False, label='Фамилия')
 

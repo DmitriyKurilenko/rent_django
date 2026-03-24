@@ -1,15 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Avg
 from django.core.paginator import Paginator
 from django.http import JsonResponse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import get_language, gettext as _
 from django.utils import timezone
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails
-from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm
+from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, Contract, ContractTemplate, Client, ContractOTP
+from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm, ContractCreateForm, ContractSignForm, ClientForm
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
 from .pricing import resolve_live_or_fallback_price
@@ -1121,7 +1123,7 @@ def my_bookings(request):
     # Все остальные роли видят только свои.
     from django.core.paginator import Paginator
     page_number = request.GET.get('page', 1)
-    base_select = ('offer', 'offer__created_by', 'user', 'assigned_manager')
+    base_select = ('offer', 'offer__created_by', 'user', 'assigned_manager', 'client')
 
     if user.profile.role in ('manager', 'superadmin'):
         bookings_qs = Booking.objects.all().select_related(*base_select).order_by('-created_at')
@@ -1167,6 +1169,18 @@ def my_bookings(request):
     for b in bookings:
         slug = booking_slugs.get(b.pk)
         b._cached_preview = preview_map.get(slug) if slug else None
+
+    # Предзагрузка активных договоров (1 запрос)
+    booking_ids = [b.pk for b in bookings]
+    if booking_ids:
+        active_contracts = {}
+        for c in Contract.objects.filter(
+            booking_id__in=booking_ids
+        ).exclude(status__in=('rejected', 'expired')).order_by('-created_at'):
+            if c.booking_id not in active_contracts:
+                active_contracts[c.booking_id] = c
+        for b in bookings:
+            b.active_contract = active_contracts.get(b.pk)
 
     # Статистика
     total_bookings = bookings_qs.count()
@@ -1264,6 +1278,53 @@ def assign_booking_manager(request, booking_id):
     if next_url:
         return redirect(next_url)
     return redirect('my_bookings')
+
+
+@login_required
+def attach_client_to_booking(request, booking_id):
+    """Привязать клиента к бронированию (AJAX POST)."""
+    role = request.user.profile.role
+    if role not in ('captain', 'manager', 'admin', 'superadmin'):
+        return JsonResponse({'error': 'Нет прав'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        data = request.POST
+
+    client_id = data.get('client_id')
+    action = data.get('action', 'attach')
+
+    if action == 'detach':
+        booking.client = None
+        booking.save(update_fields=['client', 'updated_at'])
+        return JsonResponse({'ok': True, 'client': None})
+
+    if not client_id:
+        return JsonResponse({'error': 'Не выбран клиент'}, status=400)
+
+    if role in ('manager', 'admin', 'superadmin'):
+        client = get_object_or_404(Client, id=client_id)
+    else:
+        client = get_object_or_404(Client, id=client_id, created_by=request.user)
+
+    booking.client = client
+    booking.save(update_fields=['client', 'updated_at'])
+
+    return JsonResponse({
+        'ok': True,
+        'client': {
+            'id': client.pk,
+            'full_name': client.full_name,
+            'phone': client.phone,
+        },
+    })
 
 
 @login_required
@@ -1841,6 +1902,13 @@ def create_offer(request):
                 offer.title = ' '.join(filter(None, [manufacturer, model])) or boat_data.get('title', 'Аренда яхты')
             
             # Сохраняем оффер
+            # Привязка клиента
+            client_id = request.POST.get('client_id')
+            if client_id:
+                try:
+                    offer.client = Client.objects.get(pk=int(client_id))
+                except (Client.DoesNotExist, ValueError):
+                    pass
             offer.save()
             
             offer_type_label = 'капитанский' if offer.is_captain_offer() else 'туристический'
@@ -2319,6 +2387,13 @@ def quick_create_offer(request, boat_slug):
         model = boat_data.get('model', '')
         offer.title = ' '.join(filter(None, [manufacturer, model])) or boat_data.get('title', f'Аренда яхты {boat_slug}')
         
+        client_id = request.POST.get('client_id')
+        if client_id:
+            try:
+                offer.client = Client.objects.get(pk=int(client_id), created_by=request.user)
+            except (Client.DoesNotExist, ValueError, TypeError):
+                pass
+        
         offer.save()
         
         messages.success(request, f'✅ Оффер создан!')
@@ -2357,7 +2432,8 @@ def book_offer(request, uuid):
             currency=offer.currency,
             boat_data=offer.boat_data,
             status='pending',
-            message=request.POST.get('message', '')
+            message=request.POST.get('message', ''),
+            client=offer.client,
         )
         
         logger.info(f'[Booking] Created booking {booking.id} for user {request.user.username} - offer {offer.uuid}')
@@ -2451,6 +2527,483 @@ def book_boat(request, boat_slug):
     logger.info(f'[Booking] Created direct booking {booking.id} for user {request.user.username} - boat {boat_slug}')
     messages.success(request, '✅ Бронирование создано! Ожидайте подтверждения от менеджера.')
     return redirect('my_bookings')
+
+
+# ────────────────────────────────────────────────────────────
+# Договоры
+# ────────────────────────────────────────────────────────────
+
+@login_required
+def create_contract(request, booking_id):
+    """Создание договора для бронирования (менеджер/капитан)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if not request.user.profile.role in ('captain', 'manager', 'admin', 'superadmin'):
+        messages.error(request, 'У вас нет прав для создания договоров')
+        return redirect('my_bookings')
+
+    # Проверка что для этого бронирования ещё нет активного договора
+    existing = Contract.objects.filter(booking=booking).exclude(status__in=('rejected', 'expired')).first()
+    if existing:
+        messages.info(request, f'Договор {existing.contract_number} уже создан для этого бронирования')
+        return redirect('contract_detail', uuid=existing.uuid)
+
+    if request.method == 'POST':
+        form = ContractCreateForm(request.POST)
+        if form.is_valid():
+            cd = form.cleaned_data
+
+            # Определить шаблон по типу оффера
+            contract_type = 'agent_rental'
+            if booking.offer and booking.offer.is_captain_offer():
+                contract_type = 'captain_services'
+
+            template = ContractTemplate.objects.filter(
+                contract_type=contract_type, is_active=True
+            ).first()
+
+            # Если нет шаблона в БД — создаём дефолтный
+            if not template:
+                template, _ = ContractTemplate.objects.get_or_create(
+                    contract_type=contract_type,
+                    defaults={
+                        'name': f'Договор ({contract_type}) авто',
+                        'template_content': '',
+                        'is_active': True,
+                    },
+                )
+                if not template.is_active:
+                    template.is_active = True
+                    template.save(update_fields=['is_active'])
+
+            contract = Contract(
+                contract_number=Contract.generate_contract_number(),
+                booking=booking,
+                offer=booking.offer,
+                template=template,
+                created_by=request.user,
+                signer=booking.user,
+                client=booking.client,
+                contract_data={
+                    'signer_full_name': cd['signer_full_name'],
+                    'signer_passport': cd['signer_passport'],
+                    'signer_address': cd['signer_address'],
+                    'signer_phone': cd['signer_phone'],
+                    'signer_email': cd['signer_email'],
+                    'agent_full_name': cd['agent_full_name'],
+                    'agent_company': cd.get('agent_company', ''),
+                    'agent_phone': cd['agent_phone'],
+                    'additional_terms': cd.get('additional_terms', ''),
+                },
+                status='draft',
+                expires_at=timezone.now() + timedelta(days=14),
+            )
+            contract.save()
+
+            # Генерация PDF
+            try:
+                from .contract_generator import generate_and_save_pdf
+                generate_and_save_pdf(contract)
+                contract.status = 'sent'
+                contract.save(update_fields=['status', 'updated_at'])
+                messages.success(request, f'Договор {contract.contract_number} создан и готов к подписанию')
+            except Exception as e:
+                logger.error(f'[Contract] PDF generation failed: {e}')
+                messages.warning(request, f'Договор создан, но PDF не сгенерирован: {e}')
+
+            return redirect('contract_detail', uuid=contract.uuid)
+    else:
+        # Предзаполнение формы
+        user = booking.user
+        client = booking.client
+        initial = {
+            'signer_full_name': (client.full_name if client else None) or user.get_full_name() or user.username,
+            'signer_email': (client.email if client else None) or user.email,
+            'signer_phone': (client.phone if client else None) or (getattr(user, 'profile', None) and user.profile.phone or ''),
+            'signer_passport': (client.passport_number if client else '') or '',
+            'signer_address': (client.address if client else '') or '',
+            'agent_full_name': request.user.get_full_name() or request.user.username,
+            'agent_phone': getattr(request.user, 'profile', None) and request.user.profile.phone or '',
+        }
+        form = ContractCreateForm(initial=initial)
+
+    context = {
+        'form': form,
+        'booking': booking,
+    }
+    return render(request, 'boats/create_contract.html', context)
+
+
+@login_required
+def contract_detail(request, uuid):
+    """Просмотр деталей договора."""
+    contract = get_object_or_404(Contract, uuid=uuid)
+
+    # Доступ: создатель, подписант, менеджер, админ
+    if not (request.user == contract.created_by
+            or request.user == contract.signer
+            or request.user.profile.role in ('manager', 'admin', 'superadmin')):
+        messages.error(request, 'У вас нет доступа к этому договору')
+        return redirect('my_bookings')
+
+    # Формируем URL подписания
+    from django.urls import reverse
+    sign_url = request.build_absolute_uri(
+        reverse('sign_contract', args=[contract.uuid, contract.sign_token])
+    )
+
+    context = {
+        'contract': contract,
+        'sign_url': sign_url,
+        'can_manage': request.user == contract.created_by or request.user.profile.role in ('manager', 'admin', 'superadmin'),
+    }
+    return render(request, 'boats/contract_detail.html', context)
+
+
+def _mask_phone(phone):
+    """Маскируем телефон: +7 (999) ***-**-45 → показываем только последние 2 цифры."""
+    if not phone or len(phone) < 4:
+        return phone or ''
+    digits = ''.join(c for c in phone if c.isdigit())
+    if len(digits) <= 2:
+        return '***'
+    return f'***{digits[-2:]}'
+
+
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+def send_contract_otp(request, uuid, sign_token):
+    """AJAX endpoint: отправить OTP-код для подписания договора."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    contract = get_object_or_404(Contract, uuid=uuid, sign_token=sign_token)
+
+    if not contract.can_be_signed():
+        return JsonResponse({'error': 'Договор не может быть подписан'}, status=400)
+
+    # Throttle: не больше 1 кода в 60 сек
+    recent_otp = ContractOTP.objects.filter(
+        contract=contract,
+        created_at__gte=timezone.now() - timedelta(seconds=60),
+    ).first()
+    if recent_otp:
+        return JsonResponse({'error': 'Подождите 60 секунд перед повторной отправкой'}, status=429)
+
+    phone = contract.contract_data.get('signer_phone', '')
+    if not phone:
+        return JsonResponse({'error': 'Телефон подписанта не указан в договоре'}, status=400)
+
+    otp = ContractOTP.create_for_contract(contract, phone, delivery_method='sms')
+
+    # Отправка через MTS Exolve (SMS с fallback на Telegram)
+    from .sms import send_otp
+    sent = send_otp(phone, otp.code, delivery_method=otp.delivery_method)
+    if not sent:
+        logger.warning(f'[OTP] Delivery failed for contract {contract.contract_number} → {phone}')
+
+    resp = {
+        'ok': True,
+        'phone_masked': _mask_phone(phone),
+        'expires_in': ContractOTP.CODE_LIFETIME_SECONDS,
+    }
+    if settings.DEBUG:
+        resp['debug_code'] = otp.code
+    return JsonResponse(resp)
+
+
+def sign_contract(request, uuid, sign_token):
+    """Страница подписания договора с OTP-кодом (доступно по токену без авторизации)."""
+    contract = get_object_or_404(Contract, uuid=uuid, sign_token=sign_token)
+
+    if contract.status == 'signed':
+        return render(request, 'boats/contract_signed.html', {'contract': contract})
+
+    if contract.is_expired():
+        contract.status = 'expired'
+        contract.save(update_fields=['status', 'updated_at'])
+        return render(request, 'boats/contract_expired.html', {'contract': contract})
+
+    if not contract.can_be_signed():
+        messages.error(request, 'Этот договор не может быть подписан')
+        return render(request, 'boats/contract_expired.html', {'contract': contract})
+
+    # Отметить как просмотренный
+    if contract.status == 'sent':
+        contract.status = 'viewed'
+        contract.save(update_fields=['status', 'updated_at'])
+
+    signer_phone = contract.contract_data.get('signer_phone', '')
+
+    if request.method == 'POST':
+        form = ContractSignForm(request.POST)
+        if form.is_valid():
+            cd = form.cleaned_data
+            otp_code = cd['otp_code']
+
+            # Проверяем OTP
+            otp = ContractOTP.objects.filter(
+                contract=contract,
+                is_verified=False,
+            ).order_by('-created_at').first()
+
+            if not otp or not otp.is_valid():
+                form.add_error('otp_code', 'Код истёк или не был отправлен. Запросите новый код.')
+            elif otp.code != otp_code:
+                otp.attempts += 1
+                otp.save(update_fields=['attempts'])
+                remaining = otp.MAX_ATTEMPTS - otp.attempts
+                if remaining > 0:
+                    form.add_error('otp_code', f'Неверный код. Осталось попыток: {remaining}')
+                else:
+                    form.add_error('otp_code', 'Превышено количество попыток. Запросите новый код.')
+            else:
+                # OTP верный — подписываем
+                otp.is_verified = True
+                otp.save(update_fields=['is_verified'])
+
+                client_ip = _get_client_ip(request)
+
+                contract.signature_data = f'otp_verified:{otp.id}'
+                contract.signed_at = timezone.now()
+                contract.sign_ip = client_ip
+                contract.sign_user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+                contract.status = 'signed'
+
+                contract.contract_data['signed_name_confirm'] = cd['signer_name_confirm']
+                contract.contract_data['signed_at_iso'] = contract.signed_at.isoformat()
+                contract.contract_data['sign_ip'] = client_ip
+                contract.contract_data['otp_verified'] = True
+                contract.contract_data['otp_phone'] = signer_phone
+
+                contract.save(update_fields=[
+                    'signature_data', 'signed_at', 'sign_ip', 'sign_user_agent',
+                    'status', 'contract_data', 'updated_at',
+                ])
+
+                logger.info(
+                    f'[Contract] Signed via OTP: {contract.contract_number} '
+                    f'by {cd["signer_name_confirm"]} from {client_ip}'
+                )
+
+                return render(request, 'boats/contract_signed.html', {'contract': contract})
+    else:
+        initial = {
+            'signer_name_confirm': contract.contract_data.get('signer_full_name', ''),
+        }
+        form = ContractSignForm(initial=initial)
+
+    # Рендерим контент договора для просмотра
+    from .contract_generator import build_contract_context
+    from django.template import Template, Context
+    from .contract_generator import DEFAULT_AGENT_RENTAL_TEMPLATE
+
+    template_str = contract.template.template_content if contract.template and contract.template.template_content else DEFAULT_AGENT_RENTAL_TEMPLATE
+    ctx = build_contract_context(contract)
+    contract_html = Template(template_str).render(Context(ctx))
+
+    context = {
+        'contract': contract,
+        'form': form,
+        'contract_html': contract_html,
+        'signer_phone_masked': _mask_phone(signer_phone),
+        'otp_lifetime': ContractOTP.CODE_LIFETIME_SECONDS,
+    }
+    return render(request, 'boats/contract_sign.html', context)
+
+
+@login_required
+def download_contract(request, uuid):
+    """Скачать PDF документ договора."""
+    contract = get_object_or_404(Contract, uuid=uuid)
+
+    # Доступ: создатель, подписант, менеджер
+    if not (request.user == contract.created_by
+            or request.user == contract.signer
+            or request.user.profile.role in ('manager', 'admin', 'superadmin')):
+        messages.error(request, 'У вас нет доступа к этому файлу')
+        return redirect('my_bookings')
+
+    if not contract.document_file:
+        messages.error(request, 'PDF документ ещё не сгенерирован')
+        return redirect('contract_detail', uuid=contract.uuid)
+
+    from django.http import FileResponse
+    response = FileResponse(
+        contract.document_file.open('rb'),
+        content_type='application/pdf',
+    )
+    response['Content-Disposition'] = f'attachment; filename="contract_{contract.contract_number}.pdf"'
+    return response
+
+
+@login_required
+def contracts_list(request):
+    """Список договоров для менеджера/капитана."""
+    user = request.user
+
+    if user.profile.role in ('manager', 'admin', 'superadmin'):
+        contracts_qs = Contract.objects.all()
+    elif user.profile.role == 'captain':
+        contracts_qs = Contract.objects.filter(created_by=user)
+    else:
+        contracts_qs = Contract.objects.filter(signer=user)
+
+    contracts_qs = contracts_qs.select_related(
+        'booking', 'offer', 'created_by', 'signer'
+    ).order_by('-created_at')
+
+    # Фильтр по статусу
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        contracts_qs = contracts_qs.filter(status=status_filter)
+
+    paginator = Paginator(contracts_qs, 15)
+    contracts = paginator.get_page(request.GET.get('page', 1))
+
+    context = {
+        'contracts': contracts,
+        'status_filter': status_filter,
+        'status_choices': Contract.STATUS_CHOICES,
+    }
+    return render(request, 'boats/contracts_list.html', context)
+
+
+# =========================================================================
+# Клиенты (CRUD)
+# =========================================================================
+
+@login_required
+def clients_list(request):
+    """Список клиентов агента/капитана"""
+    user = request.user
+    if user.profile.role in ('manager', 'superadmin'):
+        clients_qs = Client.objects.all()
+    else:
+        clients_qs = Client.objects.filter(created_by=user)
+
+    search_q = request.GET.get('q', '').strip()
+    if search_q:
+        clients_qs = clients_qs.filter(
+            Q(last_name__icontains=search_q)
+            | Q(first_name__icontains=search_q)
+            | Q(phone__icontains=search_q)
+            | Q(email__icontains=search_q)
+        )
+
+    clients_qs = clients_qs.select_related('created_by')
+    paginator = Paginator(clients_qs, 20)
+    clients = paginator.get_page(request.GET.get('page', 1))
+
+    return render(request, 'boats/clients_list.html', {
+        'clients': clients,
+        'search_q': search_q,
+    })
+
+
+@login_required
+def client_create(request):
+    """Создание нового клиента"""
+    if request.method == 'POST':
+        form = ClientForm(request.POST)
+        if form.is_valid():
+            client = form.save(commit=False)
+            client.created_by = request.user
+            client.save()
+            messages.success(request, f'Клиент {client.full_name} создан')
+            next_url = request.GET.get('next')
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                separator = '&' if '?' in next_url else '?'
+                return redirect(f'{next_url}{separator}client_id={client.pk}')
+            return redirect('client_detail', pk=client.pk)
+    else:
+        form = ClientForm()
+
+    return render(request, 'boats/client_form.html', {
+        'form': form,
+        'title': 'Новый клиент',
+    })
+
+
+@login_required
+def client_detail(request, pk):
+    """Карточка клиента с историей"""
+    if request.user.profile.role in ('manager', 'superadmin'):
+        client = get_object_or_404(Client, pk=pk)
+    else:
+        client = get_object_or_404(Client, pk=pk, created_by=request.user)
+
+    bookings = Booking.objects.filter(client=client).select_related('offer').order_by('-created_at')[:10]
+    offers = Offer.objects.filter(client=client).order_by('-created_at')[:10]
+    contracts = Contract.objects.filter(client=client).order_by('-created_at')[:10]
+
+    return render(request, 'boats/client_detail.html', {
+        'client': client,
+        'bookings': bookings,
+        'offers': offers,
+        'contracts': contracts,
+    })
+
+
+@login_required
+def client_edit(request, pk):
+    """Редактирование клиента"""
+    if request.user.profile.role in ('manager', 'superadmin'):
+        client = get_object_or_404(Client, pk=pk)
+    else:
+        client = get_object_or_404(Client, pk=pk, created_by=request.user)
+
+    if request.method == 'POST':
+        form = ClientForm(request.POST, instance=client)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Клиент {client.full_name} обновлён')
+            return redirect('client_detail', pk=client.pk)
+    else:
+        form = ClientForm(instance=client)
+
+    return render(request, 'boats/client_form.html', {
+        'form': form,
+        'client': client,
+        'title': f'Редактирование: {client.short_name}',
+    })
+
+
+@login_required
+def client_search_api(request):
+    """JSON API для поиска клиентов (автодополнение)"""
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'results': []})
+
+    if request.user.profile.role in ('manager', 'superadmin'):
+        qs = Client.objects.all()
+    else:
+        qs = Client.objects.filter(created_by=request.user)
+
+    qs = qs.filter(
+        Q(last_name__icontains=q)
+        | Q(first_name__icontains=q)
+        | Q(phone__icontains=q)
+        | Q(email__icontains=q)
+    )[:10]
+
+    results = []
+    for c in qs:
+        results.append({
+            'id': c.pk,
+            'full_name': c.full_name,
+            'short_name': c.short_name,
+            'phone': c.phone,
+            'email': c.email,
+        })
+
+    return JsonResponse({'results': results})
 
 
 def terms(request):

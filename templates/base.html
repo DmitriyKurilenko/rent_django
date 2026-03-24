@@ -1,22 +1,25 @@
 {% load i18n %}
 {% load static %}
 <!DOCTYPE html>
-<html lang="ru" data-theme="winter">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Ахой!Rent - Аренда яхт и лодок{% endblock %}</title>
+    <script>
+        (function(){
+            var t = localStorage.getItem('theme');
+            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
-    
-    <style>
-        [x-cloak] { display: none !important; }
-    </style>
-    
+    <style>[x-cloak] { display: none !important; }</style>
     {% block extra_head %}{% endblock %}
 </head>
 <body class="min-h-screen">
@@ -39,6 +42,10 @@
                             <li><a href="{% url 'offers_list' %}"><i class="fas fa-file-invoice mr-2"></i>{% trans "Мои офферы" %}</a></li>
                         {% endif %}
                         <li><a href="{% url 'my_bookings' %}"><i class="fas fa-calendar-check mr-2"></i>{% trans "Мои бронирования" %}</a></li>
+                        {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                            <li><a href="{% url 'contracts_list' %}"><i class="fas fa-file-contract mr-2"></i>{% trans "Договоры" %}</a></li>
+                            <li><a href="{% url 'clients_list' %}"><i class="fas fa-users mr-2"></i>{% trans "Клиенты" %}</a></li>
+                        {% endif %}
                         <li><a href="{% url 'logout' %}"><i class="fas fa-sign-out-alt mr-2"></i>{% trans "Выйти" %}</a></li>
                     {% else %}
                         <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt mr-2"></i>{% trans "Войти" %}</a></li>
@@ -66,8 +73,8 @@
             </a>
         </div>
         
-        <div class="navbar-end hidden lg:flex">
-            <ul class="menu menu-horizontal px-1">
+        <div class="navbar-end">
+            <ul class="menu menu-horizontal px-1 hidden lg:flex">
                 <li><a href="{% url 'home' %}"><i class="fas fa-home mr-2"></i>{% trans "Главная" %}</a></li>
                 {% if user.is_authenticated %}
                     <li><a href="{% url 'profile' %}"><i class="fas fa-user mr-2"></i>{% trans "Кабинет" %}</a></li>
@@ -76,8 +83,11 @@
                     <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt mr-2"></i>{% trans "Войти" %}</a></li>
                 {% endif %}
             </ul>
-        </div>
-                <div class="navbar-end">
+            <!-- Theme Toggle -->
+            <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" aria-label="Toggle theme">
+                <i class="fas fa-moon" id="theme-icon-dark" style="display:none"></i>
+                <i class="fas fa-sun" id="theme-icon-light" style="display:none"></i>
+            </button>
             <!-- Language Selector -->
             <div class="dropdown dropdown-end">
                 <label tabindex="0" class="btn btn-ghost btn-sm">
@@ -102,7 +112,7 @@
                 </ul>
             </div>
         </div>
-            </div>
+    </div>
     {% endif %}
     
     <main class="min-h-main">
@@ -160,5 +170,27 @@
     {% endif %}
     
     {% block extra_js %}{% endblock %}
+    <script>
+        function updateThemeIcons() {
+            var t = document.documentElement.getAttribute('data-theme');
+            document.getElementById('theme-icon-dark').style.display = (t === 'light') ? 'inline' : 'none';
+            document.getElementById('theme-icon-light').style.display = (t === 'dark') ? 'inline' : 'none';
+        }
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            updateThemeIcons();
+        }
+        updateThemeIcons();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+            if (!localStorage.getItem('theme')) {
+                var t = e.matches ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', t);
+                updateThemeIcons();
+            }
+        });
+    </script>
 </body>
 </html>

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Договор недоступен" %}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-12 max-w-lg text-center">
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body items-center py-12">
+            <div class="text-6xl text-warning mb-6">
+                <i class="fas fa-clock"></i>
+            </div>
+            <h1 class="text-2xl font-bold mb-2">{% trans "Срок действия истёк" %}</h1>
+            <p class="text-base-content/70 mb-6">
+                {% trans "Срок подписания договора" %}
+                <strong>{{ contract.contract_number }}</strong>
+                {% trans "истёк. Обратитесь к вашему агенту для получения нового договора." %}
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -239,3 +239,42 @@ def update_parsed_boats():
         'status': 'queued',
         'count': len(task_ids),
     }
+
+
+@shared_task(bind=True, max_retries=2)
+def generate_contract_pdf_task(self, contract_id):
+    """
+    Асинхронная генерация PDF для договора.
+    """
+    try:
+        from boats.models import Contract
+        from boats.contract_generator import generate_and_save_pdf
+
+        contract = Contract.objects.get(id=contract_id)
+        generate_and_save_pdf(contract)
+
+        logger.info(f'[Celery] ✅ PDF сгенерирован для договора {contract.contract_number}')
+        return {'status': 'success', 'contract_number': contract.contract_number}
+
+    except Exception as exc:
+        logger.error(f'[Celery] ❌ Ошибка генерации PDF для договора {contract_id}: {exc}')
+        try:
+            raise self.retry(exc=exc, countdown=30)
+        except self.MaxRetriesExceededError:
+            return {'status': 'failed', 'contract_id': contract_id, 'reason': str(exc)}
+
+
+@shared_task
+def send_contract_notification(contract_id):
+    """
+    Заглушка: отправка уведомления о договоре.
+    Требует настройки EMAIL_BACKEND в settings.py.
+    """
+    from boats.models import Contract
+    contract = Contract.objects.get(id=contract_id)
+    logger.info(
+        f'[Celery] 📧 Уведомление о договоре {contract.contract_number} '
+        f'для {contract.contract_data.get("signer_email", "n/a")} — '
+        f'EMAIL не настроен, пропускаю отправку'
+    )
+    return {'status': 'skipped', 'reason': 'email not configured'}

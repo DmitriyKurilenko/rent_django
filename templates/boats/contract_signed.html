@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Договор подписан" %}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-12 max-w-lg text-center">
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body items-center py-12">
+            <div class="text-6xl text-success mb-6">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h1 class="text-2xl font-bold mb-2">{% trans "Договор подписан!" %}</h1>
+            <p class="text-base-content/70 mb-2">
+                {% trans "Договор" %} <strong>{{ contract.contract_number }}</strong>
+                {% trans "успешно подписан" %}.
+            </p>
+            <p class="text-sm text-base-content/50 mb-6">
+                {% trans "Дата подписания" %}: {{ contract.signed_at|date:"d.m.Y H:i" }}
+            </p>
+            {% if contract.document_file %}
+            <a href="{% url 'download_contract' contract.uuid %}" class="btn btn-primary gap-2">
+                <i class="fas fa-download"></i> {% trans "Скачать PDF" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

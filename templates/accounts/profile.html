@@ -8,37 +8,7 @@
 {% block content %}
 <div class="container mx-auto px-4 py-6" x-data="{ activeTab: new URLSearchParams(location.search).get('tab') || 'dashboard' }">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div class="hidden md:block md:col-span-1">
-            <div class="card bg-base-100 shadow-sm sticky top-24">
-                <div class="card-body p-4">
-                    <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
-                    <div class="space-y-2">
-                        <button type="button" class="btn btn-sm btn-ghost justify-start w-full" @click="activeTab = 'dashboard'">
-                            <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
-                        </button>
-                        <button type="button" class="btn btn-sm btn-ghost justify-start w-full" @click="activeTab = 'profile'">
-                            <i class="fas fa-user"></i> {% trans "Профиль" %}
-                        </button>
-                        <a href="{% url 'favorites_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-heart"></i> {% trans "Избранное" %}
-                        </a>
-                        {% if user.profile.can_create_offers %}
-                        <a href="{% url 'offers_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-file-invoice"></i> {% trans "Мои офферы" %}
-                        </a>
-                        {% endif %}
-                        <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
-                        </a>
-                        {% if user.profile.can_manage_prices %}
-                        <button type="button" class="btn btn-sm btn-ghost justify-start w-full" @click="activeTab = 'prices'">
-                            <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% include 'includes/lk_sidebar.html' with is_profile_page=True %}
 
         <!-- Main Content -->
         <div class="md:col-span-3">
@@ -462,19 +432,5 @@
     </div>
 </div>
 
-<style>
-    input[type="text"],
-    input[type="email"],
-    input[type="tel"],
-    input[type="file"],
-    select,
-    textarea {
-        @apply input input-bordered input-sm w-full;
-    }
-    
-    textarea {
-        @apply textarea textarea-bordered textarea-sm w-full;
-    }
-</style>
 
 {% endblock %}

@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Подписание договора" %} {{ contract.contract_number }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .contract-preview {
+        max-height: 500px;
+        overflow-y: auto;
+        border: 1px solid hsl(var(--b3));
+        border-radius: 0.5rem;
+        padding: 1rem;
+        background: white;
+        font-size: 12px;
+    }
+    .otp-input {
+        letter-spacing: 0.5em;
+        font-size: 1.5rem;
+        font-weight: bold;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-4xl"
+     x-data="otpSignApp()"
+>
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold">
+            <i class="fas fa-file-signature"></i>
+            {% trans "Подписание договора" %} {{ contract.contract_number }}
+        </h1>
+        <p class="text-base-content/70 text-sm mt-1">
+            {% trans "Внимательно ознакомьтесь с договором и подтвердите подписание кодом" %}
+        </p>
+    </div>
+
+    <!-- Срок действия -->
+    <div class="alert alert-info mb-6">
+        <i class="fas fa-clock"></i>
+        <span>{% trans "Договор действителен до" %}: <strong>{{ contract.expires_at|date:"d.m.Y H:i" }}</strong></span>
+    </div>
+
+    <!-- Текст договора -->
+    <div class="card bg-base-100 shadow-sm mb-6">
+        <div class="card-body">
+            <h2 class="font-bold text-lg mb-3">
+                <i class="fas fa-file-alt"></i> {% trans "Текст договора" %}
+            </h2>
+            <div class="contract-preview">
+                {{ contract_html|safe }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Форма подписания -->
+    <form method="POST" @submit="onSubmit($event)">
+        {% csrf_token %}
+
+        <!-- Подтверждение ФИО -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body">
+                <h2 class="font-bold text-lg mb-3">
+                    <i class="fas fa-user-check"></i> {% trans "Подтверждение" %}
+                </h2>
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text">{{ form.signer_name_confirm.label }}</span></label>
+                    <input
+                        type="text" name="signer_name_confirm"
+                        value="{{ form.signer_name_confirm.value|default_if_none:'' }}"
+                        class="input input-bordered w-full"
+                        placeholder="{% trans 'Введите ваше полное ФИО' %}"
+                        required
+                    >
+                    {% if form.signer_name_confirm.errors %}<p class="text-error text-xs mt-1">{{ form.signer_name_confirm.errors.0 }}</p>{% endif %}
+                </div>
+
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="agree_terms" class="checkbox checkbox-primary" required>
+                        <span class="label-text">{{ form.agree_terms.label }}</span>
+                    </label>
+                    {% if form.agree_terms.errors %}<p class="text-error text-xs mt-1">{{ form.agree_terms.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- OTP подтверждение -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body">
+                <h2 class="font-bold text-lg mb-3">
+                    <i class="fas fa-shield-alt"></i> {% trans "Код подтверждения" %}
+                </h2>
+
+                <!-- Шаг 1: Отправка кода -->
+                <div x-show="!codeSent" class="text-center py-4">
+                    <p class="text-sm text-base-content/70 mb-4">
+                        {% trans "Для подписания договора на ваш номер телефона будет отправлен одноразовый код подтверждения" %}
+                    </p>
+                    <p class="font-semibold mb-4">
+                        <i class="fas fa-phone"></i>
+                        {% trans "Телефон" %}: {{ signer_phone_masked }}
+                    </p>
+                    <button
+                        type="button"
+                        class="btn btn-primary btn-wide"
+                        @click="sendCode()"
+                        :disabled="sending"
+                    >
+                        <span x-show="!sending">
+                            <i class="fas fa-paper-plane"></i> {% trans "Отправить код" %}
+                        </span>
+                        <span x-show="sending" class="loading loading-spinner loading-sm"></span>
+                    </button>
+                    <p x-show="sendError" class="text-error text-sm mt-2" x-text="sendError"></p>
+                </div>
+
+                <!-- Шаг 2: Ввод кода -->
+                <div x-show="codeSent" x-cloak>
+                    <p class="text-sm text-base-content/70 mb-2">
+                        {% trans "Код отправлен на номер" %} <strong x-text="phoneMasked"></strong>
+                    </p>
+
+                    <div class="form-control mb-4">
+                        <label class="label"><span class="label-text">{% trans "Введите 6-значный код" %}</span></label>
+                        <input
+                            type="text" name="otp_code"
+                            class="input input-bordered otp-input w-full max-w-xs mx-auto"
+                            inputmode="numeric"
+                            pattern="[0-9]{6}"
+                            maxlength="6"
+                            autocomplete="one-time-code"
+                            placeholder="000000"
+                            x-ref="otpInput"
+                            required
+                        >
+                        {% if form.otp_code.errors %}<p class="text-error text-xs mt-1 text-center">{{ form.otp_code.errors.0 }}</p>{% endif %}
+                        <p x-show="debugCode" class="text-warning text-xs mt-2 text-center font-mono">[DEBUG] Код: <span x-text="debugCode"></span></p>
+                    </div>
+
+                    <!-- Таймер и повторная отправка -->
+                    <div class="text-center text-sm">
+                        <span x-show="countdown > 0" class="text-base-content/50">
+                            {% trans "Повторная отправка через" %} <span x-text="countdown"></span> {% trans "сек" %}.
+                        </span>
+                        <button
+                            x-show="countdown <= 0"
+                            type="button"
+                            class="btn btn-ghost btn-sm"
+                            @click="sendCode()"
+                            :disabled="sending"
+                        >
+                            <i class="fas fa-redo"></i> {% trans "Отправить повторно" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mb-10">
+            <button
+                type="submit"
+                class="btn btn-primary btn-lg gap-2"
+                :disabled="!codeSent"
+                x-show="codeSent"
+            >
+                <i class="fas fa-check-circle"></i> {% trans "Подписать договор" %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function otpSignApp() {
+    return {
+        codeSent: false,
+        sending: false,
+        sendError: '',
+        phoneMasked: '{{ signer_phone_masked }}',
+        countdown: 0,
+        timer: null,
+        debugCode: '',
+
+        sendCode() {
+            this.sending = true;
+            this.sendError = '';
+
+            fetch('{% url "send_contract_otp" contract.uuid contract.sign_token %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(r => r.json().then(data => ({ok: r.ok, data})))
+            .then(({ok, data}) => {
+                this.sending = false;
+                if (ok && data.ok) {
+                    this.codeSent = true;
+                    this.phoneMasked = data.phone_masked;
+                    this.debugCode = data.debug_code || '';
+                    this.startCountdown(data.expires_in || {{ otp_lifetime }});
+                    this.$nextTick(() => {
+                        if (this.$refs.otpInput) this.$refs.otpInput.focus();
+                    });
+                } else {
+                    this.sendError = data.error || 'Ошибка отправки кода';
+                }
+            })
+            .catch(() => {
+                this.sending = false;
+                this.sendError = 'Ошибка сети. Попробуйте ещё раз.';
+            });
+        },
+
+        startCountdown(seconds) {
+            this.countdown = 60;
+            if (this.timer) clearInterval(this.timer);
+            this.timer = setInterval(() => {
+                this.countdown--;
+                if (this.countdown <= 0) clearInterval(this.timer);
+            }, 1000);
+        },
+
+        onSubmit(e) {
+            if (!this.codeSent) {
+                e.preventDefault();
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

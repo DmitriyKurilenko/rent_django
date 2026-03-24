@@ -6,35 +6,7 @@
 {% block content %}
 <div class="container mx-auto px-4 py-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div class="hidden md:block md:col-span-1">
-            <div class="card bg-base-100 shadow-sm sticky top-24">
-                <div class="card-body p-4">
-                    <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
-                    <div class="space-y-2">
-                        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
-                        </a>
-                        <a href="{% url 'profile' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-user"></i> {% trans "Профиль" %}
-                        </a>
-                        <a href="{% url 'favorites_list' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-heart"></i> {% trans "Избранное" %}
-                        </a>
-                        <button class="btn btn-sm btn-primary justify-start w-full" disabled>
-                            <i class="fas fa-file-invoice"></i> {% trans "Мои офферы" %}
-                        </button>
-                        <a href="{% url 'my_bookings' %}" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-calendar-check"></i> {% trans "Мои бронирования" %}
-                        </a>
-                        {% if user.profile.can_manage_prices %}
-                        <a href="{% url 'profile' %}?tab=prices" class="btn btn-sm btn-ghost justify-start w-full">
-                            <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
-                        </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% include 'includes/lk_sidebar.html' with active_page='offers' %}
 
         <!-- Main Content -->
         <div class="md:col-span-3">
@@ -330,8 +302,8 @@ function offerActions(offerPath, uuid) {
                 return;
             }
 
-            const lang = window.location.pathname.split('/')[1] || 'ru';
-            const deleteUrl = `/${lang}/offers/${uuid}/delete/`;
+            const deleteUrlTpl = '{% url "delete_offer" "00000000-0000-0000-0000-000000000000" %}';
+            const deleteUrl = deleteUrlTpl.replace('00000000-0000-0000-0000-000000000000', uuid);
 
             const form = document.createElement('form');
             form.method = 'POST';

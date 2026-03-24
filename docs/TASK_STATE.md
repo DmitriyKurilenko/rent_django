@@ -1,6 +1,6 @@
 # TASK STATE
 
-Last updated: 2026-03-19 (Europe/Moscow)
+Last updated: 2026-03-22 (Europe/Moscow)
 
 ## Current priorities
 
@@ -46,6 +46,33 @@ Last updated: 2026-03-19 (Europe/Moscow)
 4. Run tests for touched modules
 5. Verify affected HTTP pages render correctly
 6. If any error: fix and rerun from failed step
+
+### P3: Online contract signing
+- Status: implemented, ready for testing.
+- Goal: agents can create, send, and collect electronic signatures on rental contracts from clients.
+- Scope:
+  - ContractTemplate + Contract models,
+  - PDF generation via xhtml2pdf (HTML→PDF),
+  - Canvas signature drawing (Alpine.js),
+  - UUID-based public signing links (no auth required for signer),
+  - SHA-256 document hash + audit logging (IP, User-Agent, timestamp),
+  - Celery async PDF generation task,
+  - Email notification stub (not wired yet),
+  - Integration with my_bookings and base nav.
+
+### P4: Client (tourist) management
+- Status: implemented, Docker-validated.
+- Goal: agents/captains can create client profiles and link them to bookings, offers, contracts.
+- Scope:
+  - Client model (FIO, contacts, passport, notes),
+  - FK relations to Booking, Offer, Contract (nullable),
+  - CRUD views + JSON search API for autocomplete,
+  - Alpine.js clientSelector component in create_offer and quick_create_offer,
+  - Client auto-propagation: offer→booking→contract,
+  - Contract pre-fill from client passport/address data,
+  - Client info card on captain offer template,
+  - Sidebar nav in bookings, contracts, clients list pages,
+  - Django admin registration with fieldsets.
 
 ## Pending product decisions from user
 - Canonical policy when upstream API returns two different totals for same query:

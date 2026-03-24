@@ -2,6 +2,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.shortcuts import render, redirect
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -56,8 +57,10 @@ def login_view(request):
         if user is not None:
             login(request, user)
             messages.success(request, f'Добро пожаловать, {user.username}!')
-            next_url = request.GET.get('next', 'home')
-            return redirect(next_url)
+            next_url = request.GET.get('next', '')
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                return redirect(next_url)
+            return redirect('home')
         else:
             messages.error(request, 'Неверное имя пользователя или пароль')
     

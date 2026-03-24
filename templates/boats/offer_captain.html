@@ -214,6 +214,20 @@
 
             </div>{# /grid параметры+цена #}
 
+            {% if offer.client and can_view_internal_notes %}
+            <!-- Клиент -->
+            <div class="card bg-base-100 shadow">
+                <div class="card-body gap-2">
+                    <h3 class="font-bold text-sm mb-2"><i class="fas fa-user"></i> {% trans "Клиент" %}</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div><span class="opacity-70">{% trans "ФИО:" %}</span> {{ offer.client.full_name }}</div>
+                        {% if offer.client.phone %}<div><span class="opacity-70">{% trans "Телефон:" %}</span> {{ offer.client.phone }}</div>{% endif %}
+                        {% if offer.client.email %}<div><span class="opacity-70">{% trans "Email:" %}</span> {{ offer.client.email }}</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Extras -->
             {% if offer.boat_data.extras and offer.boat_data.extras|length > 0 %}
             <div class="card bg-base-100 shadow">

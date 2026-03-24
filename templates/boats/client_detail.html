@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ client.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {% include 'includes/lk_sidebar.html' with active_page='clients' %}
+
+        <!-- Main Content -->
+        <div class="md:col-span-3">
+            <!-- Header -->
+            <div class="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'clients_list' %}" class="btn btn-sm btn-ghost md:hidden">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
+                        <h1 class="text-2xl font-bold">{{ client.full_name }}</h1>
+                    </div>
+                    <p class="text-sm text-base-content/60 mt-1">
+                        {% trans "Создан" %}: {{ client.created_at|date:"d.m.Y H:i" }}
+                        {% if client.created_by %}· {{ client.created_by.get_full_name|default:client.created_by.username }}{% endif %}
+                    </p>
+                </div>
+                <a href="{% url 'client_edit' client.pk %}" class="btn btn-sm btn-primary md:hidden">
+                    <i class="fas fa-edit mr-1"></i> {% trans "Редактировать" %}
+                </a>
+            </div>
+
+            <!-- Info Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- Контакты -->
+                <div class="card bg-base-100 shadow-sm">
+                    <div class="card-body p-4">
+                        <h3 class="font-bold text-sm mb-3">
+                            <i class="fas fa-phone text-primary mr-1"></i> {% trans "Контакты" %}
+                        </h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-base-content/60">{% trans "Телефон" %}</span>
+                                <span class="font-medium">{{ client.phone }}</span>
+                            </div>
+                            {% if client.email %}
+                            <div class="flex justify-between">
+                                <span class="text-base-content/60">Email</span>
+                                <span class="font-medium">{{ client.email }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Документы -->
+                <div class="card bg-base-100 shadow-sm">
+                    <div class="card-body p-4">
+                        <h3 class="font-bold text-sm mb-3">
+                            <i class="fas fa-id-card text-primary mr-1"></i> {% trans "Документы" %}
+                        </h3>
+                        <div class="space-y-2 text-sm">
+                            {% if client.passport_number %}
+                            <div class="flex justify-between">
+                                <span class="text-base-content/60">{% trans "Паспорт" %}</span>
+                                <span class="font-medium">{{ client.passport_number }}</span>
+                            </div>
+                            {% endif %}
+                            {% if client.passport_issued_by %}
+                            <div>
+                                <span class="text-base-content/60 text-xs">{% trans "Кем выдан" %}</span>
+                                <p class="font-medium">{{ client.passport_issued_by }}</p>
+                            </div>
+                            {% endif %}
+                            {% if client.passport_date %}
+                            <div class="flex justify-between">
+                                <span class="text-base-content/60">{% trans "Дата выдачи" %}</span>
+                                <span class="font-medium">{{ client.passport_date|date:"d.m.Y" }}</span>
+                            </div>
+                            {% endif %}
+                            {% if client.address %}
+                            <div>
+                                <span class="text-base-content/60 text-xs">{% trans "Адрес" %}</span>
+                                <p class="font-medium">{{ client.address }}</p>
+                            </div>
+                            {% endif %}
+                            {% if not client.passport_number and not client.address %}
+                            <p class="text-base-content/40 text-xs">{% trans "Документы не заполнены" %}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if client.notes %}
+            <div class="card bg-base-100 shadow-sm mb-6">
+                <div class="card-body p-4">
+                    <h3 class="font-bold text-sm mb-2">
+                        <i class="fas fa-sticky-note text-primary mr-1"></i> {% trans "Заметки" %}
+                    </h3>
+                    <p class="text-sm whitespace-pre-line">{{ client.notes }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- История бронирований -->
+            <div class="card bg-base-100 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h3 class="font-bold text-sm mb-3">
+                        <i class="fas fa-calendar-check text-primary mr-1"></i> {% trans "Бронирования" %}
+                        {% if bookings %}<span class="badge badge-sm">{{ bookings|length }}</span>{% endif %}
+                    </h3>
+                    {% if bookings %}
+                    <div class="overflow-x-auto">
+                        <table class="table table-xs">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Яхта" %}</th>
+                                    <th>{% trans "Даты" %}</th>
+                                    <th>{% trans "Статус" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for b in bookings %}
+                                <tr>
+                                    <td class="text-xs">{{ b.boat_title|truncatechars:30 }}</td>
+                                    <td class="text-xs">{{ b.start_date|date:"d.m" }} — {{ b.end_date|date:"d.m.Y" }}</td>
+                                    <td><span class="badge badge-xs {% if b.status == 'confirmed' %}badge-success{% elif b.status == 'cancelled' %}badge-error{% else %}badge-warning{% endif %}">{{ b.get_status_display }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-base-content/40">{% trans "Нет бронирований" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Офферы -->
+            <div class="card bg-base-100 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h3 class="font-bold text-sm mb-3">
+                        <i class="fas fa-file-invoice text-primary mr-1"></i> {% trans "Офферы" %}
+                        {% if offers %}<span class="badge badge-sm">{{ offers|length }}</span>{% endif %}
+                    </h3>
+                    {% if offers %}
+                    <div class="overflow-x-auto">
+                        <table class="table table-xs">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Тип" %}</th>
+                                    <th>{% trans "Цена" %}</th>
+                                    <th>{% trans "Дата" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for o in offers %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'offer_detail' o.uuid %}" class="link link-hover text-xs">
+                                            {{ o.get_offer_type_display }}
+                                        </a>
+                                    </td>
+                                    <td class="text-xs">{{ o.total_price }} {{ o.currency }}</td>
+                                    <td class="text-xs">{{ o.created_at|date:"d.m.Y" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-base-content/40">{% trans "Нет офферов" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Договоры -->
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <h3 class="font-bold text-sm mb-3">
+                        <i class="fas fa-file-contract text-primary mr-1"></i> {% trans "Договоры" %}
+                        {% if contracts %}<span class="badge badge-sm">{{ contracts|length }}</span>{% endif %}
+                    </h3>
+                    {% if contracts %}
+                    <div class="overflow-x-auto">
+                        <table class="table table-xs">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Номер" %}</th>
+                                    <th>{% trans "Статус" %}</th>
+                                    <th>{% trans "Дата" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in contracts %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'contract_detail' c.uuid %}" class="link link-hover text-xs">
+                                            {{ c.contract_number }}
+                                        </a>
+                                    </td>
+                                    <td><span class="badge badge-xs {% if c.status == 'signed' %}badge-success{% elif c.status == 'expired' or c.status == 'rejected' %}badge-error{% else %}badge-warning{% endif %}">{{ c.get_status_display }}</span></td>
+                                    <td class="text-xs">{{ c.created_at|date:"d.m.Y" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-base-content/40">{% trans "Нет договоров" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

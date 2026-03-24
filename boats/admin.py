@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Boat, Favorite, Booking, Review, Offer, ParsedBoat, Charter,
-    BoatTechnicalSpecs, BoatDescription, BoatPrice, BoatGallery, BoatDetails
+    BoatTechnicalSpecs, BoatDescription, BoatPrice, BoatGallery, BoatDetails,
+    ContractTemplate, Contract, Client, ContractOTP,
 )
 
 
@@ -189,3 +190,84 @@ class BoatDetailsAdmin(admin.ModelAdmin):
     list_display = ['boat', 'language']
     list_filter = ['language']
     search_fields = ['boat__slug']
+
+
+@admin.register(ContractTemplate)
+class ContractTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'contract_type', 'is_active', 'updated_at']
+    list_filter = ['contract_type', 'is_active']
+    search_fields = ['name']
+
+
+@admin.register(Contract)
+class ContractAdmin(admin.ModelAdmin):
+    list_display = ['contract_number', 'status', 'created_by', 'signer', 'booking', 'signed_at', 'created_at']
+    list_filter = ['status', 'created_at', 'signed_at']
+    search_fields = ['contract_number', 'created_by__username', 'signer__username', 'uuid']
+    readonly_fields = ['uuid', 'sign_token', 'document_hash', 'sign_ip', 'sign_user_agent', 'signed_at', 'created_at', 'updated_at']
+    ordering = ['-created_at']
+
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('uuid', 'contract_number', 'status', 'template')
+        }),
+        ('Связи', {
+            'fields': ('booking', 'offer', 'created_by', 'signer')
+        }),
+        ('Документы', {
+            'fields': ('document_file', 'signed_file', 'document_hash')
+        }),
+        ('Данные договора', {
+            'fields': ('contract_data',),
+            'classes': ('collapse',)
+        }),
+        ('Подписание', {
+            'fields': ('signature_data', 'signed_at', 'sign_ip', 'sign_user_agent', 'sign_token', 'expires_at'),
+            'classes': ('collapse',)
+        }),
+        ('Метаданные', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(ContractOTP)
+class ContractOTPAdmin(admin.ModelAdmin):
+    list_display = ['contract', 'code', 'phone', 'delivery_method', 'is_verified', 'attempts', 'created_at', 'expires_at']
+    list_filter = ['delivery_method', 'is_verified']
+    search_fields = ['contract__contract_number', 'phone']
+    readonly_fields = ['created_at']
+
+
+@admin.register(Client)
+class ClientAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'phone', 'email', 'created_by', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['last_name', 'first_name', 'middle_name', 'phone', 'email', 'passport_number']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['created_by', 'user']
+
+    fieldsets = (
+        ('ФИО', {
+            'fields': ('last_name', 'first_name', 'middle_name')
+        }),
+        ('Контакты', {
+            'fields': ('phone', 'email')
+        }),
+        ('Документы', {
+            'fields': ('passport_number', 'passport_issued_by', 'passport_date', 'address'),
+            'classes': ('collapse',)
+        }),
+        ('Связи', {
+            'fields': ('created_by', 'user')
+        }),
+        ('Дополнительно', {
+            'fields': ('notes', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def full_name(self, obj):
+        return obj.full_name
+    full_name.short_description = 'ФИО'

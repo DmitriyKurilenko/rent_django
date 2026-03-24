@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-03-19 (Europe/Moscow)
+Last updated: 2026-03-22 (Europe/Moscow)
 
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
@@ -50,8 +50,26 @@ Last updated: 2026-03-19 (Europe/Moscow)
 - Decision: command checks active Celery workers, dispatches batches, and can wait with timeout/poll summary.
 - Consequence: operator sees deterministic command outcome and partial completion info.
 
+## DR-010: Online contract signing with simple electronic signature (ПЭП)
+- Date: 2026-03-22
+- Context: agents need a way to formalize agreements with clients through online contract signing.
+- Decision: implement simple electronic signature (ПЭП) per Russian 63-ФЗ: canvas-drawn signature + audit log (IP, User-Agent, timestamp, SHA-256 hash). Public UUID-based signing links without authentication.
+- Consequence: legally sufficient for agent rental contracts per 63-ФЗ art. 6; no qualified signature infra needed; audit trail stored in Contract model.
+
+## DR-011: xhtml2pdf for PDF generation
+- Date: 2026-03-22
+- Context: need HTML→PDF for contract documents.
+- Decision: use xhtml2pdf==0.2.16 (pure Python, lighter than WeasyPrint). Requires libcairo2-dev system dep in Docker.
+- Consequence: Dockerfile updated with cairo dependencies; two-pass rendering embeds SHA-256 hash in final PDF.
+
 ## DR-009: Charter commissions import from XLSX without extra dependencies
 - Date: 2026-03-19
 - Context: commissions must be regularly loaded from `charters.xlsx`, while stack must stay unchanged.
 - Decision: implement management command `import_charter_commissions` with native XLSX parsing (`zipfile` + XML), matching charters by normalized `name`.
 - Consequence: no new dependency like `openpyxl`; import is deterministic and test-covered; optional creation of missing charters is explicit (`--create-missing`); decimal commissions from XLSX are rounded to integer (`ROUND_HALF_UP`) for `Charter.commission`; matching has second level by `lower()+без пробелов`, plus controlled fallback for duplicated letters (e.g. `Albatros` vs `Albatross`) with ambiguity protection; normalization strips trailing legal suffixes (`d.o.o.`, `ltd`, `co`, `sl`, etc.) and punctuation noise; rows with default commission `20%` are skipped from processing/reports; each run writes two CSV reports (`loaded` / `not_loaded`) for manual audit.
+
+## DR-012: Client entity separate from User
+- Date: 2026-03-24
+- Context: agents/captains need to track their customers (tourists) who may not have accounts in the system.
+- Decision: introduce `Client` model (boats/models.py) as a standalone entity with optional FK to `User`. Nullable FK added to Booking, Offer, and Contract. Client data auto-propagates through the chain: offer→booking→contract.
+- Consequence: client is not a Django User; agents manage clients independently; contract forms pre-fill from client passport/contact data; existing data unaffected (all FK fields nullable).

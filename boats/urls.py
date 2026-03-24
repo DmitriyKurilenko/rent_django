@@ -16,6 +16,7 @@ urlpatterns = [
     path('bookings/<int:booking_id>/delete/', views.delete_booking, name='delete_booking'),
     path('bookings/<int:booking_id>/status/', views.update_booking_status, name='update_booking_status'),
     path('bookings/<int:booking_id>/assign/', views.assign_booking_manager, name='assign_booking_manager'),
+    path('bookings/<int:booking_id>/attach-client/', views.attach_client_to_booking, name='attach_client_to_booking'),
     path('manage-boats/', views.manage_boats, name='manage_boats'),
     path('create-boat/', views.create_boat, name='create_boat'),
     
@@ -29,6 +30,21 @@ urlpatterns = [
     
     # Быстрое создание оффера
     path('boat/<str:boat_slug>/create-offer/', views.quick_create_offer, name='quick_create_offer'),
+
+    # Договоры
+    path('contracts/', views.contracts_list, name='contracts_list'),
+    path('contracts/create/<int:booking_id>/', views.create_contract, name='create_contract'),
+    path('contracts/<uuid:uuid>/', views.contract_detail, name='contract_detail'),
+    path('contracts/<uuid:uuid>/download/', views.download_contract, name='download_contract'),
+    path('contracts/<uuid:uuid>/sign/<uuid:sign_token>/', views.sign_contract, name='sign_contract'),
+    path('contracts/<uuid:uuid>/sign/<uuid:sign_token>/send-otp/', views.send_contract_otp, name='send_contract_otp'),
+
+    # Клиенты
+    path('clients/', views.clients_list, name='clients_list'),
+    path('clients/create/', views.client_create, name='client_create'),
+    path('clients/<int:pk>/', views.client_detail, name='client_detail'),
+    path('clients/<int:pk>/edit/', views.client_edit, name='client_edit'),
+    path('api/clients/search/', views.client_search_api, name='client_search_api'),
 
     # Информационные страницы
     path('terms/', views.terms, name='terms'),

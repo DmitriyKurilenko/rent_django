@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.urls import reverse
 import uuid
+from uuid import uuid4 as _uuid4
 
 
 class Charter(models.Model):
@@ -120,6 +121,75 @@ class Favorite(models.Model):
         return None
 
 
+class Client(models.Model):
+    """Клиент (турист) — заказчик агента/капитана"""
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='created_clients',
+        verbose_name='Создал (агент/капитан)'
+    )
+
+    # Опциональная связь с зарегистрированным пользователем
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='client_profile',
+        verbose_name='Аккаунт пользователя'
+    )
+
+    # ФИО
+    last_name = models.CharField('Фамилия', max_length=100)
+    first_name = models.CharField('Имя', max_length=100)
+    middle_name = models.CharField('Отчество', max_length=100, blank=True)
+
+    # Контакты
+    email = models.EmailField('Email', blank=True)
+    phone = models.CharField('Телефон', max_length=30)
+
+    # Документы
+    passport_number = models.CharField('Номер паспорта', max_length=50, blank=True)
+    passport_issued_by = models.CharField('Кем выдан', max_length=200, blank=True)
+    passport_date = models.DateField('Дата выдачи', null=True, blank=True)
+    address = models.TextField('Адрес', blank=True)
+
+    # Заметки агента
+    notes = models.TextField('Заметки', blank=True)
+
+    # Метаданные
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+    updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Клиент'
+        verbose_name_plural = 'Клиенты'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_by', '-created_at']),
+            models.Index(fields=['last_name', 'first_name']),
+        ]
+
+    def __str__(self):
+        return self.full_name
+
+    @property
+    def full_name(self):
+        parts = [self.last_name, self.first_name]
+        if self.middle_name:
+            parts.append(self.middle_name)
+        return ' '.join(parts)
+
+    @property
+    def short_name(self):
+        """Фамилия И.О."""
+        result = self.last_name
+        if self.first_name:
+            result += f' {self.first_name[0]}.'
+        if self.middle_name:
+            result += f'{self.middle_name[0]}.'
+        return result
+
+
 class Booking(models.Model):
     """Бронирование лодки"""
     
@@ -160,6 +230,14 @@ class Booking(models.Model):
     # Сообщение от туриста
     message = models.TextField('Сообщение', blank=True)
     
+    # Клиент (турист)
+    client = models.ForeignKey(
+        'Client', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='bookings',
+        verbose_name='Клиент'
+    )
+
     # Ответственный менеджер
     assigned_manager = models.ForeignKey(
         User, on_delete=models.SET_NULL,
@@ -180,6 +258,7 @@ class Booking(models.Model):
             models.Index(fields=['user', '-created_at']),
             models.Index(fields=['status', '-created_at']),
             models.Index(fields=['offer']),
+            models.Index(fields=['client']),
         ]
     
     def __str__(self):
@@ -332,6 +411,14 @@ class Offer(models.Model):
         help_text='Стандартный, без брендинга, или кастомный брендинг (заглушка)'
     )
     
+    # Клиент
+    client = models.ForeignKey(
+        'Client', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='offers',
+        verbose_name='Клиент'
+    )
+
     # URL источника (используем TextField вместо URLField чтобы поддерживать длинные URLs с параметрами)
     source_url = models.TextField('URL источника', max_length=2000, help_text='URL лодки с boataround.com (включает параметры checkIn и checkOut)')
     
@@ -733,3 +820,182 @@ class PriceSettings(models.Model):
             settings, _ = cls.objects.get_or_create(pk=1)
             cache.set('price_settings', settings, 300)
         return settings
+
+
+class ContractTemplate(models.Model):
+    """Шаблон договора (агентский, капитанский и т.д.)"""
+
+    CONTRACT_TYPE_CHOICES = [
+        ('agent_rental', 'Агентский договор аренды'),
+        ('captain_services', 'Договор капитанских услуг'),
+    ]
+
+    name = models.CharField('Название', max_length=200)
+    contract_type = models.CharField('Тип договора', max_length=30, choices=CONTRACT_TYPE_CHOICES, unique=True)
+    template_content = models.TextField('Содержимое шаблона', help_text='Django template markup для генерации PDF')
+    is_active = models.BooleanField('Активен', default=True)
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+    updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Шаблон договора'
+        verbose_name_plural = 'Шаблоны договоров'
+
+    def __str__(self):
+        return f"{self.name} ({self.get_contract_type_display()})"
+
+
+class Contract(models.Model):
+    """Экземпляр договора с возможностью онлайн-подписания"""
+
+    STATUS_CHOICES = [
+        ('draft', 'Черновик'),
+        ('sent', 'Отправлен'),
+        ('viewed', 'Просмотрен'),
+        ('signed', 'Подписан'),
+        ('rejected', 'Отклонён'),
+        ('expired', 'Истёк'),
+    ]
+
+    # Идентификация
+    uuid = models.UUIDField('UUID', default=uuid.uuid4, editable=False, unique=True)
+    contract_number = models.CharField('Номер договора', max_length=50, unique=True)
+
+    # Связи
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='contracts', verbose_name='Бронирование')
+    offer = models.ForeignKey(Offer, on_delete=models.SET_NULL, null=True, blank=True, related_name='contracts', verbose_name='Оффер')
+    template = models.ForeignKey(ContractTemplate, on_delete=models.PROTECT, verbose_name='Шаблон')
+
+    # Стороны договора
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contracts', verbose_name='Создатель (агент)')
+    signer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contracts_to_sign', verbose_name='Подписант (клиент)')
+    client = models.ForeignKey(
+        'Client', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='contracts',
+        verbose_name='Клиент'
+    )
+
+    # Данные договора (snapshot)
+    contract_data = models.JSONField('Данные договора', default=dict, help_text='ФИО, паспорт, условия и т.д.')
+
+    # Документы
+    document_file = models.FileField('PDF документ', upload_to='contracts/documents/', blank=True)
+    signed_file = models.FileField('Подписанный PDF', upload_to='contracts/signed/', blank=True)
+
+    # Статус
+    status = models.CharField('Статус', max_length=20, choices=STATUS_CHOICES, default='draft')
+
+    # Подписание
+    signature_data = models.TextField('Данные подписи (base64)', blank=True)
+    signed_at = models.DateTimeField('Дата подписания', null=True, blank=True)
+
+    # Аудит-лог подписания
+    sign_ip = models.GenericIPAddressField('IP подписания', null=True, blank=True)
+    sign_user_agent = models.TextField('User-Agent подписания', blank=True)
+    document_hash = models.CharField('SHA-256 хэш документа', max_length=64, blank=True)
+
+    # Токен для подписания без авторизации
+    sign_token = models.UUIDField('Токен подписания', default=_uuid4, unique=True)
+    expires_at = models.DateTimeField('Действителен до')
+
+    # Метаданные
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+    updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Договор'
+        verbose_name_plural = 'Договоры'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['uuid']),
+            models.Index(fields=['sign_token']),
+            models.Index(fields=['status']),
+            models.Index(fields=['-created_at']),
+        ]
+
+    def __str__(self):
+        return f"Договор {self.contract_number} — {self.get_status_display()}"
+
+    def get_absolute_url(self):
+        return reverse('contract_detail', kwargs={'uuid': self.uuid})
+
+    @staticmethod
+    def generate_contract_number():
+        """Генерирует номер договора: AG-{year}-{seq:05d}"""
+        import datetime
+        year = datetime.date.today().year
+        last = Contract.objects.filter(
+            contract_number__startswith=f'AG-{year}-'
+        ).order_by('-contract_number').first()
+        if last:
+            try:
+                seq = int(last.contract_number.split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                seq = 1
+        else:
+            seq = 1
+        return f'AG-{year}-{seq:05d}'
+
+    def is_expired(self):
+        from django.utils import timezone
+        return self.expires_at and self.expires_at < timezone.now()
+
+    def can_be_signed(self):
+        return self.status in ('sent', 'viewed') and not self.is_expired()
+
+
+class ContractOTP(models.Model):
+    """Одноразовый код для подписания договора"""
+
+    DELIVERY_CHOICES = [
+        ('sms', 'SMS'),
+    ]
+
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='otp_codes')
+    code = models.CharField('Код', max_length=6)
+    phone = models.CharField('Телефон', max_length=30)
+    delivery_method = models.CharField('Способ доставки', max_length=20, choices=DELIVERY_CHOICES, default='sms')
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+    expires_at = models.DateTimeField('Истекает')
+    attempts = models.PositiveIntegerField('Попытки ввода', default=0)
+    is_verified = models.BooleanField('Подтверждён', default=False)
+
+    MAX_ATTEMPTS = 5
+    CODE_LIFETIME_SECONDS = 300  # 5 минут
+
+    class Meta:
+        verbose_name = 'OTP код договора'
+        verbose_name_plural = 'OTP коды договоров'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OTP {self.code} для {self.contract.contract_number}"
+
+    def is_expired(self):
+        from django.utils import timezone
+        return self.expires_at < timezone.now()
+
+    def is_valid(self):
+        return not self.is_expired() and not self.is_verified and self.attempts < self.MAX_ATTEMPTS
+
+    @classmethod
+    def generate_code(cls):
+        import random
+        return f'{random.randint(100000, 999999)}'
+
+    @classmethod
+    def create_for_contract(cls, contract, phone, delivery_method='sms'):
+        from django.utils import timezone
+        from datetime import timedelta
+        # Деактивируем предыдущие неиспользованные коды
+        cls.objects.filter(contract=contract, is_verified=False).update(
+            expires_at=timezone.now()
+        )
+        return cls.objects.create(
+            contract=contract,
+            code=cls.generate_code(),
+            phone=phone,
+            delivery_method=delivery_method,
+            expires_at=timezone.now() + timedelta(seconds=cls.CODE_LIFETIME_SECONDS),
+        )

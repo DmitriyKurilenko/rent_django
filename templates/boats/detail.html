@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load boat_filters %}
 {% load l10n %}
+{% load i18n %}
 
 {% block title %}{{ boat.name }} - Ахой!Rent{% endblock %}
 
@@ -705,6 +706,30 @@
                 {% csrf_token %}
                 <input type="hidden" name="price_adjustment" :value="priceAdjustment || 0" />
 
+                <!-- Выбор клиента -->
+                <div class="form-control mb-4" x-data="quickClientSelector()">
+                    <label class="label"><span class="label-text font-semibold">{% trans "Клиент" %}</span></label>
+                    <div class="relative">
+                        <template x-if="!selectedClient">
+                            <div>
+                                <input type="text" x-model="searchQuery" @input.debounce.300ms="search()" @focus="showDropdown = true" @click.away="showDropdown = false" placeholder="{% trans 'Поиск клиента...' %}" class="input input-bordered input-sm w-full" autocomplete="off" />
+                                <div x-show="showDropdown && results.length > 0" class="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                    <template x-for="client in results" :key="client.id">
+                                        <button type="button" @click="selectClient(client)" class="block w-full text-left px-3 py-2 hover:bg-base-200 text-sm" x-text="`${client.full_name} ${client.phone || ''}`"></button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="selectedClient">
+                            <div class="flex items-center gap-2 bg-base-200 rounded-lg px-3 py-2">
+                                <span class="text-sm flex-1" x-text="selectedClient.full_name"></span>
+                                <button type="button" @click="clearSelection()" class="btn btn-ghost btn-xs">✕</button>
+                            </div>
+                        </template>
+                        <input type="hidden" name="client_id" :value="selectedClient ? selectedClient.id : ''" />
+                    </div>
+                </div>
+
                 <div class="form-control mb-4">
                     <label class="label">
                         <span class="label-text font-semibold">Тип оффера</span>
@@ -753,6 +778,30 @@
                 {% csrf_token %}
                 <input type="hidden" name="offer_type" value="captain" />
                 <input type="hidden" name="price_adjustment" :value="priceAdjustment || 0" />
+
+                <!-- Выбор клиента -->
+                <div class="form-control mb-4" x-data="quickClientSelector()">
+                    <label class="label"><span class="label-text font-semibold">{% trans "Клиент" %}</span></label>
+                    <div class="relative">
+                        <template x-if="!selectedClient">
+                            <div>
+                                <input type="text" x-model="searchQuery" @input.debounce.300ms="search()" @focus="showDropdown = true" @click.away="showDropdown = false" placeholder="{% trans 'Поиск клиента...' %}" class="input input-bordered input-sm w-full" autocomplete="off" />
+                                <div x-show="showDropdown && results.length > 0" class="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                    <template x-for="client in results" :key="client.id">
+                                        <button type="button" @click="selectClient(client)" class="block w-full text-left px-3 py-2 hover:bg-base-200 text-sm" x-text="`${client.full_name} ${client.phone || ''}`"></button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="selectedClient">
+                            <div class="flex items-center gap-2 bg-base-200 rounded-lg px-3 py-2">
+                                <span class="text-sm flex-1" x-text="selectedClient.full_name"></span>
+                                <button type="button" @click="clearSelection()" class="btn btn-ghost btn-xs">✕</button>
+                            </div>
+                        </template>
+                        <input type="hidden" name="client_id" :value="selectedClient ? selectedClient.id : ''" />
+                    </div>
+                </div>
 
                 <div class="alert alert-info mb-4">
                     <i class="fas fa-info-circle"></i>
@@ -905,6 +954,35 @@
         const url = window.location.href;
         navigator.clipboard.writeText(url);
         alert('Ссылка скопирована в буфер обмена!');
+    }
+
+    const _CLIENT_SEARCH_URL = '{% url "client_search_api" %}';
+
+    function quickClientSelector() {
+        return {
+            searchQuery: '',
+            results: [],
+            selectedClient: null,
+            showDropdown: false,
+            async search() {
+                if (this.searchQuery.length < 2) { this.results = []; return; }
+                try {
+                    const resp = await fetch(`${_CLIENT_SEARCH_URL}?q=${encodeURIComponent(this.searchQuery)}`);
+                    const data = await resp.json();
+                    this.results = data.results || [];
+                    this.showDropdown = true;
+                } catch (e) { this.results = []; }
+            },
+            selectClient(client) {
+                this.selectedClient = client;
+                this.showDropdown = false;
+                this.searchQuery = '';
+                this.results = [];
+            },
+            clearSelection() {
+                this.selectedClient = null;
+            }
+        }
     }
 </script>
 

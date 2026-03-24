@@ -1,0 +1,79 @@
+{% load i18n %}
+{# Shared LK sidebar menu. Usage: {% include 'includes/lk_sidebar.html' with active_page='bookings' %} #}
+{# active_page values: dashboard, profile, favorites, offers, bookings, contracts, clients, prices #}
+{# For profile.html pass is_profile_page=True to render Alpine.js tab buttons for dashboard/profile/prices #}
+
+<div class="hidden md:block md:col-span-1">
+    <div class="card bg-base-100 shadow-sm sticky top-24">
+        <div class="card-body p-4">
+            <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
+            <div class="space-y-2">
+                {# Дашборд #}
+                {% if is_profile_page %}
+                <button type="button" class="btn btn-sm justify-start w-full" :class="activeTab === 'dashboard' ? 'btn-primary' : 'btn-ghost'" @click="activeTab = 'dashboard'">
+                    <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
+                </button>
+                {% else %}
+                <a href="{% url 'profile' %}" class="btn btn-sm {% if active_page == 'dashboard' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-chart-line"></i> {% trans "Дашборд" %}
+                </a>
+                {% endif %}
+
+                {# Профиль #}
+                {% if is_profile_page %}
+                <button type="button" class="btn btn-sm justify-start w-full" :class="activeTab === 'profile' ? 'btn-primary' : 'btn-ghost'" @click="activeTab = 'profile'">
+                    <i class="fas fa-user"></i> {% trans "Профиль" %}
+                </button>
+                {% else %}
+                <a href="{% url 'profile' %}?tab=profile" class="btn btn-sm {% if active_page == 'profile' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-user"></i> {% trans "Профиль" %}
+                </a>
+                {% endif %}
+
+                {# Избранное #}
+                <a href="{% url 'favorites_list' %}" class="btn btn-sm {% if active_page == 'favorites' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-heart"></i> {% trans "Избранное" %}
+                </a>
+
+                {# Офферы #}
+                {% if user.profile.can_create_offers %}
+                <a href="{% url 'offers_list' %}" class="btn btn-sm {% if active_page == 'offers' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-file-invoice"></i> {% trans "Офферы" %}
+                </a>
+                {% endif %}
+
+                {# Бронирования #}
+                <a href="{% url 'my_bookings' %}" class="btn btn-sm {% if active_page == 'bookings' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-calendar-check"></i> {% trans "Бронирования" %}
+                </a>
+
+                {# Договоры #}
+                {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'admin' or user.profile.role == 'superadmin' %}
+                <a href="{% url 'contracts_list' %}" class="btn btn-sm {% if active_page == 'contracts' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-file-contract"></i> {% trans "Договоры" %}
+                </a>
+                {% endif %}
+
+                {# Клиенты #}
+                {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'admin' or user.profile.role == 'superadmin' %}
+                <a href="{% url 'clients_list' %}" class="btn btn-sm {% if active_page == 'clients' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-users"></i> {% trans "Клиенты" %}
+                </a>
+                {% endif %}
+
+                {# Настройки цен #}
+                {% if user.profile.can_manage_prices %}
+                {% if is_profile_page %}
+                <button type="button" class="btn btn-sm justify-start w-full" :class="activeTab === 'prices' ? 'btn-primary' : 'btn-ghost'" @click="activeTab = 'prices'">
+                    <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
+                </button>
+                {% else %}
+                <a href="{% url 'profile' %}?tab=prices" class="btn btn-sm {% if active_page == 'prices' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
+                </a>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

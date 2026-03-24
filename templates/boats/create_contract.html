@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Создание договора" %}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-3xl">
+    <div class="mb-6">
+        <a href="{% url 'my_bookings' %}" class="btn btn-ghost btn-sm gap-1">
+            <i class="fas fa-arrow-left"></i> {% trans "Назад к бронированиям" %}
+        </a>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm mb-6">
+        <div class="card-body">
+            <h1 class="text-2xl font-bold mb-2">
+                <i class="fas fa-file-contract"></i> {% trans "Создание договора" %}
+            </h1>
+            <p class="text-base-content/70 text-sm">
+                {% trans "Бронирование" %} #{{ booking.id }} —
+                {{ booking.boat_title }}
+                ({{ booking.start_date|date:"d.m.Y" }} — {{ booking.end_date|date:"d.m.Y" }})
+            </p>
+        </div>
+    </div>
+
+    <!-- Информация о бронировании -->
+    <div class="card bg-base-100 shadow-sm mb-6">
+        <div class="card-body">
+            <h2 class="font-bold text-lg mb-3">
+                <i class="fas fa-ship text-primary"></i> {% trans "Детали бронирования" %}
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                    <span class="text-base-content/60">{% trans "Яхта" %}:</span>
+                    <span class="font-medium">{{ booking.boat_title }}</span>
+                </div>
+                <div>
+                    <span class="text-base-content/60">{% trans "Период" %}:</span>
+                    <span class="font-medium">{{ booking.start_date|date:"d.m.Y" }} — {{ booking.end_date|date:"d.m.Y" }}</span>
+                </div>
+                <div>
+                    <span class="text-base-content/60">{% trans "Стоимость" %}:</span>
+                    <span class="font-bold text-primary">{{ booking.total_price|floatformat:0 }} {{ booking.currency }}</span>
+                </div>
+                <div>
+                    <span class="text-base-content/60">{% trans "Клиент" %}:</span>
+                    <span class="font-medium">{{ booking.user.get_full_name|default:booking.user.username }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Форма -->
+    <form method="POST" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Данные клиента -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="font-bold text-lg mb-4">
+                    <i class="fas fa-user text-info"></i> {% trans "Данные клиента (подписант)" %}
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control md:col-span-2">
+                        <label class="label"><span class="label-text">{{ form.signer_full_name.label }}</span></label>
+                        {{ form.signer_full_name }}
+                        {% if form.signer_full_name.errors %}<p class="text-error text-xs mt-1">{{ form.signer_full_name.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">{{ form.signer_passport.label }}</span></label>
+                        {{ form.signer_passport }}
+                        {% if form.signer_passport.errors %}<p class="text-error text-xs mt-1">{{ form.signer_passport.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">{{ form.signer_phone.label }}</span></label>
+                        {{ form.signer_phone }}
+                        {% if form.signer_phone.errors %}<p class="text-error text-xs mt-1">{{ form.signer_phone.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">{{ form.signer_email.label }}</span></label>
+                        {{ form.signer_email }}
+                        {% if form.signer_email.errors %}<p class="text-error text-xs mt-1">{{ form.signer_email.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">{{ form.signer_address.label }}</span></label>
+                        {{ form.signer_address }}
+                        {% if form.signer_address.errors %}<p class="text-error text-xs mt-1">{{ form.signer_address.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Данные агента -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="font-bold text-lg mb-4">
+                    <i class="fas fa-user-tie text-primary"></i> {% trans "Данные агента" %}
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">{{ form.agent_full_name.label }}</span></label>
+                        {{ form.agent_full_name }}
+                        {% if form.agent_full_name.errors %}<p class="text-error text-xs mt-1">{{ form.agent_full_name.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">{{ form.agent_company.label }}</span></label>
+                        {{ form.agent_company }}
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">{{ form.agent_phone.label }}</span></label>
+                        {{ form.agent_phone }}
+                        {% if form.agent_phone.errors %}<p class="text-error text-xs mt-1">{{ form.agent_phone.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Дополнительные условия -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="font-bold text-lg mb-4">
+                    <i class="fas fa-plus-circle text-warning"></i> {% trans "Дополнительные условия" %}
+                </h2>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">{{ form.additional_terms.label }}</span></label>
+                    {{ form.additional_terms }}
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+            <a href="{% url 'my_bookings' %}" class="btn btn-ghost">{% trans "Отмена" %}</a>
+            <button type="submit" class="btn btn-primary gap-2">
+                <i class="fas fa-file-pdf"></i> {% trans "Создать договор" %}
+            </button>
+        </div>
+    </form>
+</div>
+
+
+{% endblock %}

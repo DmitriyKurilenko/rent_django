@@ -299,7 +299,7 @@ function searchForm() {
             if (this.checkOut) params.append('check_out', this.checkOut);
             if (this.boatType) params.append('category', this.boatType);
             
-            window.location.href = `/boats/search/?${params.toString()}`;
+            window.location.href = `{% url 'boat_search' %}?${params.toString()}`;
         }
     }
 }

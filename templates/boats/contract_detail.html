@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Договор" %} {{ contract.contract_number }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6 max-w-4xl">
+    <div class="mb-6 flex items-center justify-between">
+        <a href="{% url 'contracts_list' %}" class="btn btn-ghost btn-sm gap-1">
+            <i class="fas fa-arrow-left"></i> {% trans "Все договоры" %}
+        </a>
+        {% if can_manage and contract.status == 'draft' %}
+        <a href="{% url 'my_bookings' %}" class="btn btn-ghost btn-sm">{% trans "К бронированиям" %}</a>
+        {% endif %}
+    </div>
+
+    <!-- Заголовок и статус -->
+    <div class="card bg-base-100 shadow-sm mb-6">
+        <div class="card-body">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold">
+                        <i class="fas fa-file-contract"></i>
+                        {% trans "Договор" %} {{ contract.contract_number }}
+                    </h1>
+                    <p class="text-base-content/70 text-sm mt-1">
+                        {% trans "Создан" %}: {{ contract.created_at|date:"d.m.Y H:i" }}
+                    </p>
+                </div>
+                <div>
+                    {% if contract.status == 'draft' %}
+                        <span class="badge badge-ghost badge-lg">{% trans "Черновик" %}</span>
+                    {% elif contract.status == 'sent' %}
+                        <span class="badge badge-info badge-lg">{% trans "Отправлен" %}</span>
+                    {% elif contract.status == 'viewed' %}
+                        <span class="badge badge-warning badge-lg">{% trans "Просмотрен" %}</span>
+                    {% elif contract.status == 'signed' %}
+                        <span class="badge badge-success badge-lg"><i class="fas fa-check mr-1"></i>{% trans "Подписан" %}</span>
+                    {% elif contract.status == 'rejected' %}
+                        <span class="badge badge-error badge-lg">{% trans "Отклонён" %}</span>
+                    {% elif contract.status == 'expired' %}
+                        <span class="badge badge-ghost badge-lg">{% trans "Истёк" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <!-- Стороны -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="font-bold mb-3"><i class="fas fa-users text-primary"></i> {% trans "Стороны" %}</h2>
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <div class="text-base-content/60">{% trans "Агент" %}</div>
+                        <div class="font-medium">{{ contract.contract_data.agent_full_name }}</div>
+                        {% if contract.contract_data.agent_company %}
+                        <div class="text-xs text-base-content/50">{{ contract.contract_data.agent_company }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="divider my-1"></div>
+                    <div>
+                        <div class="text-base-content/60">{% trans "Клиент" %}</div>
+                        <div class="font-medium">{{ contract.contract_data.signer_full_name }}</div>
+                        <div class="text-xs text-base-content/50">{{ contract.contract_data.signer_email }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Детали -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <h2 class="font-bold mb-3"><i class="fas fa-info-circle text-info"></i> {% trans "Детали" %}</h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-base-content/60">{% trans "Бронирование" %}</span>
+                        <span class="font-medium">#{{ contract.booking.id }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-base-content/60">{% trans "Период" %}</span>
+                        <span>{{ contract.booking.start_date|date:"d.m.Y" }} — {{ contract.booking.end_date|date:"d.m.Y" }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-base-content/60">{% trans "Стоимость" %}</span>
+                        <span class="font-bold text-primary">{{ contract.booking.total_price|floatformat:0 }} {{ contract.booking.currency }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-base-content/60">{% trans "Действителен до" %}</span>
+                        <span>{{ contract.expires_at|date:"d.m.Y H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if contract.status == 'signed' %}
+    <!-- Информация о подписании -->
+    <div class="card bg-success/10 shadow-sm mb-6">
+        <div class="card-body">
+            <h2 class="font-bold mb-3 text-success"><i class="fas fa-check-circle"></i> {% trans "Подписан" %}</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                    <span class="text-base-content/60">{% trans "Дата подписания" %}:</span>
+                    <span class="font-medium">{{ contract.signed_at|date:"d.m.Y H:i" }}</span>
+                </div>
+                <div>
+                    <span class="text-base-content/60">{% trans "IP" %}:</span>
+                    <span class="font-mono text-xs">{{ contract.sign_ip }}</span>
+                </div>
+                {% if contract.contract_data.signed_name_confirm %}
+                <div>
+                    <span class="text-base-content/60">{% trans "Подтверждённое ФИО" %}:</span>
+                    <span class="font-medium">{{ contract.contract_data.signed_name_confirm }}</span>
+                </div>
+                {% endif %}
+                <div>
+                    <span class="text-base-content/60">{% trans "Хэш документа" %}:</span>
+                    <span class="font-mono text-xs">{{ contract.document_hash|truncatechars:20 }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Действия -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+            <h2 class="font-bold mb-4"><i class="fas fa-cog"></i> {% trans "Действия" %}</h2>
+            <div class="flex flex-wrap gap-3">
+                {% if contract.document_file %}
+                <a href="{% url 'download_contract' contract.uuid %}" class="btn btn-primary btn-sm gap-1">
+                    <i class="fas fa-download"></i> {% trans "Скачать PDF" %}
+                </a>
+                {% endif %}
+
+                {% if can_manage and contract.status in 'sent,viewed' %}
+                <div x-data="{ copied: false }">
+                    <button
+                        class="btn btn-info btn-sm gap-1"
+                        @click="navigator.clipboard.writeText('{{ sign_url }}'); copied = true; setTimeout(() => copied = false, 2000)"
+                    >
+                        <i class="fas fa-copy"></i>
+                        <span x-show="!copied">{% trans "Копировать ссылку для подписания" %}</span>
+                        <span x-show="copied" x-cloak>{% trans "Скопировано!" %}</span>
+                    </button>
+                </div>
+                {% endif %}
+
+                {% if contract.offer %}
+                <a href="{% url 'offer_detail' contract.offer.uuid %}" class="btn btn-ghost btn-sm gap-1">
+                    <i class="fas fa-file-invoice"></i> {% trans "Оффер" %}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
