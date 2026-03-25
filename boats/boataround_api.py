@@ -380,6 +380,70 @@ class BoataroundAPI:
             }
 
     @staticmethod
+    def _fetch_price_once(url, params, headers):
+        """Single price API request with network retries."""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+                break
+            except (requests.Timeout, requests.ConnectionError) as net_err:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"[Price] Retry {attempt + 1}/{max_retries} due to network error: {net_err}"
+                    )
+                    import time
+                    time.sleep(2 ** attempt)
+                else:
+                    logger.warning(f"[Price] Failed after {max_retries} attempts: {net_err}")
+                    return None
+        else:
+            return None
+
+        if response.status_code != 200:
+            return None
+
+        data = response.json()
+        if not isinstance(data, dict) or 'data' not in data:
+            return None
+        outer_list = data.get('data', [])
+        if not isinstance(outer_list, list) or not outer_list:
+            return None
+        outer_data = outer_list[0]
+        if not isinstance(outer_data, dict) or 'data' not in outer_data:
+            return None
+        inner_list = outer_data.get('data', [])
+        if not isinstance(inner_list, list) or not inner_list:
+            return None
+        price_info = inner_list[0]
+        if not isinstance(price_info, dict):
+            return None
+
+        base_price = 0
+        discount_without_extra = 0
+        additional_discount = 0
+        policies = price_info.get('policies', [])
+        if policies and len(policies) > 0:
+            prices = policies[0].get('prices', {})
+            if prices:
+                base_price = prices.get('price', 0)
+                discount_without_extra = prices.get('discount_without_additionalExtra', 0)
+                additional_discount = prices.get('additional_discount', 0)
+
+        if not base_price:
+            base_price = price_info.get('price', 0)
+
+        return {
+            'price': base_price,
+            'totalPrice': price_info.get('totalPrice', 0),
+            'discount': price_info.get('discount', 0),
+            'discount_without_additionalExtra': discount_without_extra,
+            'additional_discount': additional_discount,
+            'slug': price_info.get('slug'),
+            'title': price_info.get('title'),
+        }
+
+    @staticmethod
     def get_price(
         slug: str,
         check_in: Optional[str] = None,
@@ -388,102 +452,81 @@ class BoataroundAPI:
         lang: str = 'en_EN'
     ) -> Dict:
         """
-        Получение цены для конкретной лодки
-        
-        Args:
-            slug: Slug лодки
-            check_in: Дата заезда (YYYY-MM-DD)
-            check_out: Дата выезда (YYYY-MM-DD)
-            currency: Валюта (EUR, USD, etc)
-            lang: Язык
-            
-        Returns:
-            Dict: Данные о цене
+        Получение стабильной цены для лодки.
+
+        API boataround нестабилен: один и тот же запрос может вернуть разные
+        totalPrice. Для стабилизации:
+        1. Делаем до 3 запросов, ищем два совпадающих totalPrice.
+        2. Результат кешируем в Redis (6 ч) и обновляем только при
+           консенсусе (2+ одинаковых ответа).
         """
         try:
+            from django.core.cache import cache as django_cache
+
             url = f"{BoataroundAPI.BASE_URL}/price/{slug}"
-            
             params = {
                 'currency': currency,
                 'lang': lang,
                 'loggedIn': '0'
             }
-            
             if check_in:
                 params['checkIn'] = check_in
             if check_out:
                 params['checkOut'] = check_out
 
-            # Цена нужна на критичном пути открытия карточки: делаем мягкие ретраи
-            # при сетевых проблемах, чтобы снизить количество ложных "ошибок".
-            max_retries = 3
-            response = None
-            for attempt in range(max_retries):
-                try:
-                    response = requests.get(
-                        url,
-                        params=params,
-                        headers=BoataroundAPI.HEADERS,
-                        timeout=10
-                    )
+            cache_key = f"price_consensus:{slug}:{check_in}:{check_out}:{currency}"
+
+            # --- Делаем до 3 запросов для консенсуса ---
+            results = []
+            consensus_result = None
+
+            for i in range(3):
+                result = BoataroundAPI._fetch_price_once(url, params, BoataroundAPI.HEADERS)
+                if not result:
+                    continue
+                results.append(result)
+
+                # Ищем пару с одинаковым totalPrice
+                tp = round(float(result.get('totalPrice', 0)), 2)
+                for prev in results[:-1]:
+                    if round(float(prev.get('totalPrice', 0)), 2) == tp:
+                        consensus_result = result
+                        break
+                if consensus_result:
                     break
-                except (requests.Timeout, requests.ConnectionError) as net_err:
-                    if attempt < max_retries - 1:
-                        logger.warning(
-                            f"[Price] Retry {attempt + 1}/{max_retries} for {slug} due to network error: {net_err}"
-                        )
-                        import time
-                        time.sleep(2 ** attempt)
-                    else:
-                        logger.warning(f"[Price] Failed after {max_retries} attempts for {slug}: {net_err}")
-                        return {}
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # API возвращает: data[0]['data'][0] с информацией о цене
-                if isinstance(data, dict) and 'data' in data:
-                    outer_list = data.get('data', [])
-                    if isinstance(outer_list, list) and len(outer_list) > 0:
-                        outer_data = outer_list[0]
-                        if isinstance(outer_data, dict) and 'data' in outer_data:
-                            inner_list = outer_data.get('data', [])
-                            if isinstance(inner_list, list) and len(inner_list) > 0:
-                                price_info = inner_list[0]
-                                if isinstance(price_info, dict):
-                                    # Получаем все параметры цены из policies[0].prices (объект с price_id)
-                                    base_price = 0
-                                    discount_without_extra = 0
-                                    additional_discount = 0
-                                    policies = price_info.get('policies', [])
-                                    if policies and len(policies) > 0:
-                                        prices = policies[0].get('prices', {})
-                                        if prices:
-                                            price_id = prices.get('price_id')
-                                            base_price = prices.get('price', 0)  # Цена из policies.prices
-                                            discount_without_extra = prices.get('discount_without_additionalExtra', 0)
-                                            additional_discount = prices.get('additional_discount', 0)
-                                            logger.debug(f"[get_price] Using prices from price_id={price_id}: price={base_price}, discount_without_extra={discount_without_extra}, additional_discount={additional_discount}")
-                                    
-                                    # Если нет policies, используем цену с верхнего уровня как fallback
-                                    if not base_price:
-                                        base_price = price_info.get('price', 0)
-                                    
-                                    # Возвращаем только нужные поля включая все скидки
-                                    return {
-                                        'price': base_price,
-                                        'totalPrice': price_info.get('totalPrice', 0),
-                                        'discount': price_info.get('discount', 0),
-                                        'discount_without_additionalExtra': discount_without_extra,
-                                        'additional_discount': additional_discount,
-                                        'slug': price_info.get('slug'),
-                                        'title': price_info.get('title'),
-                                    }
-                
-                return {}
-            
+
+                # Первый запрос прошёл — ждём немного перед вторым
+                if i < 2:
+                    import time
+                    time.sleep(0.3)
+
+            if consensus_result:
+                logger.debug(
+                    f"[Price] Consensus reached for {slug} after {len(results)} requests: "
+                    f"totalPrice={consensus_result.get('totalPrice')}"
+                )
+                django_cache.set(cache_key, consensus_result, 60 * 60 * 6)
+                return consensus_result
+
+            # Нет консенсуса — пробуем кеш
+            cached = django_cache.get(cache_key)
+            if cached:
+                logger.info(
+                    f"[Price] No consensus for {slug} after {len(results)} requests, "
+                    f"using cached price: totalPrice={cached.get('totalPrice')}"
+                )
+                return cached
+
+            # Нет кеша — возвращаем первый результат (лучше, чем ничего)
+            if results:
+                logger.warning(
+                    f"[Price] No consensus and no cache for {slug}, using first result: "
+                    f"totalPrice={results[0].get('totalPrice')}"
+                )
+                return results[0]
+
             return {}
-            
+
         except Exception as e:
             logger.error(f"[Price] Error getting price for {slug}: {e}")
             return {}

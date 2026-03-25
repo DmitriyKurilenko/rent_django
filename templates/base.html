@@ -65,6 +65,11 @@
                             </form>
                         </li>
                     {% endfor %}
+                    <li>
+                        <a onclick="toggleTheme()" class="cursor-pointer">
+                            <i class="fas fa-circle-half-stroke mr-2"></i>{% trans "Сменить тему" %}
+                        </a>
+                    </li>
                 </ul>
             </div>
             <a href="{% url 'home' %}" class="btn btn-ghost normal-case text-xl">
