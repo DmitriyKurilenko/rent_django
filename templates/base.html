@@ -1,18 +1,11 @@
 {% load i18n %}
 {% load static %}
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="winter">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Ахой!Rent - Аренда яхт и лодок{% endblock %}</title>
-    <script>
-        (function(){
-            var t = localStorage.getItem('theme');
-            if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', t);
-        })();
-    </script>
     
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
@@ -65,11 +58,6 @@
                             </form>
                         </li>
                     {% endfor %}
-                    <li>
-                        <a onclick="toggleTheme()" class="cursor-pointer">
-                            <i class="fas fa-circle-half-stroke mr-2"></i>{% trans "Сменить тему" %}
-                        </a>
-                    </li>
                 </ul>
             </div>
             <a href="{% url 'home' %}" class="btn btn-ghost normal-case text-xl">
@@ -88,11 +76,6 @@
                     <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt mr-2"></i>{% trans "Войти" %}</a></li>
                 {% endif %}
             </ul>
-            <!-- Theme Toggle -->
-            <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" aria-label="Toggle theme">
-                <i class="fas fa-moon" id="theme-icon-dark" style="display:none"></i>
-                <i class="fas fa-sun" id="theme-icon-light" style="display:none"></i>
-            </button>
             <!-- Language Selector -->
             <div class="dropdown dropdown-end">
                 <label tabindex="0" class="btn btn-ghost btn-sm">
@@ -175,27 +158,5 @@
     {% endif %}
     
     {% block extra_js %}{% endblock %}
-    <script>
-        function updateThemeIcons() {
-            var t = document.documentElement.getAttribute('data-theme');
-            document.getElementById('theme-icon-dark').style.display = (t === 'light') ? 'inline' : 'none';
-            document.getElementById('theme-icon-light').style.display = (t === 'dark') ? 'inline' : 'none';
-        }
-        function toggleTheme() {
-            var current = document.documentElement.getAttribute('data-theme');
-            var next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
-            localStorage.setItem('theme', next);
-            updateThemeIcons();
-        }
-        updateThemeIcons();
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-            if (!localStorage.getItem('theme')) {
-                var t = e.matches ? 'dark' : 'light';
-                document.documentElement.setAttribute('data-theme', t);
-                updateThemeIcons();
-            }
-        });
-    </script>
 </body>
 </html>

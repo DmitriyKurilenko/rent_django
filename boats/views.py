@@ -247,6 +247,7 @@ def boat_search(request):
                 'discount_percent': int(round(_to_float(item.get('discount_percent')))),
                 'price_per_day': round(_to_float(item.get('price_per_day')), 2),
                 'currency': str(item.get('currency') or 'EUR'),
+                'price_breakdown': item.get('price_breakdown'),
             }
 
         def _same_snapshot(a, b):
@@ -317,6 +318,8 @@ def boat_search(request):
                     formatted_boat['discount_percent'] = display.get('discount_percent', formatted_boat.get('discount_percent', 0))
                     formatted_boat['price_per_day'] = display.get('price_per_day', formatted_boat.get('price_per_day', 0))
                     formatted_boat['currency'] = display.get('currency', formatted_boat.get('currency', 'EUR'))
+                    if display.get('price_breakdown'):
+                        formatted_boat['price_breakdown'] = display['price_breakdown']
 
                 # Превью: CDN если есть, иначе thumb из API
                 cdn_preview = preview_map.get(formatted_boat.get('slug', ''))
@@ -958,6 +961,26 @@ def boat_detail_api(request, boat_id):
             'current_language': current_lang,
         }
 
+        # Расшифровка цены для captain/manager/admin
+        if request.user.is_authenticated and request.user.profile.role in ('captain', 'manager', 'superadmin'):
+            charter_name = ''
+            if parsed_boat and parsed_boat.charter:
+                charter_name = parsed_boat.charter.name or ''
+            charter_commission_amount_val = round(float(quote.get('final_price', 0)) * charter_commission / 100, 2) if charter_commission else 0
+            agent_commission_val = round(charter_commission_amount_val / 2, 2)
+            context['price_breakdown'] = {
+                'base_price': round(float(quote.get('base_price', 0)), 2),
+                'discount_without_extra': round(float(quote.get('discount_without_extra', 0)), 2),
+                'additional_discount': round(float(quote.get('additional_discount', 0)), 2),
+                'charter_commission': round(charter_commission, 2),
+                'charter_commission_amount': charter_commission_amount_val,
+                'agent_commission': agent_commission_val,
+                'extra_discount_applied': round(float(quote.get('extra_discount_applied', 0)), 2),
+                'final_price': round(float(quote.get('final_price', 0)), 2),
+                'charter_name': charter_name,
+                'source': quote.get('source', ''),
+            }
+
         # Избранное — всегда из БД (персональное, не кэшируем)
         if request.user.is_authenticated:
             context['is_favorite'] = Favorite.objects.filter(
@@ -1187,6 +1210,17 @@ def my_bookings(request):
     pending_bookings = bookings_qs.filter(status='pending').count()
     confirmed_bookings = bookings_qs.filter(status='confirmed').count()
 
+    # Расшифровка цены для капитанов/менеджеров/админов
+    booking_price_debug = {}
+    show_price_debug = user.profile.role in ('captain', 'manager', 'admin', 'superadmin')
+    if show_price_debug:
+        for b in bookings:
+            if b.offer:
+                try:
+                    booking_price_debug[b.pk] = _build_price_debug(b.offer)
+                except Exception:
+                    pass
+
     # Список менеджеров для суперадмина
     managers = []
     if user.profile.role == 'superadmin':
@@ -1201,6 +1235,7 @@ def my_bookings(request):
         'author_query': author_query,
         'only_mine': only_mine,
         'managers': managers,
+        'booking_price_debug': booking_price_debug,
     }
     return render(request, 'boats/my_bookings.html', context)
 
@@ -2014,7 +2049,7 @@ def offer_detail(request, uuid):
         'data_error': data_error,
     }
 
-    if request.user.is_authenticated and request.user.profile.role in ('manager', 'admin', 'superadmin'):
+    if request.user.is_authenticated and request.user.profile.role in ('captain', 'manager', 'admin', 'superadmin'):
         context['price_debug'] = _build_price_debug(offer)
 
     # Выбираем шаблон в зависимости от типа оффера
@@ -2036,25 +2071,47 @@ def _strip_last_sentence(text: str) -> str:
 
 def _build_price_debug(offer):
     """Разбивка формулы цены для отладки."""
-    from boats.models import PriceSettings
+    from boats.models import PriceSettings, ParsedBoat
     from boats.helpers import TURKEY_NAMES, SEYCHELLES_NAMES
 
     cfg = PriceSettings.get_settings()
     bd = offer.boat_data
     adjustment = float(offer.price_adjustment or 0)
 
+    # Комиссия чартера и агентская комиссия (сумма = 50% от чартерной в деньгах)
+    charter_commission = 0.0
+    charter_commission_amount = 0.0
+    agent_commission = 0.0
+    try:
+        import re
+        slug_match = re.search(r'/(?:boat|yachta)/([^/?#]+)', offer.source_url or '')
+        if slug_match:
+            pb = ParsedBoat.objects.select_related('charter').filter(slug=slug_match.group(1).rstrip('/')).first()
+            if pb and pb.charter and pb.charter.commission:
+                charter_commission = float(pb.charter.commission)
+                charter_commission_amount = round(float(offer.total_price) * charter_commission / 100, 2)
+                agent_commission = round(charter_commission_amount / 2, 2)
+    except Exception:
+        pass
+
     if offer.is_captain_offer():
         api_price = float(bd.get('price', 0))
         discount_wo_extra_pct = float(bd.get('discount', 0))
+        additional_discount_pct = float(bd.get('additional_discount', 0))
         api_total = float(bd.get('totalPrice', 0))
-        after_dwe = round(api_price * (1 - discount_wo_extra_pct / 100), 2) if discount_wo_extra_pct else api_price
+        total_discount = discount_wo_extra_pct + additional_discount_pct
+        after_dwe = round(api_price * (1 - total_discount / 100), 2) if total_discount else api_price
         return {
             'type': 'captain',
             'api_price': api_price,
             'discount_wo_extra_pct': discount_wo_extra_pct,
+            'additional_discount_pct': additional_discount_pct,
             'after_discount_wo_extra': after_dwe,
             'api_total': api_total,
             'extra_discount_max': float(cfg.extra_discount_max),
+            'charter_commission': charter_commission,
+            'charter_commission_amount': charter_commission_amount,
+            'agent_commission': agent_commission,
             'adjustment': adjustment,
             'total_price': float(offer.total_price),
         }
@@ -2147,6 +2204,9 @@ def _build_price_debug(offer):
         'food': food,
         'food_formula': food_formula or '—',
         'subtotal': subtotal,
+        'charter_commission': charter_commission,
+        'charter_commission_amount': charter_commission_amount,
+        'agent_commission': agent_commission,
         'adjustment': adjustment,
         'total_price': float(offer.total_price),
     }

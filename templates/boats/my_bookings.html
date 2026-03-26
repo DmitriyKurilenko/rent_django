@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n boat_filters %}
 
 {% block title %}{% trans "Мои бронирования" %}{% endblock %}
 
@@ -192,6 +192,13 @@
                             <!-- Цена -->
                             <td>
                                 <span class="font-bold text-sm text-primary whitespace-nowrap">{{ booking.total_price|floatformat:0 }} {{ booking.currency }}</span>
+                                {% with pd=booking_price_debug|dictget:booking.id %}
+                                {% if pd %}
+                                <div class="text-[9px] font-mono opacity-50 mt-0.5 leading-tight">
+                                    {% if pd.type == 'captain' %}{{ pd.api_price|floatformat:0 }}{% if pd.discount_wo_extra_pct %} −{{ pd.discount_wo_extra_pct|floatformat:0 }}%{% endif %}{% if pd.charter_commission_amount %} <span class="text-warning">чарт{{ pd.charter_commission_amount|floatformat:0 }}€</span>{% endif %}{% if pd.agent_commission %} <span class="text-success">аг{{ pd.agent_commission|floatformat:0 }}€</span>{% endif %}{% if pd.adjustment %} ±{{ pd.adjustment|floatformat:0 }}{% endif %} → {{ pd.total_price|floatformat:0 }}€{% else %}{{ pd.api_total|floatformat:0 }}+{{ pd.insurance|floatformat:0 }}стр+{{ pd.base_country|floatformat:0 }}б{% if pd.food %}+{{ pd.food|floatformat:0 }}еда{% endif %}{% if pd.charter_commission_amount %} <span class="text-warning">чарт{{ pd.charter_commission_amount|floatformat:0 }}€</span>{% endif %}{% if pd.agent_commission %} <span class="text-success">аг{{ pd.agent_commission|floatformat:0 }}€</span>{% endif %}{% if pd.adjustment %} ±{{ pd.adjustment|floatformat:0 }}{% endif %} → {{ pd.total_price|floatformat:0 }}€{% endif %}
+                                </div>
+                                {% endif %}
+                                {% endwith %}
                             </td>
 
                             <!-- Статус -->
@@ -338,7 +345,16 @@
                             <div>{{ booking.start_date|date:"d.m" }} — {{ booking.end_date|date:"d.m.y" }}</div>
 
                             <div class="text-base-content/50">{% trans "Цена" %}</div>
-                            <div class="font-bold text-primary">{{ booking.total_price|floatformat:0 }} {{ booking.currency }}</div>
+                            <div>
+                                <span class="font-bold text-primary">{{ booking.total_price|floatformat:0 }} {{ booking.currency }}</span>
+                                {% with pd=booking_price_debug|dictget:booking.id %}
+                                {% if pd %}
+                                <div class="text-[10px] font-mono opacity-50 mt-0.5 leading-tight">
+                                    {% if pd.type == 'captain' %}{{ pd.api_price|floatformat:0 }}{% if pd.discount_wo_extra_pct %} −{{ pd.discount_wo_extra_pct|floatformat:0 }}%{% endif %}{% if pd.charter_commission_amount %} <span class="text-warning">чарт{{ pd.charter_commission_amount|floatformat:0 }}€</span>{% endif %}{% if pd.agent_commission %} <span class="text-success">аг{{ pd.agent_commission|floatformat:0 }}€</span>{% endif %}{% if pd.adjustment %} ±{{ pd.adjustment|floatformat:0 }}{% endif %} → {{ pd.total_price|floatformat:0 }}€{% else %}{{ pd.api_total|floatformat:0 }}+{{ pd.insurance|floatformat:0 }}стр+{{ pd.base_country|floatformat:0 }}б{% if pd.food %}+{{ pd.food|floatformat:0 }}еда{% endif %}{% if pd.charter_commission_amount %} <span class="text-warning">чарт{{ pd.charter_commission_amount|floatformat:0 }}€</span>{% endif %}{% if pd.agent_commission %} <span class="text-success">аг{{ pd.agent_commission|floatformat:0 }}€</span>{% endif %}{% if pd.adjustment %} ±{{ pd.adjustment|floatformat:0 }}{% endif %} → {{ pd.total_price|floatformat:0 }}€{% endif %}
+                                </div>
+                                {% endif %}
+                                {% endwith %}
+                            </div>
 
                             {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
                             <div class="text-base-content/50">{% trans "Клиент" %}</div>

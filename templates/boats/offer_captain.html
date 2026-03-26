@@ -424,6 +424,8 @@
         </table>
         <div class="px-4 py-2 bg-base-200 text-xs opacity-70 border-t border-warning">
             Макс. доп. скидка (PriceSettings.extra_discount_max): {{ price_debug.extra_discount_max }}%
+            {% if price_debug.charter_commission %} | Комиссия чартера: {{ price_debug.charter_commission }}% ({{ price_debug.charter_commission_amount|floatformat:0 }} €){% endif %}
+            {% if price_debug.agent_commission %} | <span class="font-semibold text-success">Агентская комиссия: {{ price_debug.agent_commission }} €</span>{% endif %}
         </div>
     </div>
 </div>

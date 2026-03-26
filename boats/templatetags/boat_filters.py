@@ -47,3 +47,11 @@ def boat_price(boat_data, rental_days):
         return 0
     except (ValueError, TypeError, AttributeError):
         return 0
+
+
+@register.filter
+def dictget(d, key):
+    """Lookup a dictionary value by key: {{ mydict|dictget:item.id }}"""
+    if isinstance(d, dict):
+        return d.get(key)
+    return None

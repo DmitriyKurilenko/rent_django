@@ -343,6 +343,8 @@
         </table>
         <div class="px-4 py-2 bg-base-200 text-xs opacity-70 border-t border-warning">
             Параметры: длина={{ price_debug.length }} м, двойных кают={{ price_debug.double_cabins }}, мест={{ price_debug.max_sleeps }}, категория={{ price_debug.category }}, питание={{ price_debug.has_meal|yesno:"да,нет" }}
+            {% if price_debug.charter_commission %} | Комиссия чартера: {{ price_debug.charter_commission }}% ({{ price_debug.charter_commission_amount|floatformat:0 }} €){% endif %}
+            {% if price_debug.agent_commission %} | <span class="font-semibold text-success">Агентская комиссия: {{ price_debug.agent_commission }} €</span>{% endif %}
         </div>
     </div>
 </div>

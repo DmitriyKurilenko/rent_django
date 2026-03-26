@@ -83,19 +83,18 @@ def extract_price_components(payload: Dict[str, Any]) -> Tuple[float, float, flo
     # Fallback для search payload без policies.prices:
     # иногда top-level discount поля противоречат totalPrice.
     # В этом случае приводим discount_without_extra к значению,
-    # которое воспроизводит totalPrice.
+    # которое воспроизводит totalPrice (аддитивная модель скидок).
     if (not has_policy_discount_wo_extra) and has_top_total and base_price > 0:
-        calc_final = base_price * (1 - discount_without_extra / 100)
-        if additional_discount:
-            calc_final = calc_final * (1 - additional_discount / 100)
+        total_discount_pct = discount_without_extra + additional_discount
+        calc_final = base_price * (1 - total_discount_pct / 100)
 
         if abs(calc_final - top_total_price) > 1:
-            base_after_additional = base_price
-            if additional_discount:
-                base_after_additional = base_price * (1 - additional_discount / 100)
-            if base_after_additional > 0:
+            # Обратная задача: найти discount_without_extra при аддитивной модели
+            # top_total_price = base_price * (1 - (discount_without_extra + additional_discount) / 100)
+            # => discount_without_extra = (1 - top_total_price / base_price) * 100 - additional_discount
+            if base_price > 0:
                 discount_without_extra = max(
-                    min((1 - (top_total_price / base_after_additional)) * 100, 100),
+                    (1 - (top_total_price / base_price)) * 100 - additional_discount,
                     0,
                 )
 
@@ -114,6 +113,22 @@ def build_price_breakdown(
     discount_without_extra = _to_float(discount_without_extra)
     additional_discount = _to_float(additional_discount)
 
+    # Определяем доп. скидку от чартера для расшифровки
+    charter_commission = 0.0
+    agent_commission_pct = 0.0
+    extra_discount_applied = 0.0
+    if charter and getattr(charter, 'commission', None):
+        charter_commission = float(charter.commission)
+        agent_commission_pct = charter_commission / 2
+        additional_discount_val = additional_discount
+        try:
+            from boats.models import PriceSettings
+            extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
+        except Exception:
+            extra_discount_max = 5.0
+        if additional_discount_val < charter_commission:
+            extra_discount_applied = min(extra_discount_max, charter_commission)
+
     final_price = _to_float(
         calculate_final_price_with_discounts(
             base_price,
@@ -122,6 +137,11 @@ def build_price_breakdown(
             charter=charter,
         )
     )
+
+    # Агентская комиссия = 50% от комиссии чартера, в деньгах
+    agent_commission = round(final_price * agent_commission_pct / 100, 2) if agent_commission_pct else 0.0
+    # Комиссия чартера в деньгах
+    charter_commission_amount = round(final_price * charter_commission / 100, 2) if charter_commission else 0.0
 
     old_price = 0.0
     discount_percent = 0
@@ -140,6 +160,10 @@ def build_price_breakdown(
         "old_price": round(old_price, 2),
         "discount_percent": int(discount_percent),
         "currency": currency or "EUR",
+        "charter_commission": round(charter_commission, 2),
+        "charter_commission_amount": round(charter_commission_amount, 2),
+        "agent_commission": round(agent_commission, 2),
+        "extra_discount_applied": round(extra_discount_applied, 2),
     }
 
 

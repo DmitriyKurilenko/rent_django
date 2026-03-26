@@ -417,6 +417,20 @@
                                     </a>
                                 </div>
                             </div>
+                            {% if user.is_authenticated %}
+                            {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                            {% with pb=boat.price_breakdown %}
+                            {% if pb %}
+                            <div class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] font-mono opacity-60 pt-1 border-t border-base-300/50">
+                                <span>{{ pb.base_price|floatformat:0 }}€ {% if pb.discount_without_extra %}−{{ pb.discount_without_extra|floatformat:0 }}%{% endif %}{% if pb.additional_discount %} −{{ pb.additional_discount|floatformat:0 }}%доп{% endif %}{% if pb.extra_discount_applied %} <span class="text-info">−{{ pb.extra_discount_applied|floatformat:0 }}%наш</span>{% endif %} → <span class="font-semibold">{{ pb.final_price|floatformat:0 }}€</span></span>
+                                {% if pb.charter_commission_amount %}<span class="text-warning">чартер {{ pb.charter_commission|floatformat:0 }}% {{ pb.charter_commission_amount|floatformat:0 }}€</span>{% endif %}
+                                {% if pb.agent_commission %}<span class="text-success">агент {{ pb.agent_commission|floatformat:0 }}€</span>{% endif %}
+                                {% if pb.charter_name %}<span class="opacity-40 text-[9px]">{{ pb.charter_name }}</span>{% endif %}
+                            </div>
+                            {% endif %}
+                            {% endwith %}
+                            {% endif %}
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}

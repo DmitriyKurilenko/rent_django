@@ -1337,6 +1337,18 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
         'discount_percent': discount_percent,
         'price_per_day': price_per_day,
         'currency': currency,
+        # Расшифровка цены (для captain/manager/admin)
+        'price_breakdown': {
+            'base_price': round(base_price, 2),
+            'discount_without_extra': round(discount_without_extra, 2),
+            'additional_discount': round(additional_discount, 2),
+            'charter_commission': round(float(charter_obj.commission) if charter_obj and charter_obj.commission else 0, 2),
+            'charter_commission_amount': round(breakdown.get('charter_commission_amount', 0), 2),
+            'agent_commission': round(breakdown.get('agent_commission', 0), 2),
+            'extra_discount_applied': round(breakdown.get('extra_discount_applied', 0), 2),
+            'final_price': round(breakdown.get('final_price', 0), 2),
+            'charter_name': charter_info or '',
+        },
         'image': images[0] if images else '',
         'images': images,  # Массив для шаблона
         'cabins': cabins,

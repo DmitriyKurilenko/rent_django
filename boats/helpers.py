@@ -53,13 +53,13 @@ def apply_charter_commission(price, charter):
 
 def calculate_final_price_with_discounts(base_price, discount_without_extra, additional_discount, charter=None):
     """
-    Рассчитать финальную цену с учетом всех скидок и комиссии чартера
-    
-    Логика:
-    1. Применяем discount_without_additionalExtra
-    2. Применяем additional_discount
-    3. Если additional_discount < commission чартера: применяем дополнительную скидку 5% (но не более commission)
-    4. НЕ добавляем комиссию чартера к цене (она используется только для условия)
+    Рассчитать финальную цену с учетом всех скидок и комиссии чартера.
+
+    Все скидки суммируются и применяются один раз (аддитивно):
+    total_discount = discount_without_extra + additional_discount + extra_discount
+    final_price = base_price * (1 - total_discount / 100)
+
+    extra_discount применяется если additional_discount < commission чартера.
     
     Args:
         base_price: Базовая цена (float)
@@ -75,20 +75,13 @@ def calculate_final_price_with_discounts(base_price, discount_without_extra, add
     
     price = float(base_price)
     
-    # 1. Применяем discount_without_additionalExtra
-    if discount_without_extra:
-        price = price * (1 - float(discount_without_extra) / 100)
+    total_discount = float(discount_without_extra or 0) + float(additional_discount or 0)
     
-    # 2. Применяем additional_discount
-    if additional_discount:
-        price = price * (1 - float(additional_discount) / 100)
-    
-    # 3. Условная дополнительная скидка
+    # Условная дополнительная скидка
     if charter and charter.commission:
         commission = float(charter.commission)
         additional_discount_val = float(additional_discount) if additional_discount else 0
 
-        # Если additional_discount < commission: применяем доп. скидку (но не более commission)
         try:
             from boats.models import PriceSettings
             extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
@@ -97,7 +90,10 @@ def calculate_final_price_with_discounts(base_price, discount_without_extra, add
 
         if additional_discount_val < commission:
             extra_discount = min(extra_discount_max, commission)
-            price = price * (1 - extra_discount / 100)
+            total_discount += extra_discount
+    
+    if total_discount:
+        price = price * (1 - total_discount / 100)
     
     return price
 
