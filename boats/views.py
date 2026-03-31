@@ -231,7 +231,11 @@ def boat_search(request):
                     charter_map[parsed_boat.slug] = parsed_boat.charter
 
         # Защита от "скачков" цены в поиске:
-        # переключаем отображаемую цену только после 2 одинаковых новых наблюдений подряд.
+        # переключаем отображаемую цену только после 4 одинаковых новых наблюдений подряд.
+        # Приоритет: если кандидат дешевле — подтверждаем быстрее (3 наблюдения).
+        CONSENSUS_HITS_DEFAULT = 5
+        CONSENSUS_HITS_LOWER = 4  # меньше наблюдений если цена ниже
+
         def _to_float(value):
             try:
                 if value in (None, ''):
@@ -260,6 +264,12 @@ def boat_search(request):
                 and str(a.get('currency') or 'EUR') == str(b.get('currency') or 'EUR')
             )
 
+        def _required_hits(candidate_snap, confirmed_snap):
+            """Меньше наблюдений нужно если кандидат дешевле текущей подтверждённой цены."""
+            if confirmed_snap and _to_float(candidate_snap.get('price')) < _to_float(confirmed_snap.get('price')):
+                return CONSENSUS_HITS_LOWER
+            return CONSENSUS_HITS_DEFAULT
+
         for boat in api_boats:
             try:
                 slug = boat.get('slug', '')
@@ -287,24 +297,28 @@ def boat_search(request):
                             else:
                                 candidate = current
                                 candidate_hits = 1
-                            if candidate_hits >= 2:
-                                confirmed = current
+                            needed = _required_hits(candidate or current, confirmed)
+                            if candidate_hits >= needed:
+                                confirmed = candidate or current
                                 candidate = None
                                 candidate_hits = 0
                             display = confirmed
                     else:
+                        # Ещё нет подтверждённой цены — набираем консенсус
                         if _same_snapshot(current, candidate):
                             candidate_hits += 1
                         else:
                             candidate = current
                             candidate_hits = 1
-                        if candidate_hits >= 2:
+                        if candidate_hits >= CONSENSUS_HITS_DEFAULT:
                             confirmed = current
                             candidate = None
                             candidate_hits = 0
                             display = confirmed
                         else:
-                            display = current
+                            # Показываем кандидата с наибольшим числом наблюдений,
+                            # а не сырую цену API — это убирает скачки до подтверждения
+                            display = candidate
 
                     state = {
                         'confirmed': confirmed,
@@ -682,10 +696,11 @@ def boat_detail(request, pk):
 
 def _boat_data_completeness(parsed_boat, lang_code='ru_RU'):
     """Проверка полноты данных лодки в БД для критичных сценариев (detail/offer)."""
-    has_description = (
-        parsed_boat.descriptions.filter(language=lang_code).exclude(title='').exists()
-        or parsed_boat.descriptions.filter(language='ru_RU').exclude(title='').exists()
-    )
+    desc_qs = parsed_boat.descriptions.filter(language=lang_code).exclude(title='')
+    if not desc_qs.exists():
+        desc_qs = parsed_boat.descriptions.filter(language='ru_RU').exclude(title='')
+    has_description = desc_qs.exists()
+    has_country = desc_qs.filter(country__gt='').exists() if has_description else False
     has_details = (
         parsed_boat.details.filter(language=lang_code).exists()
         or parsed_boat.details.filter(language='ru_RU').exists()
@@ -693,9 +708,10 @@ def _boat_data_completeness(parsed_boat, lang_code='ru_RU'):
     has_gallery = parsed_boat.gallery.exists()
     return {
         'has_description': has_description,
+        'has_country': has_country,
         'has_details': has_details,
         'has_gallery': has_gallery,
-        'is_complete': bool(has_description and has_details and has_gallery),
+        'is_complete': bool(has_description and has_country and has_details and has_gallery),
     }
 
 
@@ -737,6 +753,7 @@ def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
             f"Критическая ошибка данных лодки {boat_slug}: "
             "после парсинга данные остались неполными "
             f"(описание={completeness['has_description']}, "
+            f"страна={completeness['has_country']}, "
             f"детали={completeness['has_details']}, фото={completeness['has_gallery']})."
         )
 
@@ -966,15 +983,13 @@ def boat_detail_api(request, boat_id):
             charter_name = ''
             if parsed_boat and parsed_boat.charter:
                 charter_name = parsed_boat.charter.name or ''
-            charter_commission_amount_val = round(float(quote.get('final_price', 0)) * charter_commission / 100, 2) if charter_commission else 0
-            agent_commission_val = round(charter_commission_amount_val / 2, 2)
             context['price_breakdown'] = {
                 'base_price': round(float(quote.get('base_price', 0)), 2),
                 'discount_without_extra': round(float(quote.get('discount_without_extra', 0)), 2),
                 'additional_discount': round(float(quote.get('additional_discount', 0)), 2),
                 'charter_commission': round(charter_commission, 2),
-                'charter_commission_amount': charter_commission_amount_val,
-                'agent_commission': agent_commission_val,
+                'charter_commission_amount': round(float(quote.get('charter_commission_amount', 0)), 2),
+                'agent_commission': round(float(quote.get('agent_commission', 0)), 2),
                 'extra_discount_applied': round(float(quote.get('extra_discount_applied', 0)), 2),
                 'final_price': round(float(quote.get('final_price', 0)), 2),
                 'charter_name': charter_name,
@@ -1911,6 +1926,11 @@ def create_offer(request):
                 offer.original_price = price_info['original_price']
                 offer.discount = price_info['discount']
                 offer.has_meal = has_meal
+                offer.price_captain = price_info['price_captain']
+                offer.price_fuel = price_info['price_fuel']
+                offer.price_moorings = price_info['price_moorings']
+                offer.price_transit_cleaning = price_info['price_transit_cleaning']
+                offer.price_trips_markup = price_info['price_trips_markup']
             else:
                 # Для капитанского оффера используем цену из API
                 offer.total_price = api_total_price if api_total_price else api_price
@@ -2119,6 +2139,7 @@ def _build_price_debug(offer):
     # Tourist
     api_total = float(bd.get('totalPrice', 0))
     country = bd.get('country', '').lower()
+    location = bd.get('location', '').lower()
     marina = bd.get('marina', '').lower()
     # category: разные ключи в зависимости от источника данных
     category = bd.get('category', '') or bd.get('type', '') or ''
@@ -2131,52 +2152,56 @@ def _build_price_debug(offer):
         or bd.get('max_sleeps', 0) or bd.get('berths', 0) or 0
     )
 
-    insurance_rate = float(cfg.tourist_insurance_rate)
-    insurance_min = float(cfg.tourist_insurance_min)
+    # Dynamic country config lookup
+    from boats.helpers import _resolve_country_config
+    cc = _resolve_country_config(cfg, country, location, marina)
+    if cc is None:
+        return {'type': 'tourist', 'error': 'no country configs'}
+    country_label = cc.country_name
+
+    insurance_rate = float(cc.insurance_rate)
+    insurance_min = float(cc.insurance_min)
     insurance = round(max(api_total * insurance_rate, insurance_min), 2)
 
-    if country in TURKEY_NAMES:
-        base_country = float(cfg.tourist_turkey_base)
-        dish_base = float(cfg.tourist_turkey_dish_base)
-        country_label = 'Турция'
-    elif country in SEYCHELLES_NAMES:
-        base_country = float(cfg.tourist_seychelles_base)
-        dish_base = float(cfg.tourist_seychelles_dish_base)
-        country_label = 'Сейшелы'
-    else:
-        base_country = float(cfg.tourist_default_base)
-        dish_base = float(cfg.tourist_default_dish_base)
-        country_label = 'по умолч.'
+    price_captain = float(cc.captain)
+    price_fuel = float(cc.fuel)
+    price_moorings = float(cc.moorings)
+    price_transit_cleaning = float(cc.transit_cleaning)
+    price_trips_markup = float(cc.trips_markup)
 
-    max_double_free = int(cfg.tourist_max_double_cabins_free)
-    double_cabin_extra = float(cfg.tourist_double_cabin_extra)
-    extra_cabins_count = max(double_cabins - max_double_free, 0) if country in SEYCHELLES_NAMES else 0
+    base_components_total = price_captain + price_fuel + price_moorings + price_transit_cleaning + price_trips_markup
+
+    max_double_free = int(cc.max_double_cabins_free)
+    double_cabin_extra = float(cc.double_cabin_extra)
+    extra_cabins_count = max(double_cabins - max_double_free, 0)
     extra_cabins = round(extra_cabins_count * double_cabin_extra, 2)
 
-    praslin = float(cfg.tourist_praslin_extra) if marina == 'praslin marina' else 0
+    praslin = float(cc.praslin_extra) if marina == 'praslin marina' else 0
 
-    length_extra = float(cfg.tourist_length_extra) if length > 14.2 else 0
+    length_extra_val = float(cc.length_extra)
+    length_extra = length_extra_val if length > 14.2 else 0
 
-    turkey_length_extra = 0
-    turkey_length_note = ''
-    if length > 13.8 and country in TURKEY_NAMES:
+    cat_sail_extra = 0
+    cat_sail_note = ''
+    if length > 13.8:
         if category == 'Катамаран':
-            turkey_length_extra = float(cfg.tourist_catamaran_length_extra)
-            turkey_length_note = 'катамаран'
+            cat_sail_extra = float(cc.catamaran_length_extra)
+            cat_sail_note = 'катамаран'
         elif category == 'Парусная Яхта':
-            turkey_length_extra = float(cfg.tourist_sailing_length_extra)
-            turkey_length_note = 'парусная яхта'
+            cat_sail_extra = float(cc.sailing_length_extra)
+            cat_sail_note = 'парусная яхта'
 
     food = 0
     food_formula = ''
+    dish_base = float(cc.dish_base)
     if offer.has_meal and max_sleeps > 0:
-        cook = float(cfg.tourist_cook_price)
+        cook = float(cc.cook_price)
         food = round((max_sleeps - 2) * dish_base + cook, 2)
         food_formula = f'({max_sleeps} − 2) × {dish_base} + {cook}'
 
     subtotal = round(
-        api_total + insurance + extra_cabins + base_country
-        + praslin + length_extra + turkey_length_extra + food, 2
+        api_total + insurance + extra_cabins + base_components_total
+        + praslin + length_extra + cat_sail_extra + food, 2
     )
 
     return {
@@ -2195,12 +2220,17 @@ def _build_price_debug(offer):
         'insurance_formula': f'max({api_total} × {round(insurance_rate*100,1)}%, {insurance_min})',
         'extra_cabins': extra_cabins,
         'extra_cabins_formula': f'{extra_cabins_count} × {double_cabin_extra}' if extra_cabins else '—',
-        'base_country': base_country,
+        'price_captain': price_captain,
+        'price_fuel': price_fuel,
+        'price_moorings': price_moorings,
+        'price_transit_cleaning': price_transit_cleaning,
+        'price_trips_markup': price_trips_markup,
+        'base_components_total': base_components_total,
         'base_country_label': country_label,
         'praslin': praslin,
         'length_extra': length_extra,
-        'turkey_length_extra': turkey_length_extra,
-        'turkey_length_note': turkey_length_note,
+        'turkey_length_extra': cat_sail_extra,
+        'turkey_length_note': cat_sail_note,
         'food': food,
         'food_formula': food_formula or '—',
         'subtotal': subtotal,
@@ -2426,6 +2456,11 @@ def quick_create_offer(request, boat_slug):
             offer.original_price = price_info['original_price']
             offer.discount = price_info['discount']
             offer.has_meal = has_meal
+            offer.price_captain = price_info['price_captain']
+            offer.price_fuel = price_info['price_fuel']
+            offer.price_moorings = price_info['price_moorings']
+            offer.price_transit_cleaning = price_info['price_transit_cleaning']
+            offer.price_trips_markup = price_info['price_trips_markup']
         else:
             # Для капитанского оффера используем цену из API
             offer.total_price = api_total_price if api_total_price else api_price

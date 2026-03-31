@@ -43,7 +43,7 @@
                                 type="text"
                                 name="author_q"
                                 value="{{ author_query }}"
-                                class="input input-bordered input-sm"
+                                class="input input-sm"
                                 placeholder="username / email"
                                 @input="clearTimeout(t); t=setTimeout(() => $el.form.submit(), 400)"
                             />
@@ -164,7 +164,7 @@
                                         <div class="modal-box max-w-sm">
                                             <h3 class="font-bold text-lg mb-4">{% trans "Привязать клиента" %}</h3>
                                             <div class="form-control">
-                                                <input type="text" x-model="query" @input.debounce.300ms="search()" class="input input-bordered input-sm w-full" placeholder="{% trans 'Поиск по имени или телефону...' %}">
+                                                <input type="text" x-model="query" @input.debounce.300ms="search()" class="input input-sm w-full" placeholder="{% trans 'Поиск по имени или телефону...' %}">
                                             </div>
                                             <ul class="menu menu-sm bg-base-200 rounded-box mt-2 max-h-48 overflow-y-auto" x-show="results.length > 0">
                                                 <template x-for="c in results" :key="c.id">
@@ -243,7 +243,7 @@
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="assign">
                                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                        <select name="manager_id" class="select select-bordered select-xs w-28"
+                                        <select name="manager_id" class="select select-xs w-28"
                                                 onchange="if(this.value) this.form.submit()">
                                             <option value="">—</option>
                                             {% for mgr in managers %}
@@ -372,7 +372,7 @@
                                     <div class="modal-box max-w-sm">
                                         <h3 class="font-bold text-lg mb-4">{% trans "Привязать клиента" %}</h3>
                                         <div class="form-control">
-                                            <input type="text" x-model="query" @input.debounce.300ms="search()" class="input input-bordered input-sm w-full" placeholder="{% trans 'Поиск...' %}">
+                                            <input type="text" x-model="query" @input.debounce.300ms="search()" class="input input-sm w-full" placeholder="{% trans 'Поиск...' %}">
                                         </div>
                                         <ul class="menu menu-sm bg-base-200 rounded-box mt-2 max-h-48 overflow-y-auto" x-show="results.length > 0">
                                             <template x-for="c in results" :key="c.id">

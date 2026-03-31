@@ -360,6 +360,40 @@ TURKEY_NAMES = ['turkey', 'турция']
 SEYCHELLES_NAMES = ['seychelles', 'сейшелы']
 
 
+def _resolve_country_config(cfg, country, location='', marina=''):
+    """Find the CountryPriceConfig matching location hints.
+
+    Checks country, location, and marina against each config's alias list.
+    Returns a CountryPriceConfig instance — either a match by alias or the
+    default profile.  Falls back to the first available config when nothing
+    matches at all.
+    """
+    configs = list(cfg.country_configs.all())
+    if not configs:
+        return None
+    # Build list of non-empty needles from all location hints
+    needles = []
+    for raw in (country, location, marina):
+        val = (raw or '').strip().lower()
+        if val:
+            needles.append(val)
+    for c in configs:
+        if c.is_default:
+            continue
+        aliases = c.get_match_list()
+        for needle in needles:
+            # Direct match: needle exactly in alias list
+            if needle in aliases:
+                return c
+            # Substring match: any alias appears inside the needle (e.g. "eden island marina" contains a potential alias)
+            for alias in aliases:
+                if alias in needle:
+                    return c
+    # fallback to default
+    default = next((c for c in configs if c.is_default), None)
+    return default or configs[0]
+
+
 def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False, discount=0):
     """
     Расчёт итоговой цены для туристического оффера (полная логика как в старом коде)
@@ -402,6 +436,7 @@ def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False
     # Параметры лодки (могут быть вложены в 'parameters' или плоско в boat_data)
     parameters = boat_data.get('parameters', {}) or {}
     country = boat_data.get('country', '').lower()
+    location = boat_data.get('location', '').lower()
     category = boat_data.get('category', '') or boat_data.get('type', '') or ''
     marina = boat_data.get('marina', '').lower()
     length = float(parameters.get('length', 0) or boat_data.get('length', 0) or 0)
@@ -411,35 +446,40 @@ def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False
     )
     doubles = int(parameters.get('double_cabins', 0) or boat_data.get('double_cabins', 0) or 0)
 
-    insurance_rate = float(cfg.tourist_insurance_rate)
-    insurance_min = float(cfg.tourist_insurance_min)
-    max_double_free = int(cfg.tourist_max_double_cabins_free)
-    double_cabin_extra = float(cfg.tourist_double_cabin_extra)
-    praslin_extra = float(cfg.tourist_praslin_extra)
-    length_extra = float(cfg.tourist_length_extra)
-    catamaran_length_extra = float(cfg.tourist_catamaran_length_extra)
-    sailing_length_extra = float(cfg.tourist_sailing_length_extra)
-    cook_price = float(cfg.tourist_cook_price)
+    # Resolve country config dynamically
+    cc = _resolve_country_config(cfg, country, location, marina)
+    if cc is None:
+        # No country configs at all — cannot price
+        return {'total_price': 0, 'original_price': 0, 'discount': 0, 'nights': 1}
+
+    insurance_rate = float(cc.insurance_rate)
+    insurance_min = float(cc.insurance_min)
+    max_double_free = int(cc.max_double_cabins_free)
+    double_cabin_extra = float(cc.double_cabin_extra)
+    length_extra_val = float(cc.length_extra)
+    catamaran_length_extra = float(cc.catamaran_length_extra)
+    sailing_length_extra = float(cc.sailing_length_extra)
+    cook_price = float(cc.cook_price)
+    dish_base = float(cc.dish_base)
+    praslin_extra = float(cc.praslin_extra)
+
+    price_captain = float(cc.captain)
+    price_fuel = float(cc.fuel)
+    price_moorings = float(cc.moorings)
+    price_transit_cleaning = float(cc.transit_cleaning)
+    price_trips_markup = float(cc.trips_markup)
 
     # 1. Страхование депозита
     insurance = max(total_price * insurance_rate, insurance_min)
     total_price += insurance
 
-    # 2. Доплата за дополнительные каюты (Сейшелы)
-    if country in SEYCHELLES_NAMES and doubles > max_double_free:
+    # 2. Доплата за дополнительные каюты (сверх лимита)
+    if doubles > max_double_free:
         extra_cabins = doubles - max_double_free
         total_price += extra_cabins * double_cabin_extra
 
-    # 3. Базовая цена по стране
-    if country in TURKEY_NAMES:
-        total_price += float(cfg.tourist_turkey_base)
-        dish_base = float(cfg.tourist_turkey_dish_base)
-    elif country in SEYCHELLES_NAMES:
-        total_price += float(cfg.tourist_seychelles_base)
-        dish_base = float(cfg.tourist_seychelles_dish_base)
-    else:
-        total_price += float(cfg.tourist_default_base)
-        dish_base = float(cfg.tourist_default_dish_base)
+    # 3. 5 составляющих базовой цены
+    total_price += price_captain + price_fuel + price_moorings + price_transit_cleaning + price_trips_markup
 
     # 4. Доплата за марину Praslin
     if marina == 'praslin marina':
@@ -447,10 +487,10 @@ def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False
 
     # 5. Доплата за длину > 14.2м (46 футов)
     if length > 14.2:
-        total_price += length_extra
+        total_price += length_extra_val
 
-    # 6. Доплата за длину > 13.8м в Турции
-    if length > 13.8 and country in TURKEY_NAMES:
+    # 6. Доплата за длину > 13.8м (катамаран/парусная)
+    if length > 13.8:
         if category == 'Катамаран':
             total_price += catamaran_length_extra
         elif category == 'Парусная Яхта':
@@ -469,4 +509,9 @@ def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False
         'original_price': round(full_price, 2),
         'discount': boat_discount,
         'nights': nights,
+        'price_captain': round(price_captain, 2),
+        'price_fuel': round(price_fuel, 2),
+        'price_moorings': round(price_moorings, 2),
+        'price_transit_cleaning': round(price_transit_cleaning, 2),
+        'price_trips_markup': round(price_trips_markup, 2),
     }

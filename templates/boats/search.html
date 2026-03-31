@@ -10,6 +10,9 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<style>
+    [data-testid="search-boat-preview"] { aspect-ratio: 1; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -69,7 +72,7 @@
                                     @input.debounce.500ms="fetchLocations"
                                     @focus="if(suggestions.length > 0 && location.trim().length >= 2) showSuggestions = true"
                                     placeholder="{% trans 'Введите место (например, Греция)' %}"
-                                    class="input input-bordered input-sm w-full"
+                                    class="input input-sm w-full"
                                     autocomplete="off"
                                     required
                                 >
@@ -102,7 +105,7 @@
                             <label class="label" for="search_category">
                                 <span class="label-text font-semibold">{% trans "Тип яхты" %}</span>
                             </label>
-                            <select id="search_category" name="category" class="select select-bordered select-sm">
+                            <select id="search_category" name="category" class="select select-sm">
                                 <option value="">{% trans "Любой" %}</option>
                                 <option value="sailboat">{% trans "Парусник" %}</option>
                                 <option value="motorboat">{% trans "Моторная" %}</option>
@@ -120,7 +123,7 @@
                                 type="date" 
                                 name="check_in" 
                                 value="{{ check_in|default:'' }}" 
-                                class="input input-bordered input-sm"
+                                class="input input-sm"
                             >
                         </div>
 
@@ -134,7 +137,7 @@
                                 type="date" 
                                 name="check_out" 
                                 value="{{ check_out|default:'' }}" 
-                                class="input input-bordered input-sm"
+                                class="input input-sm"
                             >
                         </div>
 
@@ -143,7 +146,7 @@
                             <label class="label">
                                 <span class="label-text font-semibold">{% trans "Количество кают" %}</span>
                             </label>
-                            <select name="cabins" class="select select-bordered select-sm">
+                            <select name="cabins" class="select select-sm">
                                 <option value="">{% trans "Любое" %}</option>
                                 <option value="1" {% if request.GET.cabins == '1' %}selected{% endif %}>1</option>
                                 <option value="2" {% if request.GET.cabins == '2' %}selected{% endif %}>2</option>
@@ -166,7 +169,7 @@
                                     placeholder="{% trans 'От' %}"
                                     min="1980"
                                     max="2026"
-                                    class="input input-bordered input-sm"
+                                    class="input input-sm"
                                 >
                                 <input 
                                     type="number" 
@@ -175,7 +178,7 @@
                                     placeholder="{% trans 'До' %}"
                                     min="1980"
                                     max="2026"
-                                    class="input input-bordered input-sm"
+                                    class="input input-sm"
                                 >
                             </div>
                         </div>
@@ -193,7 +196,7 @@
                                     placeholder="От"
                                     min="0"
                                     step="10"
-                                    class="input input-bordered input-sm"
+                                    class="input input-sm"
                                 >
                                 <input 
                                     type="number" 
@@ -202,7 +205,7 @@
                                     placeholder="До"
                                     min="0"
                                     step="10"
-                                    class="input input-bordered input-sm"
+                                    class="input input-sm"
                                 >
                             </div>
                         </div>
@@ -229,7 +232,7 @@
                     <div class="flex items-center gap-2">
                         <select 
                             name="sort" 
-                            class="select select-bordered select-sm max-w-xs"
+                            class="select select-sm max-w-xs"
                             onchange="(function(){
                                 const urlObj = new window.URL(window.location.href);
                                 urlObj.searchParams.set('sort', this.value || 'rank');
@@ -271,14 +274,14 @@
                 <!-- Boats List -->
                 <div class="space-y-4">
                     {% for boat in boats %}
-                    <div data-testid="search-boat-card" class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex flex-col sm:flex-row sm:h-56 hover:border-primary">
+                    <div data-testid="search-boat-card" class="bg-base-100 shadow-md hover:shadow-lg transition-all border border-base-300 rounded-lg overflow-hidden flex flex-col sm:flex-row hover:border-primary">
                         <!-- Thumbnail -->
-                        <div data-testid="search-boat-preview" class="w-full aspect-square sm:w-56 sm:h-56 flex-shrink-0 bg-base-200 overflow-hidden">
+                        <div data-testid="search-boat-preview" class="w-full sm:w-56 flex-shrink-0 bg-base-200 overflow-hidden aspect-square">
                             {% if boat.preview %}
                                 <img
                                     src="{{ boat.preview }}"
                                     alt="{{ boat.name }}"
-                                    class="w-full h-full object-contain sm:object-cover hover:scale-110 transition-transform duration-300 ease-in-out"
+                                    class="w-full h-full object-cover hover:scale-110 transition-transform duration-300 ease-in-out"
                                 >
                             {% else %}
                             <div class="w-full h-full flex items-center justify-center bg-base-300">
@@ -288,9 +291,9 @@
                         </div>
 
                         <!-- Content -->
-                        <div class="flex-1 min-w-0 p-3 sm:p-4 flex flex-col h-full overflow-hidden">
+                        <div class="flex-1 min-w-0 p-3 sm:p-4 flex flex-col">
                             <!-- Header -->
-                            <div class="min-h-0 overflow-hidden">
+                            <div class="min-h-0">
                                 <div class="flex items-start justify-between gap-2 mb-1.5">
                                     <h3 class="text-base sm:text-lg font-bold truncate leading-tight" title="{{ boat.name|default:'Лодка' }}">{{ boat.name|default:"Лодка" }}</h3>
                                     {% if boat.featured %}
@@ -333,43 +336,20 @@
                             </div>
 
                             <!-- Footer: Price & Actions -->
-                            <div class="mt-auto flex flex-col sm:flex-row sm:items-end justify-between gap-2 pt-2 border-t border-base-300">
-                                <div class="min-w-0">
-                                    {% if check_in and check_out and rental_days and boat.price %}
-                                    <div class="text-xs text-base-content/70">Итого за {{ rental_days }} дн.</div>
+                            <div class="mt-auto flex items-center justify-between gap-2 pt-2 border-t border-base-300">
+                                <div class="flex items-center gap-2 min-w-0">
                                     {% if boat.old_price and boat.discount_percent %}
-                                    <div class="text-xs text-base-content/60 line-through">
-                                        {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
-                                    </div>
+                                    <span class="text-sm text-base-content/60 line-through">
+                                        {{ boat.old_price|floatformat:0 }}
+                                    </span>
                                     {% endif %}
-                                    <div class="text-xl sm:text-2xl font-bold text-primary leading-tight">
-                                        {{ boat.price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
-                                    </div>
-                                    {% if boat.discount_percent %}
-                                    <div class="text-xs text-success font-semibold mt-0.5">
-                                        Скидка до {{ boat.discount_percent|floatformat:0 }}%
-                                    </div>
-                                    {% endif %}
-                                    {% if boat.price_per_day %}
-                                    <div class="text-xs text-base-content/70 mt-0.5">
-                                        <span class="font-semibold">{{ boat.price_per_day|floatformat:0 }}</span> за сутки
-                                    </div>
-                                    {% endif %}
-                                    {% else %}
-                                    <div class="text-xs text-base-content/70">Цена</div>
-                                    {% if boat.old_price and boat.discount_percent %}
-                                    <div class="text-xs text-base-content/60 line-through">
-                                        {{ boat.old_price|floatformat:0 }} {{ boat.currency|default:"EUR" }}
-                                    </div>
-                                    {% endif %}
-                                    <div class="text-xl sm:text-2xl font-bold text-primary leading-tight">
+                                    <span class="text-xl sm:text-2xl font-bold text-primary leading-tight">
                                         {% if boat.price %}{{ boat.price|floatformat:0 }}{% else %}N/A{% endif %} {{ boat.currency|default:"EUR" }}
-                                    </div>
+                                    </span>
                                     {% if boat.discount_percent %}
-                                    <div class="text-xs text-success font-semibold mt-0.5">
-                                        Скидка до {{ boat.discount_percent|floatformat:0 }}%
-                                    </div>
-                                    {% endif %}
+                                    <span class="text-xs text-success font-semibold">
+                                        −{{ boat.discount_percent|floatformat:0 }}%
+                                    </span>
                                     {% endif %}
                                 </div>
                                 <div class="flex gap-2 sm:justify-end w-full sm:w-auto flex-shrink-0" x-data="{ 
@@ -421,11 +401,22 @@
                             {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
                             {% with pb=boat.price_breakdown %}
                             {% if pb %}
-                            <div class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[11px] font-mono opacity-60 pt-1 border-t border-base-300/50">
-                                <span>{{ pb.base_price|floatformat:0 }}€ {% if pb.discount_without_extra %}−{{ pb.discount_without_extra|floatformat:0 }}%{% endif %}{% if pb.additional_discount %} −{{ pb.additional_discount|floatformat:0 }}%доп{% endif %}{% if pb.extra_discount_applied %} <span class="text-info">−{{ pb.extra_discount_applied|floatformat:0 }}%наш</span>{% endif %} → <span class="font-semibold">{{ pb.final_price|floatformat:0 }}€</span></span>
-                                {% if pb.charter_commission_amount %}<span class="text-warning">чартер {{ pb.charter_commission|floatformat:0 }}% {{ pb.charter_commission_amount|floatformat:0 }}€</span>{% endif %}
-                                {% if pb.agent_commission %}<span class="text-success">агент {{ pb.agent_commission|floatformat:0 }}€</span>{% endif %}
-                                {% if pb.charter_name %}<span class="opacity-40 text-[9px]">{{ pb.charter_name }}</span>{% endif %}
+                            <div class="mt-1.5 pt-1.5 border-t border-base-200 text-xs space-y-0.5">
+                                <div class="flex flex-wrap items-center gap-x-1">
+                                    <span class="font-medium">{{ pb.base_price|floatformat:0 }}€</span>
+                                    {% if pb.discount_without_extra %}<span class="text-error">− {{ pb.discount_without_extra|floatformat:1 }}% скидка</span>{% endif %}
+                                    {% if pb.additional_discount %}<span class="text-error">− {{ pb.additional_discount|floatformat:1 }}% доп</span>{% endif %}
+                                    {% if pb.extra_discount_applied %}<span class="text-info font-medium">− {{ pb.extra_discount_applied|floatformat:1 }}% наша</span>{% endif %}
+                                    <span class="font-bold">=</span>
+                                    <span class="font-bold text-primary">{{ pb.final_price|floatformat:0 }}€</span>
+                                </div>
+                                {% if pb.charter_commission or pb.agent_commission %}
+                                <div class="flex flex-wrap items-center gap-x-3">
+                                    {% if pb.charter_commission %}<span class="text-warning">чартер {{ pb.charter_commission|floatformat:1 }}% ({{ pb.charter_commission_amount|floatformat:0 }}€)</span>{% endif %}
+                                    {% if pb.agent_commission %}<span class="text-success font-semibold">агент {{ pb.agent_commission|floatformat:0 }}€</span>{% endif %}
+                                    {% if pb.charter_name %}<span class="text-base-content/50">{{ pb.charter_name }}</span>{% endif %}
+                                </div>
+                                {% endif %}
                             </div>
                             {% endif %}
                             {% endwith %}

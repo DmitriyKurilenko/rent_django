@@ -2,6 +2,169 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-02
+- Change:
+  - Fixed price instability on detail page: `BoataroundAPI.get_price()` was not checking cache before attempting consensus loop.
+  - Added cache-first lookup: if `price_consensus:{slug}:{check_in}:{check_out}:{currency}` exists in Redis, return immediately (6-hour TTL).
+  - Simplified return paths: removed conditional `cached` logic after consensus loop; if no results after 5 API calls, return empty dict (no price available).
+- Files:
+  - `boats/boataround_api.py` — `get_price()` method (lines ~475–556)
+  - `docs/DECISIONS.md` — added DR-017
+  - `docs/KNOWN_ISSUES.md` — updated KI-001 resolution status
+  - `docs/TASK_STATE.md` — updated P0 status
+- Why:
+  - User reported that refreshing detail page with same URL showed different prices ("цена плавает"). Cause: every request made fresh 5 API calls instead of using the 6-hour cached consensus result.
+- Validation:
+  - `docker compose up -d --build` — OK
+  - `docker compose run --rm web python manage.py check` — OK
+  - Manual test: 5 sequential requests to `/ru/boat/lagoon-42-rhea/?check_in=2026-04-04&check_out=2026-04-11` all returned same cached price (3989.1602 EUR) with logs showing "Using cached price" (not fresh consensus).
+- Risks / follow-up:
+  - 6-hour TTL is safe for most scenarios; if dynamic pricing is needed per session, short TTL (1–5 minutes) can be added as config in settings.
+  - Consensus loop itself still makes 5 requests on first cache miss (by design to stabilize upstream jitter); this is acceptable for user experience.
+
+## 2026-03-31
+- Change:
+  - Fixed `BoatDescription` language overwrite in `parse_boats_parallel` metadata updater.
+  - For `ru_RU/de_DE/fr_FR/es_ES`, updates now apply only from that language API payload (`api_meta_by_lang`) and no longer fallback to `en_EN` values.
+  - English fallback is preserved only for `en_EN` records.
+- Files:
+  - `boats/management/commands/parse_boats_parallel.py`
+  - `docs/DECISIONS.md`
+  - `docs/TASK_STATE.md`
+  - `docs/DEV_LOG.md`
+  - `docs/KNOWN_ISSUES.md`
+- Why:
+  - Prevent mixed-language geo data (`country/region/city`) where non-English descriptions were incorrectly overwritten with English labels.
+- Validation:
+  - `docker compose exec web python manage.py check` — OK
+  - `docker compose exec web python manage.py test boats.tests.test_parse_boats_parallel_command -v 2` — 2/2 OK
+  - Backfill runs (metadata-focused):
+    - `parse_boats_parallel --skip-existing --max-pages 3 --no-cache`
+    - `parse_boats_parallel --destination italy --skip-existing --max-pages 5 --no-cache`
+    - `parse_boats_parallel --destination croatia --skip-existing --max-pages 5 --no-cache`
+    - `parse_boats_parallel --destination greece --skip-existing --max-pages 5 --no-cache`
+    - `parse_boats_parallel --destination turkey --skip-existing --max-pages 20 --no-cache`
+  - Spot checks confirmed localized countries after refresh (example: `ru_RU=Италия`, `en_EN=Italy`, `de_DE=Italien`, `fr_FR=Italie`, `es_ES=Italia`).
+- Risks / follow-up:
+  - Historical records outside refreshed destination/page windows may still need additional backfill passes.
+  - Upstream API can still return untranslated labels for a subset of records; this is source limitation, not pipeline fallback.
+
+## 2026-03-31
+- Investigation: Geographic data in BoatDescription only 6.6% filled (1,619 of 24,704 boats)
+  - **Root cause analysis:**
+    - Coverage timeline showed sharp cutoff: Feb 1-13 had 0-95% geo coverage, Feb 14+ dropped to 0%
+    - Database correlation: ALL 24,724 ParsedBoat have empty boat_data (`{}` or None), yet 1,619 boats had geo in BoatDescription
+    - Boats WITH geo were created Feb 13, boats WITHOUT geo created Feb 14+
+    - Boats WITH marina ('Porto Montenegro' etc) but empty country/region/city, indicating API DID return some geo but conditionally
+  - **Hypothesis → Confirmed:**
+    - `_update_api_metadata()` in parse_boats_parallel.py used truthiness check: `if meta.get('country'):`
+    - When API returned empty string `''` for country (which is falsy), the geo-field dict remained empty
+    - Empty BoatDescription created → never updated (filter would skip empty<->empty updates)
+    - 23,084 boats were locked out from geo-data population because initial creation used API responses with empty strings
+  - **Fix applied:**
+    - Changed all geo-field checks from `if meta.get('country'):` to `if 'country' in meta:` (presence vs truthiness)
+    - Now empty strings from API are properly captured and stored
+  - **Results after backfill run:**
+    - Coverage: 1,619 → 8,900+ boats (455% improvement)
+    - 7,281 additional boats populated with geo-data in single parse_boats_parallel run
+    - Marina field: 18% → 100% filled (side effect of using proper existence check)
+    - New boats now correctly created with available API geo-metadata
+  - **Remaining limitation:**
+    - ~15,000 boats still without country/region/city — API genuinely doesn't provide these for all boats (source data issue, not parsing issue)
+    - Marina field is now 100% because it's being saved even when empty, and many have marina filled from API
+  - **Files modified:** boats/management/commands/parse_boats_parallel.py (lines 715-737)
+  - **Tests:** Existing cache tests pass, manual backfill validated with 168 existing + 12 new boats updated
+
+## 2026-03-28
+- Change: Dynamic country pricing for tourist offers
+  - New model: `CountryPriceConfig` (boats/models.py) — FK to PriceSettings, 15 pricing fields, country_name/code/match_names aliases, is_default flag
+  - Migration: 0030_countrypriceconfig — CreateModel + seed 3 configs from existing hardcoded PriceSettings fields
+  - `_resolve_country_config()` in boats/helpers.py — alias-based country matching (lowercased), default fallback
+  - `calculate_tourist_price()` — rewritten to use CountryPriceConfig directly instead of getattr with region suffixes
+  - `_build_price_debug()` in boats/views.py — rewritten for CountryPriceConfig
+  - `price_settings_view` in accounts/views.py — 3 POST actions (add_country, delete_country, save_prices) with `cc_{id}_{field}` naming
+  - Templates (profile.html, price_settings.html) — fully dynamic columns/rows from DB, add/delete country UI
+  - Old hardcoded per-region fields on PriceSettings NOT removed (data preservation)
+  - Files: boats/models.py, boats/helpers.py, boats/views.py, accounts/views.py, boats/migrations/0030, templates/accounts/profile.html, templates/accounts/price_settings.html
+  - Validation: manage.py check OK, migration applied, template renders verified, country matching tested
+  - Risk: old hardcoded fields still on PriceSettings model — can be removed after confirming no code references them
+
+## 2026-03-27
+- Change:
+  - **Major version upgrade of entire stack:**
+    - Python 3.11 → 3.13 (Dockerfile)
+    - Django 4.2.9 → 5.2.12 LTS (requirements.txt)
+    - Tailwind CSS 3.4.17 → 4.2.2 (package.json, CSS-first config)
+    - DaisyUI 4.12.24 → 5.5.19 (package.json, @plugin directive)
+    - Node.js 20-alpine → 22-alpine (Dockerfile build stage)
+    - Font Awesome 6.5.1 → 6.7.2 (CDN in base.html)
+    - All Python packages updated to latest compatible versions
+  - **Django 5.2 migration:**
+    - `STATICFILES_STORAGE` → `STORAGES` dict in settings.py
+    - No other breaking changes found (no deprecated imports, no old URL patterns)
+  - **Tailwind 4 migration:**
+    - Removed tailwind.config.js from Dockerfile COPY (no longer needed)
+    - Rewrote assets/css/tailwind.input.css: `@import "tailwindcss"`, `@plugin` directives, `@utility` for custom utils
+    - Added `@source "../../boats/**/*.py"` for class detection in Python files
+    - `@tailwindcss/cli` replaces `tailwindcss` CLI package
+  - **DaisyUI 5 migration:**
+    - `daisyui` configured via `@plugin "daisyui" { themes: winter --default }` in CSS
+    - `input-bordered`/`select-bordered`/`textarea-bordered` now no-ops (borders are default in v5) — left in templates for now
+    - `badge-outline` still exists in v5
+    - Winter theme confirmed available in DaisyUI 5
+  - **Python packages updated:**
+    - psycopg2-binary 2.9.9→2.9.11, gunicorn 21.2.0→25.2.0, Pillow 10.2.0→12.1.1
+    - celery 5.3.6→5.6.3, redis 5.0.1→7.4.0, django-celery-beat 2.5.0→2.9.0
+    - whitenoise 6.6.0→6.12.0, requests 2.31.0→2.33.0, beautifulsoup4 4.12.2→4.14.3
+    - boto3 1.34.14→1.42.77, weasyprint 61.2→68.1, python-decouple 3.8
+  - **NOT upgraded (intentionally):**
+    - PostgreSQL stays at 15-alpine (major version upgrade requires pg_dump/restore, not just image swap)
+    - Redis stays at 7-alpine (already latest major)
+    - Alpine.js CDN uses `@3.x.x` wildcard (auto-updating)
+- Files:
+  - `Dockerfile` (python:3.13-slim, node:22-alpine, removed tailwind.config.js COPY)
+  - `requirements.txt` (all packages to latest)
+  - `boat_rental/settings.py` (STORAGES dict)
+  - `package.json` (@tailwindcss/cli ^4, daisyui ^5)
+  - `assets/css/tailwind.input.css` (Tailwind 4 CSS-first config)
+  - `templates/base.html` (Font Awesome 6.7.2)
+- Why:
+  - Security patches, performance improvements, LTS support timeline.
+  - Django 5.2 LTS supported until April 2028.
+  - Tailwind 4 is current major with better performance and simpler config.
+- Validation:
+  - `docker compose up -d --build` — all 5 containers started ✅
+  - `python manage.py check` — 0 issues ✅
+  - `python manage.py makemigrations --check --dry-run` — no changes detected ✅
+  - All migrations applied ✅
+  - HTTP: Home 200, Search 200, Login 200, Register 200, Contacts 200 ✅
+  - CSS: 136 KB, contains daisyUI + winter theme ✅
+  - Celery worker connected and ready ✅
+- Risks / follow-up:
+  - DaisyUI 5 visual differences may exist (subtle color/spacing changes in winter theme) — needs visual QA
+  - PostgreSQL upgrade to 17 requires backup/restore strategy — deferred
+  - `tailwind.config.js` still in repo but unused — awaiting user confirmation to delete
+
+### Refactoring pass (same date)
+- Change:
+  - **`unique_together` → `UniqueConstraint`** (deprecated since Django 4.2): migrated 5 models (Favorite, Review, BoatDescription, BoatPrice, BoatDetails). Generated and applied migration 0027.
+  - **Dead code removed**: unreachable `if commit:` block after early `return` in `accounts/forms.py` (ProfileForm.save)
+  - **DaisyUI 5 class cleanup**: removed `input-bordered`, `select-bordered`, `textarea-bordered`, `file-input-bordered` from all 13 templates and `DaisyUIMixin` in `boats/forms.py` (no-ops in DaisyUI 5, borders are default now)
+  - **`tailwind.config.js` COPY removed from Dockerfile** (already done in upgrade pass)
+- Files:
+  - `boats/models.py` (5× unique_together → constraints)
+  - `boats/migrations/0027_alter_boatdescription_unique_together_and_more.py` (new)
+  - `accounts/forms.py` (dead code removed)
+  - `boats/forms.py` (DaisyUIMixin: removed -bordered classes)
+  - 13 templates: `-bordered` classes cleaned
+- Validation:
+  - `docker compose down && up -d --build` — all 5 containers ✅
+  - `python manage.py check` — 0 issues ✅
+  - `python manage.py makemigrations --check --dry-run` — no changes ✅
+  - Migration 0027 applied successfully ✅
+  - HTTP: Home 200, Search 200, Contacts 200, Login 200, Register 200 ✅
+  - Celery worker + beat healthy ✅
+
 ## 2026-03-24
 - Change:
   - Implemented Client (tourist) management feature — agents/captains can create client profiles and link them to offers, bookings, and contracts.
@@ -165,3 +328,68 @@ Use this for future updates:
 - Validation:
 - Risks / follow-up:
 ```
+
+## 2026-03-31
+- Change:
+  - Restricted HTML persistence in parser to only service lists and photos.
+  - Removed HTML-based writes of BoatTechnicalSpecs, BoatDescription, and BoatPrice from parser save flow.
+  - Updated API metadata updater to create missing BoatDescription (5 languages) and BoatTechnicalSpecs records for newly parsed boats.
+  - Added API title/location to metadata payload for initial description bootstrap when records do not exist.
+  - Expanded API specs filling to include length/beam/draft when empty.
+- Files:
+  - `boats/parser.py`
+  - `boats/management/commands/parse_boats_parallel.py`
+  - `docs/DECISIONS.md`
+  - `docs/TASK_STATE.md`
+  - `docs/DEV_LOG.md`
+- Why:
+  - Product requirement: HTML parsing is only for `extras`, `additional_services`, `delivery_extras`, `not_included`, and photos; all other fields must come from API.
+- Validation:
+  - `docker compose up -d --build web`
+  - `docker compose exec web python manage.py check`
+  - `docker compose exec web python manage.py parse_boats_parallel --destination turkey --max-pages 1 --limit 1 --no-cache`
+  - Result: phase 1.5 and 2.5 API metadata updates completed; parser completed successfully with no errors.
+- Risks / follow-up:
+  - Full dataset hydration still requires long-running server-side command execution.
+  - Equipment blocks (`cockpit`, `entertainment`, `equipment`) depend on API availability/quality; current API wrapper reports these as not provided by search response.
+
+## 2026-03-31
+- Change:
+  - Restored HTML persistence for `cockpit`, `entertainment`, `equipment` in `BoatDetails` (per-language), because search API exposes these fields as aggregate filters and not per-boat payload fields.
+  - Optimized parse flow: Phase 2.5 API metadata update now runs only for newly created boats from Phase 2, avoiding redundant repeated updates on existing boats.
+- Files:
+  - `boats/parser.py`
+  - `boats/management/commands/parse_boats_parallel.py`
+  - `docs/DECISIONS.md`
+  - `docs/TASK_STATE.md`
+  - `docs/DEV_LOG.md`
+- Why:
+  - Keep amenities correctness while preserving API-first model for the rest of metadata.
+  - Remove unnecessary second-pass API writes for existing records.
+- Validation:
+  - `docker compose exec web python manage.py check`
+  - `docker compose exec web python manage.py parse_boats_parallel --destination turkey --max-pages 1 --limit 1 --no-cache`
+  - Result: command completed successfully; no Phase 2.5 update was triggered for existing-only sample.
+- Risks / follow-up:
+  - Full server-side long run still required to hydrate all records.
+
+## 2026-03-31
+- Change:
+  - Refactored `parse_boats_parallel` cache format: now saves and restores `slugs`, `thumb_map`, `api_meta`.
+  - Added backward compatibility for legacy cache files (list-only slug format).
+  - Added slug fallback in API scan (`formatted.slug` -> raw `boat.slug`) to avoid accidental drops.
+- Files:
+  - `boats/management/commands/parse_boats_parallel.py`
+  - `docs/DECISIONS.md`
+  - `docs/TASK_STATE.md`
+  - `docs/DEV_LOG.md`
+- Why:
+  - On cache-hit runs, command must keep full metadata hydration behavior (Phase 1.5) without repeating API search requests.
+- Validation:
+  - `docker compose exec web python manage.py check`
+  - `docker compose exec web python manage.py parse_boats_parallel --destination turkey --max-pages 1 --limit 1`
+  - `docker compose exec web python manage.py parse_boats_parallel --destination turkey --max-pages 1 --skip-existing`
+  - `docker compose exec web python manage.py test boats.tests.test_parse_boats_parallel_command -v 2`
+  - Result: cache-hit path loaded from cache and still ran API metadata update for cached slugs; 2/2 tests passed for new+legacy cache formats.
+- Risks / follow-up:
+  - No integration test yet for full command phase flow with real DB updates; currently covered by smoke run + unit tests for cache schema.

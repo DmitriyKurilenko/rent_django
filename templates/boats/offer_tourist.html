@@ -132,7 +132,21 @@
                             <div class="text-lg font-semibold">{{ offer.check_in|date:"d.m.Y" }} — {{ offer.check_out|date:"d.m.Y" }}</div>
                             <div class="text-sm opacity-75 mt-1">{% nights_between offer.check_in offer.check_out %} {% trans "ночей" %}</div>
                         </div>
+
+                        <!-- 5 составляющих базовой цены -->
+                        {% if offer.price_captain or offer.price_fuel or offer.price_moorings or offer.price_transit_cleaning or offer.price_trips_markup %}
+                        <div class="space-y-1 text-sm">
+                            {% if offer.price_captain %}<div class="flex justify-between"><span class="opacity-75">{% trans "Капитан" %}</span><span>{{ offer.price_captain|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
+                            {% if offer.price_fuel %}<div class="flex justify-between"><span class="opacity-75">{% trans "Топливо" %}</span><span>{{ offer.price_fuel|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
+                            {% if offer.price_moorings %}<div class="flex justify-between"><span class="opacity-75">{% trans "Стоянки" %}</span><span>{{ offer.price_moorings|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
+                            {% if offer.price_transit_cleaning %}<div class="flex justify-between"><span class="opacity-75">{% trans "Транзит лог и клининг" %}</span><span>{{ offer.price_transit_cleaning|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
+                            {% if offer.price_trips_markup %}<div class="flex justify-between"><span class="opacity-75">{% trans "Наценка Трипс" %}</span><span>{{ offer.price_trips_markup|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
+                            <div class="border-t border-primary-content/20 mt-2 pt-2"></div>
+                        </div>
+                        {% endif %}
+
                         <div>
+                            <div class="text-sm opacity-75 mb-1">{% trans "Итого" %}</div>
                             <div class="text-7xl font-bold">{{ offer.total_price|floatformat:0 }}</div>
                             <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>
                         </div>
@@ -288,9 +302,29 @@
                 </tr>
                 {% endif %}
                 <tr class="bg-base-100">
-                    <td class="px-4 py-1">Базовая надбавка по стране</td>
+                    <td class="px-4 py-1">Капитан</td>
                     <td class="px-4 py-1 opacity-60">{{ price_debug.base_country_label }}</td>
-                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.base_country }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.price_captain }}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-1">Топливо</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.base_country_label }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.price_fuel }}</td>
+                </tr>
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">Стоянки</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.base_country_label }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.price_moorings }}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-1">Транзит лог и клининг</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.base_country_label }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.price_transit_cleaning }}</td>
+                </tr>
+                <tr class="bg-base-100">
+                    <td class="px-4 py-1">Наценка Трипс</td>
+                    <td class="px-4 py-1 opacity-60">{{ price_debug.base_country_label }}</td>
+                    <td class="px-4 py-1 text-right text-success">+{{ price_debug.price_trips_markup }}</td>
                 </tr>
                 {% if price_debug.praslin %}
                 <tr>

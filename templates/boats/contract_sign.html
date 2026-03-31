@@ -70,7 +70,7 @@
                     <input
                         type="text" name="signer_name_confirm"
                         value="{{ form.signer_name_confirm.value|default_if_none:'' }}"
-                        class="input input-bordered w-full"
+                        class="input input-sm w-full"
                         placeholder="{% trans 'Введите ваше полное ФИО' %}"
                         required
                     >
@@ -127,7 +127,7 @@
                         <label class="label"><span class="label-text">{% trans "Введите 6-значный код" %}</span></label>
                         <input
                             type="text" name="otp_code"
-                            class="input input-bordered otp-input w-full max-w-xs mx-auto"
+                            class="input otp-input w-full max-w-xs mx-auto"
                             inputmode="numeric"
                             pattern="[0-9]{6}"
                             maxlength="6"

@@ -43,7 +43,7 @@ def boat_price(boat_data, rental_days):
     try:
         price_per_day = float(boat_data.get('priceFrom', 0)) or 0
         if price_per_day > 0 and rental_days > 0:
-            return int(price_per_day * int(rental_days))
+            return round(price_per_day * int(rental_days))
         return 0
     except (ValueError, TypeError, AttributeError):
         return 0

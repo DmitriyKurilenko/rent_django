@@ -1,19 +1,19 @@
-Django==4.2.9
-psycopg2-binary==2.9.9
-gunicorn==21.2.0
-Pillow==10.2.0
+Django==5.2.12
+psycopg2-binary==2.9.11
+gunicorn==25.2.0
+Pillow==12.1.1
 python-decouple==3.8
-whitenoise==6.6.0
-requests==2.31.0
-beautifulsoup4==4.12.2
-boto3==1.26.0
+whitenoise==6.12.0
+requests==2.33.0
+beautifulsoup4==4.14.3
+boto3==1.42.77
 polib==1.2.0
 
 # Celery для кэширования и ускорения
-celery==5.3.4
-redis==5.0.1
-django-celery-beat==2.5.0
+celery==5.6.3
+redis==7.4.0
+django-celery-beat==2.9.0
 
 # PDF генерация договоров
-weasyprint==59.0
-pydyf==0.10.0
+weasyprint==68.1
+pydyf==0.12.1

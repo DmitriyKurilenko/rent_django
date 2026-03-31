@@ -1,9 +1,9 @@
 # KNOWN ISSUES
 
-Last updated: 2026-03-11 (Europe/Moscow)
+Last updated: 2026-04-02 (Europe/Moscow)
 
 ## KI-001: Upstream price jitter for identical requests
-- Severity: high
+- Severity: medium (PARTIALLY RESOLVED 2026-04-02)
 - Area: search/detail/offers pricing
 - Symptom: same slug + same dates may return different `totalPrice`/`discount` from Boataround.
 - Notes:
@@ -11,8 +11,9 @@ Last updated: 2026-03-11 (Europe/Moscow)
   - top-level fields are less stable than `policies[0].prices`.
 - Current mitigation:
   - canonical extraction from policy prices,
-  - detail page resolves price server-side for requested dates.
-- Remaining risk: truly inconsistent upstream responses cannot be fully fixed locally without stronger business rule.
+  - detail page resolves price server-side for requested dates,
+  - **[FIXED 2026-04-02]** `get_price()` now checks Redis cache first (6-hour TTL per date range) before attempting consensus loop; eliminates symptom for users within cache window.
+- Remaining risk: upstream can still return different totalPrice on first cache miss (within 5-request consensus window); risk is moved from every page refresh to once per 6 hours per date range. If shorter stability window needed, TTL config can be adjusted in settings.
 
 ## KI-002: Search anti-jitter consensus behavior is partial
 - Severity: medium
@@ -48,3 +49,21 @@ Last updated: 2026-03-11 (Europe/Moscow)
 - Area: infra monitoring
 - Symptom: healthcheck requests report redirect instead of direct 200.
 - Current mitigation: not blocking app traffic; keep in monitor expectations.
+
+## KI-007: Geographic data (country/region/city) partly absent in BoatDescription
+- Severity: medium
+- Area: boats data quality / BoatDescription model
+- Symptom: ~93% of boats lacked country/region/city in BoatDescription despite API providing these fields.
+- Root cause (FIXED 2026-03-31): `_update_api_metadata()` used truthiness check `if meta.get('country'):` which evaluated to False when API returned empty string `''` for un-geolocated boats.
+- Fix applied: Changed to `if 'country' in meta:` in parse_boats_parallel.py. One-time backfill raised coverage from 1,619 (1.3%) to 8,900 (7.2%) boats.
+- Remaining limitation: ~15,000 boats (~61%) still have no geo-data — API genuinely does not provide country/region/city for these boats (source data limitation, not a parsing bug).
+- Action needed: Run `parse_boats_parallel --no-cache --destination all` on production server to maximally backfill from fresh API scan. Repeat periodically as API catalog expands.
+
+## KI-008: Historical rows with English geo labels in non-English descriptions
+- Severity: medium
+- Area: localization quality / `BoatDescription`
+- Symptom: part of historical boats had `ru_RU/de_DE/fr_FR/es_ES` country/region/city equal to English labels (e.g. `Italy`, `Croatia`).
+- Root cause (FIXED 2026-03-31): metadata updater used English fallback for non-English records when per-language API payload was missing in current run.
+- Fix applied: updater now uses strict per-language payload for non-English records and keeps fallback only for `en_EN`.
+- Remaining limitation: stale rows from older runs require destination/page backfill to be rewritten with localized values.
+- Action needed: run periodic destination-scoped `parse_boats_parallel --skip-existing --no-cache --max-pages N` backfills until stale pool is exhausted.

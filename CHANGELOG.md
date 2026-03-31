@@ -2,6 +2,29 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.4.0-dev] - 2026-04-02
+
+### 🔧 Fixed - Price Stability on Detail Page
+- **Price caching fix**: `BoataroundAPI.get_price()` now checks 6-hour Redis cache before consensus loop
+- **Eliminates symptom**: Refreshing detail page with same dates no longer shows different prices
+- **Reduced API calls**: Cached results bypass 5-request consensus window entirely
+- **Cleaner error handling**: Returns empty dict when all API requests fail (allows graceful fallback)
+- **Impact**: KI-001 severity reduced from high → medium; pricing consistency (P0) marked RESOLVED
+
+### 📄 Documentation
+- **docs/VERSIONING.md**: New—semantic versioning scheme for development stage
+- **docs/DEV_LOG.md**: Added entry for 2026-04-02 price cache fix
+- **docs/DECISIONS.md**: Added DR-017 (cache-first lookup strategy)
+- **docs/KNOWN_ISSUES.md**: Updated KI-001 with resolution path
+- **docs/TASK_STATE.md**: P0 pricing consistency marked RESOLVED
+- **VERSION**: Introduced version file (0.4.0-dev)
+
+### Files Changed
+- `boats/boataround_api.py`: `get_price()` method refactored
+- `docs/VERSIONING.md`: New versioning guide
+- `docs/DEV_LOG.md`, `docs/DECISIONS.md`, `docs/KNOWN_ISSUES.md`, `docs/TASK_STATE.md`: Updated
+- `VERSION`: New file (0.4.0-dev)
+
 ## [1.2.0] - 2026-02-01
 
 ### ✨ Added - Quick Offer Creation Feature

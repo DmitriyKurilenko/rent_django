@@ -1,13 +1,39 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer utilities {
-  .min-h-main {
-    min-height: calc(100vh - 4rem);
-  }
+@source "../../templates/**/*.html";
+@source "../../boats/**/*.py";
+@source "../../accounts/**/*.py";
 
-  .h-500px {
-    height: 500px;
-  }
+@plugin "@tailwindcss/typography";
+@plugin "daisyui" {
+  themes: winter --default
+}
+
+@utility min-h-main {
+  min-height: calc(100vh - 4rem);
+}
+
+@utility h-500px {
+  height: 500px;
+}
+
+/* DaisyUI v4 compat: form-control, label-text removed in v5 */
+@utility form-control {
+  display: flex;
+  flex-direction: column;
+}
+
+@utility label-text {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  --tw-text-opacity: 1;
+  color: var(--color-base-content);
+}
+
+@utility label-text-alt {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  --tw-text-opacity: 1;
+  color: var(--color-base-content);
+  opacity: 0.7;
 }

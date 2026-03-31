@@ -11,22 +11,22 @@ class DaisyUIMixin:
             css = widget.attrs.get('class', '')
             if isinstance(widget, (forms.TextInput, forms.EmailInput, forms.NumberInput, forms.URLInput, forms.PasswordInput)):
                 if 'input' not in css:
-                    widget.attrs['class'] = f'{css} input input-bordered w-full'.strip()
+                    widget.attrs['class'] = f'{css} input input-sm w-full'.strip()
             elif isinstance(widget, forms.DateInput):
                 if 'input' not in css:
-                    widget.attrs['class'] = f'{css} input input-bordered w-full'.strip()
+                    widget.attrs['class'] = f'{css} input input-sm w-full'.strip()
             elif isinstance(widget, forms.Select):
                 if 'select' not in css:
-                    widget.attrs['class'] = f'{css} select select-bordered w-full'.strip()
+                    widget.attrs['class'] = f'{css} select select-sm w-full'.strip()
             elif isinstance(widget, forms.Textarea):
                 if 'textarea' not in css:
-                    widget.attrs['class'] = f'{css} textarea textarea-bordered w-full'.strip()
+                    widget.attrs['class'] = f'{css} textarea textarea-sm w-full'.strip()
             elif isinstance(widget, forms.CheckboxInput):
                 if 'checkbox' not in css:
                     widget.attrs['class'] = f'{css} checkbox checkbox-primary'.strip()
             elif isinstance(widget, forms.FileInput):
                 if 'file-input' not in css:
-                    widget.attrs['class'] = f'{css} file-input file-input-bordered w-full'.strip()
+                    widget.attrs['class'] = f'{css} file-input file-input-sm w-full'.strip()
 
 
 class SearchForm(DaisyUIMixin, forms.Form):

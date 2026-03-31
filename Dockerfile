@@ -1,8 +1,8 @@
-FROM node:20-alpine AS assets
+FROM node:22-alpine AS assets
 
 WORKDIR /app
 
-COPY package.json tailwind.config.js ./
+COPY package.json ./
 COPY assets ./assets
 COPY templates ./templates
 COPY boats ./boats
@@ -12,7 +12,7 @@ COPY static ./static
 RUN npm install --no-audit --no-fund \
     && npm run build:css
 
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1

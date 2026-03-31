@@ -1,17 +1,18 @@
 # TASK STATE
 
-Last updated: 2026-03-22 (Europe/Moscow)
+Last updated: 2026-04-02 (Europe/Moscow)
 
 ## Current priorities
 
 ### P0: Pricing consistency across search/detail/offers
-- Status: in progress (stabilization logic implemented, still monitoring production drift).
+- Status: **RESOLVED (2026-04-02)** — cache-first lookup in `get_price()` eliminates price jitter symptom for users.
 - Goal: one pricing pipeline and predictable user-visible price per request context.
 - Scope:
   - search cards,
   - boat detail page,
   - offer creation/list/detail,
   - direct booking flows.
+- Final solution: `BoataroundAPI.get_price()` checks 6-hour Redis cache before consensus loop; detail page price now stable within cache window. Legacy KI-001 (upstream jitter) is mitigated, not eliminated (5-request consensus loop still runs on cache miss).
 
 ### P1: Amenities refresh command reliability
 - Status: in progress.
@@ -33,6 +34,8 @@ Last updated: 2026-03-22 (Europe/Moscow)
 - Async amenities command now verifies active Celery worker and can wait with timeout/poll summary.
 - Tests added for pricing extraction/resolver, detail snapshot behavior, amenities command async behavior.
 - Added `import_charter_commissions` management command to import charter commissions from `.xlsx` by charter name normalization (including `d.o.o.` suffix stripping), with CSV audit outputs (`loaded` / `not_loaded`).
+- **Major stack upgrade completed (2026-03-27):** Python 3.13, Django 5.2.12 LTS, Tailwind 4.2.2, DaisyUI 5.5.19, Node 22, all Python packages to latest. Validated: manage.py check, migrations, HTTP pages, CSS, Celery.
+- **Dynamic country pricing (2026-03-28):** Replaced hardcoded 3-region pricing (55 fields on PriceSettings) with `CountryPriceConfig` model (FK, 15 fields per country). Admin can add/edit/delete countries from price settings UI. Migration 0030 seeds Turkey/Seychelles/Default. Templates and pricing logic fully dynamic.
 
 ## Open risks / watch items
 - Upstream Boataround API may return different `totalPrice` for identical query windows.
@@ -79,3 +82,21 @@ Last updated: 2026-03-22 (Europe/Moscow)
   - show freshest,
   - show conservative (higher/lower),
   - or apply multi-sample quorum before display.
+
+### P5: Source-of-truth split (HTML vs API)
+- Status: implemented, ready for full server run.
+- Goal: keep HTML only for service lists and photos; all other fields from API.
+- Scope:
+  - HTML writes: `extras`, `additional_services`, `delivery_extras`, `not_included`, `BoatGallery` photos, plus `cockpit` / `entertainment` / `equipment` (per-boat amenities).
+  - API writes: `ParsedBoat` metadata, `BoatDescription`, `BoatTechnicalSpecs`, `Charter` linkage/rank fields.
+  - API updater creates missing `BoatDescription` and `BoatTechnicalSpecs` records for newly parsed boats.
+  - Phase 2.5 API updater runs only for newly created boats (no repeated update for existing boats).
+  - Cache payload stores `api_meta` and `thumb_map`, so cache-hit runs still execute complete Phase 1.5 metadata hydration.
+
+### P6: Geo-data localization integrity
+- Status: in progress (logic fixed, backfill ongoing).
+- Goal: non-English `BoatDescription` (`ru_RU/de_DE/fr_FR/es_ES`) must be populated only from same-language API payload.
+- Scope:
+  - Remove cross-language fallback that copied `en_EN` geo labels into other languages.
+  - Keep English fallback only for `en_EN` records.
+  - Run destination-scoped metadata backfill to correct stale historical rows.

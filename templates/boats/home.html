@@ -31,7 +31,7 @@
                                     @input.debounce.500ms="fetchLocations"
                                     @focus="if(suggestions.length > 0 && location.trim().length >= 2 && !selectedDestination) showSuggestions = true"
                                     placeholder="Турция, Греция, Хорватия..."
-                                    class="input input-bordered input-lg w-full"
+                                    class="input input-lg w-full"
                                     autocomplete="off"
                                 />
                                 <div x-show="loadingSuggestions" class="absolute right-3 top-1/2 -translate-y-1/2">
@@ -67,7 +67,7 @@
                                     type="date"
                                     x-model="checkIn"
                                     :min="today"
-                                    class="input input-bordered"
+                                    class="input input-lg"
                                 />
                             </div>
                             
@@ -83,7 +83,7 @@
                                     type="date"
                                     x-model="checkOut"
                                     :min="checkIn || today"
-                                    class="input input-bordered"
+                                    class="input input-lg"
                                 />
                             </div>
                         </div>
@@ -95,7 +95,7 @@
                                     {% trans "Тип судна" %}
                                 </span>
                             </label>
-                            <select id="boat-type" x-model="boatType" class="select select-bordered">
+                            <select id="boat-type" x-model="boatType" class="select select-lg">
                                 <option value="">{% trans "Все типы" %}</option>
                                 <option value="sailing-yacht">⛵ {% trans "Парусная яхта" %}</option>
                                 <option value="catamaran">🚤 {% trans "Катамаран" %}</option>

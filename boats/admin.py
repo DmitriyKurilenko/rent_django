@@ -111,7 +111,8 @@ class OfferAdmin(admin.ModelAdmin):
             'fields': ('check_in', 'check_out', 'expires_at')
         }),
         ('Цены', {
-            'fields': ('total_price', 'original_price', 'discount', 'currency')
+            'fields': ('total_price', 'original_price', 'discount', 'currency',
+                       'price_captain', 'price_fuel', 'price_moorings', 'price_transit_cleaning', 'price_trips_markup')
         }),
         ('Настройки', {
             'fields': ('show_countdown', 'notifications', 'notes', 'is_active')

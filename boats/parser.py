@@ -734,7 +734,7 @@ def _fetch_language_page_data(slug: str, lang: str) -> dict:
     - amenities: cockpit, entertainment, equipment (только is_present=True)
     """
     empty = {
-        'descriptions': {'title': '', 'description': '', 'location': '', 'marina': ''},
+        'descriptions': {'title': '', 'description': '', 'location': '', 'marina': '', 'country': ''},
         'services': {'extras': [], 'additional_services': [], 'delivery_extras': [], 'not_included': []},
         'amenities': {'cockpit': [], 'entertainment': [], 'equipment': []},
         '_fetch_ok': False,
@@ -751,7 +751,7 @@ def _fetch_language_page_data(slug: str, lang: str) -> dict:
         soup = BeautifulSoup(html_content, 'html.parser')
 
         # --- Описания ---
-        descriptions = {'title': '', 'description': '', 'location': '', 'marina': ''}
+        descriptions = {'title': '', 'description': '', 'location': '', 'marina': '', 'country': ''}
         for script in soup.find_all('script', {'type': 'application/ld+json'}):
             try:
                 data = json.loads(script.string)
@@ -773,10 +773,12 @@ def _fetch_language_page_data(slug: str, lang: str) -> dict:
         if add_to_wishlist:
             descriptions['marina'] = add_to_wishlist.get('marina', '') or ''
             descriptions['location'] = add_to_wishlist.get('region', '') or ''
-        if not descriptions['location']:
-            payment_box = soup.find('mobile-payment-box')
-            if payment_box:
+        # Дополняем из payment_box (mobile или desktop)
+        payment_box = soup.find('mobile-payment-box') or soup.find('reservation-box')
+        if payment_box:
+            if not descriptions['location']:
                 descriptions['location'] = payment_box.get('region', '') or ''
+            descriptions['country'] = payment_box.get('country', '') or ''
 
         # --- Услуги ---
         services = {
@@ -1039,27 +1041,28 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
             logger.warning(f"[parser] Failed to parse JSON-LD script {script_idx}: {e}")
             continue
     
-    # Fallback: из старых компонентов (если еще существуют)
-    payment_box = soup.find('mobile-payment-box')
+    # Компоненты с данными о локации/параметрах яхты
+    # mobile-payment-box — мобильная версия, reservation-box — десктопная
+    payment_box = soup.find('mobile-payment-box') or soup.find('reservation-box')
     if payment_box:
-        logger.info(f"[parser] Found mobile-payment-box")
-        info['title'] = payment_box.get('boat-title', info['title']) or info['title']
-        info['year'] = payment_box.get('boat-year', '')
-        info['cabins'] = payment_box.get('boat-cabins', '')
-        info['people'] = payment_box.get('boat-people', '')
-        info['length'] = payment_box.get('boat-length', '')
-        info['manufacturer'] = payment_box.get('manufacturer', '')
-        info['country'] = payment_box.get('country', '')
-        info['location'] = payment_box.get('region', '')
-        # Технические параметры
-        info['beam'] = payment_box.get('boat-beam', '')
-        info['draft'] = payment_box.get('boat-draft', '')
-        info['engine_type'] = payment_box.get('boat-engine-type', '')
-        info['fuel'] = payment_box.get('boat-fuel', '')
-        info['maximum_speed'] = payment_box.get('boat-max-speed', '')
-        info['toilets'] = payment_box.get('boat-toilets', '')
+        logger.info(f"[parser] Found {payment_box.name}")
+        info['title'] = payment_box.get('boat-title', '') or payment_box.get('title', '') or info['title']
+        info['year'] = payment_box.get('boat-year', '') or info['year']
+        info['cabins'] = payment_box.get('boat-cabins', '') or info['cabins']
+        info['people'] = payment_box.get('boat-people', '') or info['people']
+        info['length'] = payment_box.get('boat-length', '') or info['length']
+        info['manufacturer'] = payment_box.get('manufacturer', '') or info['manufacturer']
+        info['country'] = payment_box.get('country', '') or info['country']
+        info['location'] = payment_box.get('region', '') or info['location']
+        # Технические параметры (только из mobile-payment-box)
+        info['beam'] = payment_box.get('boat-beam', '') or info['beam']
+        info['draft'] = payment_box.get('boat-draft', '') or info['draft']
+        info['engine_type'] = payment_box.get('boat-engine-type', '') or info['engine_type']
+        info['fuel'] = payment_box.get('boat-fuel', '') or info['fuel']
+        info['maximum_speed'] = payment_box.get('boat-max-speed', '') or info['maximum_speed']
+        info['toilets'] = payment_box.get('boat-toilets', '') or info['toilets']
     else:
-        logger.warning(f"[parser] payment_box не найден!")
+        logger.warning(f"[parser] payment_box не найден (ни mobile-payment-box, ни reservation-box)!")
     
     # Из boat-info-list компонента (основной источник技ических параметров)
     boat_info_list = soup.find('boat-info-list')
@@ -1276,10 +1279,8 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     if save_to_db and slug and slug != 'unknown':
         try:
             from boats.models import (
-                ParsedBoat, BoatTechnicalSpecs, BoatDescription, 
-                BoatPrice, BoatGallery, BoatDetails
+                ParsedBoat, BoatGallery, BoatDetails, BoatDescription
             )
-            from decimal import Decimal
 
             # Получаем или создаем ParsedBoat.
             # Важно: boat_id у источника может отсутствовать в HTML.
@@ -1337,66 +1338,7 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
                 )
                 created = True
             
-            # Сохраняем технические параметры (BoatTechnicalSpecs)
-            BoatTechnicalSpecs.objects.update_or_create(
-                boat=parsed_boat,
-                defaults={
-                    'length': float(boat_info.get('length', 0)) if boat_info.get('length') else None,
-                    'beam': float(boat_info.get('beam', 0)) if boat_info.get('beam') else None,
-                    'draft': float(boat_info.get('draft', 0)) if boat_info.get('draft') else None,
-                    'cabins': int(boat_info.get('cabins', 0)) if boat_info.get('cabins') else None,
-                    'berths': int(boat_info.get('max_sleeps', 0)) if boat_info.get('max_sleeps') else None,
-                    'toilets': int(boat_info.get('toilets', 0)) if boat_info.get('toilets') else None,
-                    'fuel_capacity': int(boat_info.get('fuel', 0)) if boat_info.get('fuel') else None,
-                    'water_capacity': int(boat_info.get('water_tank', 0)) if boat_info.get('water_tank') else None,
-                    'max_speed': float(boat_info.get('maximum_speed', 0)) if boat_info.get('maximum_speed') else None,
-                    'engine_power': int(boat_info.get('engine_power', 0)) if boat_info.get('engine_power') else None,
-                    'number_engines': int(boat_info.get('number_engines', 0)) if boat_info.get('number_engines') else None,
-                    'engine_type': boat_info.get('engine_type', ''),
-                    'fuel_type': boat_info.get('fuel_type', ''),
-                }
-            )
-
-            # Сохраняем описание (BoatDescription) для всех языков
-            for language in SUPPORTED_LANGUAGES:
-                lang_desc = all_lang_data.get(language, {}).get('descriptions', {})
-
-                # Используем локализованные данные если есть, иначе русские по умолчанию
-                title = lang_desc.get('title', '') or boat_info.get('title', '')
-                description = lang_desc.get('description', '') or boat_info.get('description', '')
-                location = lang_desc.get('location', '') or boat_info.get('location', '')
-                marina = lang_desc.get('marina', '') or boat_info.get('marina', '')
-                
-                BoatDescription.objects.update_or_create(
-                    boat=parsed_boat,
-                    language=language,
-                    defaults={
-                        'title': title,
-                        'description': description,
-                        'location': location,
-                        'marina': marina,
-                    }
-                )
-                logger.info(f"[parser] ✅ BoatDescription сохранено для {language}: title='{title[:50]}...'")
-
-            # Сохраняем цены (BoatPrice) - по умолчанию EUR с основной ценой
-            if prices and (prices.get('total_price') or prices.get('min_price')):
-                price_per_day = prices.get('total_price') or prices.get('min_price') or 0
-                if price_per_day and price_per_day > 0:
-                    try:
-                        BoatPrice.objects.update_or_create(
-                            boat=parsed_boat,
-                            currency='EUR',  # По умолчанию EUR
-                            defaults={
-                                'price_per_day': Decimal(str(price_per_day)),
-                                'price_per_week': None,
-                            }
-                        )
-                        logger.info(f"Цена сохранена: {price_per_day} EUR")
-                    except Exception as price_err:
-                        logger.warning(f"Ошибка сохранения цены {price_per_day}: {price_err}")
-
-            # Очищаем старую галерею и добавляем новую (BoatGallery)
+            # Из HTML сохраняем только фото (BoatGallery)
             BoatGallery.objects.filter(boat=parsed_boat).delete()
             for idx, pic_url in enumerate(downloaded_pics, 1):
                 BoatGallery.objects.create(
@@ -1405,11 +1347,14 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
                     order=idx
                 )
 
-            # Сохраняем доп. детали (BoatDetails) для каждого языка
+            # Из HTML сохраняем сервисные списки + amenities (BoatDetails)
+            # + локализованные описания (BoatDescription) — title/country/marina/location
+            from boats.models import BoatDescription
             for language in SUPPORTED_LANGUAGES:
                 lang_equipment = all_lang_data.get(language, {}).get('amenities', {})
                 lang_services = all_lang_data.get(language, {}).get('services', {})
-                
+                lang_desc = all_lang_data.get(language, {}).get('descriptions', {})
+
                 BoatDetails.objects.update_or_create(
                     boat=parsed_boat,
                     language=language,
@@ -1419,13 +1364,55 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
                         'additional_services': lang_services.get('additional_services', []),
                         'delivery_extras': lang_services.get('delivery_extras', []),
                         'not_included': lang_services.get('not_included', []),
-                        # Локализованное оборудование для каждого языка
+                        # Локализованное оборудование (по лодке) берём из HTML amenities
                         'cockpit': lang_equipment.get('cockpit', []),
                         'entertainment': lang_equipment.get('entertainment', []),
                         'equipment': lang_equipment.get('equipment', []),
                     }
                 )
-                logger.info(f"[parser] ✅ BoatDetails сохранены для {language}: extras={len(lang_services.get('extras', []))}, cockpit={len(lang_equipment.get('cockpit', []))}")
+
+                # Сохраняем локализованные текстовые поля из HTML в BoatDescription.
+                # HTML-страница каждого языка содержит country/marina/location на нужном языке.
+                desc_update = {}
+                if lang_desc.get('title'):
+                    desc_update['title'] = lang_desc['title']
+                if lang_desc.get('country'):
+                    desc_update['country'] = lang_desc['country']
+                if lang_desc.get('marina'):
+                    desc_update['marina'] = lang_desc['marina']
+                if lang_desc.get('location'):
+                    desc_update['location'] = lang_desc['location']
+                if lang_desc.get('description'):
+                    desc_update['description'] = lang_desc['description']
+
+                if desc_update:
+                    boat_title = desc_update.get('title') or boat_info.get('title', '') or parsed_boat.slug
+                    BoatDescription.objects.update_or_create(
+                        boat=parsed_boat,
+                        language=language,
+                        defaults={
+                            'title': boat_title,
+                            'description': desc_update.get('description', ''),
+                            'country': desc_update.get('country', ''),
+                            'marina': desc_update.get('marina', ''),
+                            'location': desc_update.get('location', ''),
+                        }
+                    )
+                    logger.info(
+                        f"[parser] ✅ BoatDescription обновлён для {language}: "
+                        f"country='{desc_update.get('country', '')}', "
+                        f"marina='{desc_update.get('marina', '')}'"
+                    )
+                logger.info(
+                    f"[parser] ✅ BoatDetails services сохранены для {language}: "
+                    f"extras={len(lang_services.get('extras', []))}, "
+                    f"adds={len(lang_services.get('additional_services', []))}, "
+                    f"delivery={len(lang_services.get('delivery_extras', []))}, "
+                    f"not_included={len(lang_services.get('not_included', []))}, "
+                    f"cockpit={len(lang_equipment.get('cockpit', []))}, "
+                    f"entertainment={len(lang_equipment.get('entertainment', []))}, "
+                    f"equipment={len(lang_equipment.get('equipment', []))}"
+                )
 
             # Увеличиваем счетчик парсингов
             if not created:

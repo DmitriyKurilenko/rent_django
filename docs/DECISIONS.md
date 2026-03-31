@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-03-22 (Europe/Moscow)
+Last updated: 2026-03-31 (Europe/Moscow)
 
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
@@ -73,3 +73,45 @@ Last updated: 2026-03-22 (Europe/Moscow)
 - Context: agents/captains need to track their customers (tourists) who may not have accounts in the system.
 - Decision: introduce `Client` model (boats/models.py) as a standalone entity with optional FK to `User`. Nullable FK added to Booking, Offer, and Contract. Client data auto-propagates through the chain: offer→booking→contract.
 - Consequence: client is not a Django User; agents manage clients independently; contract forms pre-fill from client passport/contact data; existing data unaffected (all FK fields nullable).
+
+## DR-013: Major stack upgrade — Django 5.2 LTS + Tailwind 4 + DaisyUI 5
+- Date: 2026-03-27
+- Context: stack was on aging versions (Django 4.2, Tailwind 3, DaisyUI 4, Python 3.11). Need security patches and LTS support.
+- Decision: upgrade to Django 5.2.12 LTS (not 6.0), Python 3.13, Tailwind CSS 4.2.2, DaisyUI 5.5.19, Node 22, all Python packages to latest. PostgreSQL stays at 15 (major upgrade needs dump/restore).
+- Consequence: Django 5.2 LTS supported until April 2028; Tailwind 4 uses CSS-first config (no tailwind.config.js); DaisyUI 5 has borders by default on inputs (-bordered classes are no-ops); settings.py uses STORAGES dict instead of STATICFILES_STORAGE.
+
+## DR-014: Dynamic country pricing via CountryPriceConfig model
+- Date: 2026-03-28
+- Context: tourist offer pricing was hardcoded for 3 regions (Turkey/Seychelles/Default) with ~55 fields on PriceSettings. Adding new countries required code changes.
+- Decision: introduce `CountryPriceConfig` model (FK to PriceSettings) with 15 pricing fields per country, alias-based matching, and default fallback. Admin can add/edit/delete countries from the price settings UI. Old hardcoded fields on PriceSettings remain (no data deletion) but are no longer read by pricing logic.
+- Consequence: unlimited countries supported; `_resolve_country_config()` in helpers.py handles matching by lowercased aliases; templates render dynamically from DB; migration 0030 seeds 3 initial configs from existing hardcoded values.
+
+## DR-015: HTML parsing scope is limited to services and photos
+- Date: 2026-03-31
+- Context: product requirement is to use HTML parsing only for fields unavailable via API.
+- Decision: keep HTML persistence for service lists (`extras`, `additional_services`, `delivery_extras`, `not_included`), detail gallery photos, and per-boat amenities (`cockpit`, `entertainment`, `equipment`) because search API exposes these as aggregate filters, not reliable per-boat values. Treat API as source of truth for descriptions, specs, geo/category/review metadata, charter data, and other non-service fields.
+- Consequence: parser save flow stays narrow but preserves amenities correctness; Phase 2.5 API metadata update is restricted to newly created boats from Phase 2 to avoid redundant second-pass updates.
+
+## DR-016: parse_boats_parallel cache stores API metadata payload
+- Date: 2026-03-31
+- Context: when slug list was loaded from local cache, command skipped API search call and had no `api_meta`/`thumb_map`, so Phase 1.5 metadata updates could be incomplete on cache-hit runs.
+- Decision: cache file now persists `slugs`, `thumb_map`, and `api_meta`; cache loader restores all three with backward compatibility for old list-only cache format.
+- Consequence: cache-hit runs keep API metadata update behavior consistent with fresh API scan and avoid unnecessary re-fetching.
+
+## DR-017: Cache-first lookup in BoataroundAPI.get_price()
+- Date: 2026-04-02
+- Context: price inconsistency symptom: user refreshes detail page with same URL (identical slug, check_in, check_out) and sees different prices. Root cause: `get_price()` consensus algorithm did NOT check Redis cache before making 5 API requests, causing every call to fetch fresh data and potentially resolve to different consensus values.
+- Decision: check cache key `price_consensus:{slug}:{check_in}:{check_out}:{currency}` at function start and return immediately if found (6-hour TTL). Only perform consensus loop if cache miss.
+- Consequence: price is stable for 6 hours per date range; second page refresh shows cached value in logs (INFO "Using cached price"); eliminates upstream jitter symptom for users within cache window; minimal latency improvement (saves 5 sequential API calls on hit).
+
+## DR-017: geo-data population uses presence check instead of truthiness check
+- Date: 2026-03-31
+- Context: After analysis, only 1,619 boats (6.6%) had `country/region/city` in BoatDescription despite API providing these fields for ~8,000+ boats. Root cause: `_update_api_metadata()` was using `if meta.get('country'):` which fails when API returns empty string `''` because empty string is falsy in Python.
+- Decision: changed all geo-field checks from truthiness `if meta.get('country'):` to presence checks `if 'country' in meta:`. This way, even empty strings from API are properly captured and stored in database.
+- Consequence: geo-data coverage improved from 1,619 boats (1.3%) to 8,900+ boats (7.2%) in single backfill run. New boats created via parse_boats_parallel now always receive available API geo-metadata. Remaining ~15,000 boats without geo-data genuinely lack it in the API (not a parsing/storage issue, but a source data limitation).
+
+## DR-018: no cross-language fallback for BoatDescription geo fields
+- Date: 2026-03-31
+- Context: On cache-hit and partial metadata runs, some boats received `en_EN` geo values copied into `ru_RU/de_DE/fr_FR/es_ES` when localized API payload was missing for those languages.
+- Decision: in `_update_api_metadata()`, update `BoatDescription` per-language only from that language payload; keep English fallback only for `en_EN`; do not copy English geo values to non-English records.
+- Consequence: new metadata updates preserve localization correctness; stale mixed-language records require destination-scoped backfill runs to be corrected in DB.

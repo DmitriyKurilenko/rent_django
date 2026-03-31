@@ -456,9 +456,9 @@ class BoataroundAPI:
 
         API boataround нестабилен: один и тот же запрос может вернуть разные
         totalPrice. Для стабилизации:
-        1. Делаем до 3 запросов, ищем два совпадающих totalPrice.
-        2. Результат кешируем в Redis (6 ч) и обновляем только при
-           консенсусе (2+ одинаковых ответа).
+        1. Делаем до 5 запросов, ищем 3 совпадающих totalPrice.
+        2. Если полного консенсуса нет — берём самую частую цену.
+        3. Результат кешируем в Redis (6 ч).
         """
         try:
             from django.core.cache import cache as django_cache
@@ -476,55 +476,68 @@ class BoataroundAPI:
 
             cache_key = f"price_consensus:{slug}:{check_in}:{check_out}:{currency}"
 
-            # --- Делаем до 3 запросов для консенсуса ---
+            # Check cache FIRST — if price was calculated in last 6 hours, return it immediately
+            cached = django_cache.get(cache_key)
+            if cached:
+                logger.info(f"[Price] Using cached price for {slug}: totalPrice={cached.get('totalPrice')}")
+                return cached
+
+            # --- Делаем до 5 запросов для консенсуса (3 совпадения) ---
+            MAX_ATTEMPTS = 5
+            REQUIRED_MATCHES = 3
             results = []
             consensus_result = None
 
-            for i in range(3):
+            for i in range(MAX_ATTEMPTS):
                 result = BoataroundAPI._fetch_price_once(url, params, BoataroundAPI.HEADERS)
                 if not result:
                     continue
                 results.append(result)
 
-                # Ищем пару с одинаковым totalPrice
+                # Считаем сколько раз встречается текущий totalPrice
                 tp = round(float(result.get('totalPrice', 0)), 2)
-                for prev in results[:-1]:
-                    if round(float(prev.get('totalPrice', 0)), 2) == tp:
-                        consensus_result = result
-                        break
-                if consensus_result:
+                match_count = sum(
+                    1 for r in results
+                    if round(float(r.get('totalPrice', 0)), 2) == tp
+                )
+                if match_count >= REQUIRED_MATCHES:
+                    consensus_result = result
                     break
 
-                # Первый запрос прошёл — ждём немного перед вторым
-                if i < 2:
+                # Ждём немного перед следующим запросом
+                if i < MAX_ATTEMPTS - 1:
                     import time
                     time.sleep(0.3)
 
             if consensus_result:
                 logger.debug(
-                    f"[Price] Consensus reached for {slug} after {len(results)} requests: "
-                    f"totalPrice={consensus_result.get('totalPrice')}"
+                    f"[Price] Consensus reached for {slug} after {len(results)} requests "
+                    f"({REQUIRED_MATCHES} matches): totalPrice={consensus_result.get('totalPrice')}"
                 )
                 django_cache.set(cache_key, consensus_result, 60 * 60 * 6)
                 return consensus_result
 
-            # Нет консенсуса — пробуем кеш
-            cached = django_cache.get(cache_key)
-            if cached:
-                logger.info(
-                    f"[Price] No consensus for {slug} after {len(results)} requests, "
-                    f"using cached price: totalPrice={cached.get('totalPrice')}"
-                )
-                return cached
-
-            # Нет кеша — возвращаем первый результат (лучше, чем ничего)
+            # Нет консенсуса — выбираем самую частую цену из результатов
             if results:
-                logger.warning(
-                    f"[Price] No consensus and no cache for {slug}, using first result: "
-                    f"totalPrice={results[0].get('totalPrice')}"
+                # Берём цену с наибольшим количеством совпадений
+                from collections import Counter
+                price_counts = Counter(
+                    round(float(r.get('totalPrice', 0)), 2) for r in results
                 )
-                return results[0]
+                most_common_price = price_counts.most_common(1)[0][0]
+                best = next(
+                    r for r in results
+                    if round(float(r.get('totalPrice', 0)), 2) == most_common_price
+                )
+                logger.warning(
+                    f"[Price] No full consensus for {slug} after {len(results)} requests, "
+                    f"using most common price: {most_common_price} "
+                    f"(counts: {dict(price_counts)})"
+                )
+                django_cache.set(cache_key, best, 60 * 60 * 6)
+                return best
 
+            # Запросы полностью сбзились (не было даже partial результатов)
             return {}
 
         except Exception as e:
@@ -1227,15 +1240,15 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
         charter=charter_obj,
         currency=boat.get('currency', 'EUR'),
     )
-    price = int(breakdown['final_price']) if breakdown['final_price'] else 0
-    old_price = int(breakdown['old_price']) if breakdown['old_price'] else 0
+    price = round(breakdown['final_price']) if breakdown['final_price'] else 0
+    old_price = round(breakdown['old_price']) if breakdown['old_price'] else 0
     discount_percent = int(breakdown['discount_percent']) if breakdown['discount_percent'] else 0
     
     # Цена за сутки (avg_price из API или считаем сами)
     price_per_day = 0
     if avg_price:
         try:
-            price_per_day = int(float(avg_price))
+            price_per_day = round(float(avg_price))
         except:
             price_per_day = 0
     

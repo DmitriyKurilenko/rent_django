@@ -55,7 +55,7 @@
                             step="1"
                             min="0"
                             max="100"
-                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
+                            class="input input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
                             required
                         >
                         {% if errors and field in errors %}
@@ -69,106 +69,183 @@
         </div>
 
         <!-- ── Туристический оффер ──────────────────────────────────────── -->
-        <div class="card bg-base-100 shadow-sm mb-6">
+        <div class="card bg-base-100 shadow-sm mb-6" x-data="{ region: 'all', showAddCountry: false }">
             <div class="card-body p-4">
                 <h2 class="font-bold text-base mb-3 flex items-center gap-2">
                     <i class="fas fa-umbrella-beach text-secondary"></i>
                     Туристический оффер
                 </h2>
 
-                <!-- Страхование -->
-                <p class="text-xs font-semibold uppercase opacity-50 mb-2 mt-1">Страхование депозита</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    {% for field, label, ftype, value in price_fields %}
-                    {% if field == 'tourist_insurance_rate' or field == 'tourist_insurance_min' %}
-                    <div class="form-control">
-                        <label class="label py-1">
-                            <span class="label-text text-sm font-medium">{{ label }}</span>
-                        </label>
-                        <input
-                            type="number"
-                            name="{{ field }}"
-                            value="{{ value|unlocalize }}"
-                            step="0.0001"
-                            min="0"
-                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
-                            required
-                        >
-                        {% if errors and field in errors %}
-                        <span class="text-error text-xs mt-1">{{ errors|dictsortreversed:field }}</span>
-                        {% endif %}
-                    </div>
-                    {% endif %}
+                <!-- Фильтр по странам -->
+                <div class="flex flex-wrap gap-1 mb-3">
+                    <button type="button" class="btn btn-xs" :class="region === 'all' ? 'btn-primary' : 'btn-ghost'" @click="region = 'all'">Все страны</button>
+                    {% for cc in country_configs %}
+                    <button type="button" class="btn btn-xs" :class="region === '{{ cc.country_code }}' ? 'btn-primary' : 'btn-ghost'" @click="region = '{{ cc.country_code }}'">{{ cc.country_name }}{% if cc.is_default %} 🌍{% endif %}</button>
                     {% endfor %}
+                    <button type="button" class="btn btn-xs btn-ghost" @click="showAddCountry = !showAddCountry" title="Добавить страну"><i class="fas fa-plus"></i></button>
                 </div>
 
-                <!-- Базовая цена по стране -->
-                <p class="text-xs font-semibold uppercase opacity-50 mb-2">Базовая цена по стране (EUR)</p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    {% for field, label, ftype, value in price_fields %}
-                    {% if field == 'tourist_turkey_base' or field == 'tourist_seychelles_base' or field == 'tourist_default_base' %}
-                    <div class="form-control">
-                        <label class="label py-1">
-                            <span class="label-text text-sm font-medium">{{ label }}</span>
-                        </label>
-                        <input
-                            type="number"
-                            name="{{ field }}"
-                            value="{{ value|unlocalize }}"
-                            step="0.01"
-                            min="0"
-                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
-                            required
-                        >
+                <!-- Мини-форма добавления страны -->
+                <div x-show="showAddCountry" x-cloak class="bg-base-200 rounded-lg p-3 mb-3 space-y-2">
+                    <p class="font-semibold text-sm">Добавить страну</p>
+                    <div class="flex flex-wrap gap-2 items-end">
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Название</span></label>
+                            <input type="text" name="new_country_name" class="input input-sm w-40" placeholder="Греция" form="add-country-form">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Код (slug)</span></label>
+                            <input type="text" name="new_country_code" class="input input-sm w-32" placeholder="greece" form="add-country-form">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0"><span class="label-text text-xs">Алиасы <span class="opacity-50">(через запятую)</span></span></label>
+                            <input type="text" name="new_match_names" class="input input-sm w-48" placeholder="greece, греция" form="add-country-form">
+                        </div>
+                        <button type="submit" form="add-country-form" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> Добавить</button>
                     </div>
-                    {% endif %}
-                    {% endfor %}
                 </div>
 
-                <!-- Надбавки -->
-                <p class="text-xs font-semibold uppercase opacity-50 mb-2">Надбавки (EUR)</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                    {% for field, label, ftype, value in price_fields %}
-                    {% if field == 'tourist_praslin_extra' or field == 'tourist_length_extra' or field == 'tourist_catamaran_length_extra' or field == 'tourist_sailing_length_extra' or field == 'tourist_double_cabin_extra' or field == 'tourist_max_double_cabins_free' %}
-                    <div class="form-control">
-                        <label class="label py-1">
-                            <span class="label-text text-sm font-medium">{{ label }}</span>
-                        </label>
-                        <input
-                            type="number"
-                            name="{{ field }}"
-                            value="{{ value|unlocalize }}"
-                            step="{% if ftype == 'int' %}1{% else %}0.01{% endif %}"
-                            min="0"
-                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
-                            required
-                        >
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
 
-                <!-- Питание -->
-                <p class="text-xs font-semibold uppercase opacity-50 mb-2">Питание (EUR)</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {% for field, label, ftype, value in price_fields %}
-                    {% if field == 'tourist_cook_price' or field == 'tourist_turkey_dish_base' or field == 'tourist_seychelles_dish_base' or field == 'tourist_default_dish_base' %}
-                    <div class="form-control">
-                        <label class="label py-1">
-                            <span class="label-text text-sm font-medium">{{ label }}</span>
-                        </label>
-                        <input
-                            type="number"
-                            name="{{ field }}"
-                            value="{{ value|unlocalize }}"
-                            step="0.01"
-                            min="0"
-                            class="input input-bordered input-sm w-full{% if errors and field in errors %} input-error{% endif %}"
-                            required
-                        >
-                    </div>
-                    {% endif %}
-                    {% endfor %}
+                <!-- Единая таблица -->
+                <div class="overflow-x-auto">
+                    <table class="table table-sm w-full">
+                        <thead>
+                            <tr>
+                                <th class="text-xs">Параметр</th>
+                                {% for cc in country_configs %}
+                                <th class="text-xs text-center" x-show="region === 'all' || region === '{{ cc.country_code }}'">{{ cc.country_name }}{% if cc.is_default %} 🌍{% endif %}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Мета -->
+                            <tr class="bg-base-200"><td colspan="{{ country_configs|length|add:1 }}" class="text-xs font-bold uppercase tracking-wide opacity-60 py-1">Мета</td></tr>
+                            <tr>
+                                <td class="text-sm font-medium">Название</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="text" name="cc_{{ cc.pk }}_country_name" value="{{ cc.country_name }}" class="input input-sm w-24" {% if cc.is_default %}readonly{% endif %}></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Алиасы <span class="text-xs opacity-50">через запятую</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="text" name="cc_{{ cc.pk }}_match_names" value="{{ cc.match_names }}" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <!-- ── Страхование ── -->
+                            <tr class="bg-base-200"><td colspan="{{ country_configs|length|add:1 }}" class="text-xs font-bold uppercase tracking-wide opacity-60 py-1">Страхование</td></tr>
+                            <tr>
+                                <td class="text-sm font-medium">Ставка страхования <span class="text-xs opacity-50">доля, 0.10 = 10%</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_insurance_rate" value="{{ cc.insurance_rate|unlocalize }}" min="0" max="1" step="0.001" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Мин. страховка <span class="text-xs opacity-50">EUR</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_insurance_min" value="{{ cc.insurance_min|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <!-- ── 5 составляющих базовой цены ── -->
+                            <tr class="bg-base-200"><td colspan="{{ country_configs|length|add:1 }}" class="text-xs font-bold uppercase tracking-wide opacity-60 py-1">5 составляющих базовой цены (EUR)</td></tr>
+                            <tr>
+                                <td class="text-sm font-medium">Капитан</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_captain" value="{{ cc.captain|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Топливо</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_fuel" value="{{ cc.fuel|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Стоянки</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_moorings" value="{{ cc.moorings|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Транзит лог и клининг</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_transit_cleaning" value="{{ cc.transit_cleaning|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Наценка Трипс</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_trips_markup" value="{{ cc.trips_markup|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <!-- ── Питание ── -->
+                            <tr class="bg-base-200"><td colspan="{{ country_configs|length|add:1 }}" class="text-xs font-bold uppercase tracking-wide opacity-60 py-1">Питание (EUR)</td></tr>
+                            <tr>
+                                <td class="text-sm font-medium">Ставка за чел. <span class="text-xs opacity-50">(гостей − 2) × ставка</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_dish_base" value="{{ cc.dish_base|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Повар <span class="text-xs opacity-50">фикс. за поездку</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_cook_price" value="{{ cc.cook_price|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <!-- ── Надбавки ── -->
+                            <tr class="bg-base-200"><td colspan="{{ country_configs|length|add:1 }}" class="text-xs font-bold uppercase tracking-wide opacity-60 py-1">Надбавки (EUR)</td></tr>
+                            <tr>
+                                <td class="text-sm font-medium">Длина > 14.2 м <span class="text-xs opacity-50">(46 фут)</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_length_extra" value="{{ cc.length_extra|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Катамаран, длина > 13.8 м</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_catamaran_length_extra" value="{{ cc.catamaran_length_extra|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Парусная яхта, длина > 13.8 м</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_sailing_length_extra" value="{{ cc.sailing_length_extra|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Доп. двойная каюта <span class="text-xs opacity-50">сверх лимита</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_double_cabin_extra" value="{{ cc.double_cabin_extra|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Бесплатных двойных кают <span class="text-xs opacity-50">лимит</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_max_double_cabins_free" value="{{ cc.max_double_cabins_free }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td class="text-sm font-medium">Марина Praslin <span class="text-xs opacity-50">EUR</span></td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'"><input type="number" name="cc_{{ cc.pk }}_praslin_extra" value="{{ cc.praslin_extra|unlocalize }}" min="0" step="1" class="input input-sm w-24"></td>
+                                {% endfor %}
+                            </tr>
+                            <!-- Управление -->
+                            <tr class="bg-base-200"><td colspan="{{ country_configs|length|add:1 }}" class="text-xs font-bold uppercase tracking-wide opacity-60 py-1">Управление</td></tr>
+                            <tr>
+                                <td class="text-sm font-medium">Удалить страну</td>
+                                {% for cc in country_configs %}
+                                <td x-show="region === 'all' || region === '{{ cc.country_code }}'">
+                                    {% if not cc.is_default %}
+                                    <button type="button" class="btn btn-xs btn-error btn-outline" onclick="if(confirm('Удалить {{ cc.country_name }}?')) document.getElementById('delete-country-{{ cc.pk }}').submit()"><i class="fas fa-trash"></i></button>
+                                    {% else %}
+                                    <span class="text-xs opacity-40">по умолч.</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -179,5 +256,18 @@
             </button>
         </div>
     </form>
+    <form id="add-country-form" method="post" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_country">
+    </form>
+    {% for cc in country_configs %}
+    {% if not cc.is_default %}
+    <form id="delete-country-{{ cc.pk }}" method="post" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_country">
+        <input type="hidden" name="country_id" value="{{ cc.pk }}">
+    </form>
+    {% endif %}
+    {% endfor %}
 </div>
 {% endblock %}

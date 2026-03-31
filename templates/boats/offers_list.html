@@ -35,7 +35,7 @@
                                 type="text"
                                 name="q"
                                 value="{{ search_query }}"
-                                class="input input-bordered input-sm"
+                                class="input input-sm"
                                 placeholder="{% trans 'Название, описание...' %}"
                                 @input="clearTimeout(t); t=setTimeout(() => $el.form.submit(), 400)"
                             />

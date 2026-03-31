@@ -106,14 +106,14 @@ def profile_view(request):
         else:
             context['offers_count'] = Offer.objects.filter(created_by=request.user).count()
     if request.user.profile.can_manage_prices():
-        from boats.models import PriceSettings
+        from boats.models import PriceSettings, COUNTRY_PRICE_FIELDS
         ps = PriceSettings.get_settings()
         context['price_searcher_fields'] = [
             (f, l, t, getattr(ps, f)) for f, l, t in PRICE_FIELDS if not f.startswith('tourist_')
         ]
-        context['price_tourist_fields'] = [
-            (f, l, t, getattr(ps, f)) for f, l, t in PRICE_FIELDS if f.startswith('tourist_')
-        ]
+        context['pv'] = {f: getattr(ps, f) for f, l, t in PRICE_FIELDS}
+        context['country_configs'] = list(ps.country_configs.all())
+        context['country_price_fields'] = COUNTRY_PRICE_FIELDS
     return render(request, 'accounts/profile.html', context)
 
 
@@ -167,22 +167,6 @@ PRICE_FIELDS = [
     # (field_name, label, field_type)  — field_type: 'decimal' | 'int'
     # --- Общие ---
     ('extra_discount_max', 'Макс. доп. скидка — поисковик + агент (%)', 'int'),
-    # --- Туристический оффер ---
-    ('tourist_insurance_rate', 'Ставка страхования (доля, напр. 0.10)', 'decimal'),
-    ('tourist_insurance_min', 'Мин. страховка (EUR)', 'decimal'),
-    ('tourist_turkey_base', 'Базовая цена Турция (EUR)', 'decimal'),
-    ('tourist_seychelles_base', 'Базовая цена Сейшелы (EUR)', 'decimal'),
-    ('tourist_default_base', 'Базовая цена по умолчанию (EUR)', 'decimal'),
-    ('tourist_praslin_extra', 'Надбавка за Praslin Marina (EUR)', 'decimal'),
-    ('tourist_length_extra', 'Надбавка за длину >14.2 м (EUR)', 'decimal'),
-    ('tourist_cook_price', 'Стоимость повара (EUR)', 'decimal'),
-    ('tourist_turkey_dish_base', 'Питание Турция EUR/чел', 'decimal'),
-    ('tourist_seychelles_dish_base', 'Питание Сейшелы EUR/чел', 'decimal'),
-    ('tourist_default_dish_base', 'Питание по умолчанию EUR/чел', 'decimal'),
-    ('tourist_max_double_cabins_free', 'Бесплатных двойных кают Сейшелы (шт)', 'int'),
-    ('tourist_double_cabin_extra', 'Надбавка за доп. двойную каюту (EUR)', 'decimal'),
-    ('tourist_catamaran_length_extra', 'Надбавка длина катамарана Турция (EUR)', 'decimal'),
-    ('tourist_sailing_length_extra', 'Надбавка длина парусной яхты Турция (EUR)', 'decimal'),
 ]
 
 
@@ -192,11 +176,50 @@ def price_settings_view(request):
     if not request.user.profile.can_manage_prices():
         return HttpResponseForbidden('Доступ запрещен')
 
-    from boats.models import PriceSettings
-    settings_obj, _ = PriceSettings.objects.get_or_create(pk=1)
+    from boats.models import PriceSettings, CountryPriceConfig, COUNTRY_PRICE_FIELDS
+
+    settings_obj, _ = PriceSettings.objects.prefetch_related('country_configs').get_or_create(pk=1)
 
     errors = {}
+    action = request.POST.get('action', 'save_prices')
+
     if request.method == 'POST':
+        if action == 'add_country':
+            name = request.POST.get('new_country_name', '').strip()
+            code = request.POST.get('new_country_code', '').strip().lower()
+            match = request.POST.get('new_match_names', '').strip()
+            if not name or not code:
+                messages.error(request, 'Укажите название и код страны')
+            elif CountryPriceConfig.objects.filter(country_code=code).exists():
+                messages.error(request, f'Страна с кодом «{code}» уже существует')
+            else:
+                max_sort = (
+                    CountryPriceConfig.objects.filter(is_default=False)
+                    .order_by('-sort_order').values_list('sort_order', flat=True).first()
+                ) or 0
+                CountryPriceConfig.objects.create(
+                    price_settings=settings_obj,
+                    country_name=name,
+                    country_code=code,
+                    match_names=match,
+                    sort_order=max_sort + 1,
+                )
+                messages.success(request, f'Страна «{name}» добавлена')
+            return redirect(reverse('profile') + '?tab=prices')
+
+        if action == 'delete_country':
+            cid = request.POST.get('country_id')
+            cc = CountryPriceConfig.objects.filter(pk=cid).first()
+            if cc and cc.is_default:
+                messages.error(request, 'Нельзя удалить профиль по умолчанию')
+            elif cc:
+                name = cc.country_name
+                cc.delete()
+                messages.success(request, f'Страна «{name}» удалена')
+            return redirect(reverse('profile') + '?tab=prices')
+
+        # action == 'save_prices'
+        # Global fields
         updates = {}
         for field, label, ftype in PRICE_FIELDS:
             raw = request.POST.get(field, '').strip()
@@ -211,22 +234,64 @@ def price_settings_view(request):
             except (ValueError, InvalidOperation):
                 errors[field] = f'{label}: неверное значение «{raw}»'
 
+        # Country config fields: cc_{id}_{field}
+        cc_updates = {}  # {config_id: {field: value}}
+        for cc in settings_obj.country_configs.all():
+            cc_updates[cc.pk] = {}
+            for fname, flabel, ftype in COUNTRY_PRICE_FIELDS:
+                key = f'cc_{cc.pk}_{fname}'
+                raw = request.POST.get(key, '').strip()
+                if not raw:
+                    errors[key] = f'{cc.country_name} — {flabel}: обязательное поле'
+                    continue
+                try:
+                    if ftype == 'int':
+                        cc_updates[cc.pk][fname] = int(raw)
+                    else:
+                        cc_updates[cc.pk][fname] = Decimal(raw)
+                except (ValueError, InvalidOperation):
+                    errors[key] = f'{cc.country_name} — {flabel}: неверное значение «{raw}»'
+            # Also save meta fields
+            meta_name = request.POST.get(f'cc_{cc.pk}_country_name', '').strip()
+            meta_match = request.POST.get(f'cc_{cc.pk}_match_names', '').strip()
+            if meta_name:
+                cc_updates[cc.pk]['_country_name'] = meta_name
+            if meta_match is not None:
+                cc_updates[cc.pk]['_match_names'] = meta_match
+
         if not errors:
             for field, value in updates.items():
                 setattr(settings_obj, field, value)
             settings_obj.save()
+            for cc in settings_obj.country_configs.all():
+                changed = False
+                for fname, value in cc_updates.get(cc.pk, {}).items():
+                    if fname == '_country_name':
+                        cc.country_name = value
+                        changed = True
+                    elif fname == '_match_names':
+                        cc.match_names = value
+                        changed = True
+                    else:
+                        setattr(cc, fname, value)
+                        changed = True
+                if changed:
+                    cc.save()
             messages.success(request, 'Настройки цен сохранены')
             return redirect(reverse('profile') + '?tab=prices')
 
-    # Build list of (field, label, ftype, current_value) for the template
-    price_fields_with_values = [
-        (field, label, ftype, getattr(settings_obj, field))
-        for field, label, ftype in PRICE_FIELDS
-    ]
+    # Reload after possible changes
+    settings_obj = PriceSettings.objects.prefetch_related('country_configs').get(pk=1)
+    country_configs = list(settings_obj.country_configs.all())
+
+    pv = {f: getattr(settings_obj, f) for f, l, t in PRICE_FIELDS}
 
     context = {
         'settings': settings_obj,
-        'price_fields': price_fields_with_values,
+        'price_fields': [(f, l, t, getattr(settings_obj, f)) for f, l, t in PRICE_FIELDS],
+        'pv': pv,
+        'country_configs': country_configs,
+        'country_price_fields': COUNTRY_PRICE_FIELDS,
         'errors': errors,
     }
     return render(request, 'accounts/price_settings.html', context)

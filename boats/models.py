@@ -20,6 +20,12 @@ class Charter(models.Model):
     
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    # Рейтинг из API
+    rank_score = models.FloatField('Рейтинг', null=True, blank=True)
+    rank_place = models.IntegerField('Место в рейтинге', null=True, blank=True)
+    rank_out_of = models.IntegerField('Всего в рейтинге', null=True, blank=True)
+    rank_reviews_count = models.IntegerField('Кол-во отзывов', null=True, blank=True)
     
     class Meta:
         verbose_name = 'Чартерная компания'
@@ -95,11 +101,13 @@ class Favorite(models.Model):
     class Meta:
         verbose_name = 'Избранное'
         verbose_name_plural = 'Избранное'
-        unique_together = ('user', 'boat_slug')
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['user', 'boat_slug']),
             models.Index(fields=['user', 'created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'boat_slug'], name='unique_user_boat_slug'),
         ]
     
     def __str__(self):
@@ -368,8 +376,10 @@ class Review(models.Model):
     class Meta:
         verbose_name = 'Отзыв'
         verbose_name_plural = 'Отзывы'
-        unique_together = ('boat', 'user')
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['boat', 'user'], name='unique_boat_user_review'),
+        ]
     
     def __str__(self):
         return f"{self.boat.name} - {self.user.username} ({self.rating}★)"
@@ -444,6 +454,13 @@ class Offer(models.Model):
     description = models.TextField('Описание', blank=True)
     notes = models.TextField('Заметки', blank=True, help_text='Внутренние заметки, не видны клиенту')
     
+    # 5 составляющих базовой цены (для туристического оффера)
+    price_captain = models.DecimalField('Капитан', max_digits=10, decimal_places=2, default=0)
+    price_fuel = models.DecimalField('Топливо', max_digits=10, decimal_places=2, default=0)
+    price_moorings = models.DecimalField('Стоянки', max_digits=10, decimal_places=2, default=0)
+    price_transit_cleaning = models.DecimalField('Транзит лог и клининг', max_digits=10, decimal_places=2, default=0)
+    price_trips_markup = models.DecimalField('Наценка Трипс', max_digits=10, decimal_places=2, default=0)
+
     # Дополнительные услуги (для туристического оффера)
     has_meal = models.BooleanField('Включено питание', default=False, help_text='Только для туристических офферов')
     
@@ -540,6 +557,19 @@ class ParsedBoat(models.Model):
     parse_count = models.IntegerField('Раз парсили', default=1)
     last_parse_success = models.BooleanField('Последний парсинг успешен', default=True)
 
+    # Данные из API (поиск)
+    category = models.CharField('Категория', max_length=100, blank=True, default='')
+    category_slug = models.CharField('Slug категории', max_length=100, blank=True, default='', db_index=True)
+    flag = models.CharField('Флаг страны', max_length=10, blank=True, default='')
+    reviews_score = models.FloatField('Рейтинг', null=True, blank=True)
+    total_reviews = models.IntegerField('Всего отзывов', null=True, blank=True)
+    latitude = models.FloatField('Широта', null=True, blank=True)
+    longitude = models.FloatField('Долгота', null=True, blank=True)
+    prepayment = models.IntegerField('Предоплата (%)', null=True, blank=True)
+    sail = models.CharField('Парус', max_length=200, blank=True, default='')
+    newboat = models.BooleanField('Новая лодка', default=False)
+    usp = models.JSONField('USP (уникальные преимущества)', default=list, blank=True)
+
     class Meta:
         verbose_name = 'Лодка (базовая информация)'
         verbose_name_plural = 'Лодки (базовая информация)'
@@ -548,6 +578,7 @@ class ParsedBoat(models.Model):
             models.Index(fields=['boat_id']),
             models.Index(fields=['slug']),
             models.Index(fields=['last_parsed']),
+            models.Index(fields=['category_slug']),
         ]
     
     def __str__(self):
@@ -584,6 +615,18 @@ class BoatTechnicalSpecs(models.Model):
     # Другое
     renovated_year = models.IntegerField('Год ремонта', null=True, blank=True)
     sail_renovated_year = models.IntegerField('Год ремонта парусов', null=True, blank=True)
+
+    # Разбивка кают (из API)
+    allowed_people = models.IntegerField('Разрешено гостей', null=True, blank=True)
+    single_cabins = models.IntegerField('Одноместные каюты', null=True, blank=True)
+    double_cabins = models.IntegerField('Двухместные каюты', null=True, blank=True)
+    triple_cabins = models.IntegerField('Трёхместные каюты', null=True, blank=True)
+    quadruple_cabins = models.IntegerField('Четырёхместные каюты', null=True, blank=True)
+    cabins_with_bunk_bed = models.IntegerField('Каюты с двухъярус. кроватью', null=True, blank=True)
+    saloon_sleeps = models.IntegerField('Спальных мест в салоне', null=True, blank=True)
+    crew_sleeps = models.IntegerField('Спальных мест экипажа', null=True, blank=True)
+    total_engine_power = models.IntegerField('Суммарная мощность (л.с.)', null=True, blank=True)
+    cruising_consumption = models.FloatField('Расход на крейс. скорости', null=True, blank=True)
     
     class Meta:
         verbose_name = 'Технические параметры'
@@ -625,9 +668,11 @@ class BoatDescription(models.Model):
     class Meta:
         verbose_name = 'Описание'
         verbose_name_plural = 'Описания'
-        unique_together = ('boat', 'language')
         indexes = [
             models.Index(fields=['boat', 'language']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['boat', 'language'], name='unique_boat_description_language'),
         ]
     
     def __str__(self):
@@ -661,9 +706,11 @@ class BoatPrice(models.Model):
     class Meta:
         verbose_name = 'Цена'
         verbose_name_plural = 'Цены'
-        unique_together = ('boat', 'currency')
         indexes = [
             models.Index(fields=['boat', 'currency']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['boat', 'currency'], name='unique_boat_price_currency'),
         ]
     
     def __str__(self):
@@ -725,9 +772,11 @@ class BoatDetails(models.Model):
     class Meta:
         verbose_name = 'Доп. детали'
         verbose_name_plural = 'Доп. детали'
-        unique_together = ('boat', 'language')
         indexes = [
             models.Index(fields=['boat', 'language']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['boat', 'language'], name='unique_boat_details_language'),
         ]
     
     def __str__(self):
@@ -745,32 +794,98 @@ class PriceSettings(models.Model):
     )
 
     # ---- Туристический оффер ------------------------------------------------
-    tourist_insurance_rate = models.DecimalField(
-        'Ставка страхования (доля)',
-        max_digits=6, decimal_places=4, default=Decimal('0.1000'),
-        help_text='Страховка депозита = total_price × rate',
-    )
-    tourist_insurance_min = models.DecimalField(
-        'Мин. страховка (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'),
-    )
     tourist_turkey_base = models.DecimalField(
-        'Базовая цена Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('4400.00'),
+        'Базовая цена Турция (EUR) (deprecated)', max_digits=8, decimal_places=2, default=Decimal('4400.00'),
     )
     tourist_seychelles_base = models.DecimalField(
-        'Базовая цена Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('4500.00'),
+        'Базовая цена Сейшелы (EUR) (deprecated)', max_digits=8, decimal_places=2, default=Decimal('4500.00'),
     )
     tourist_default_base = models.DecimalField(
-        'Базовая цена по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('4500.00'),
+        'Базовая цена по умолчанию (EUR) (deprecated)', max_digits=8, decimal_places=2, default=Decimal('4500.00'),
+    )
+
+    # ---- 5 составляющих базовой цены (заменяют tourist_*_base) ----
+    # Турция
+    tourist_captain_turkey = models.DecimalField(
+        'Капитан Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('880.00'),
+    )
+    tourist_fuel_turkey = models.DecimalField(
+        'Топливо Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('880.00'),
+    )
+    tourist_moorings_turkey = models.DecimalField(
+        'Стоянки Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('880.00'),
+    )
+    tourist_transit_cleaning_turkey = models.DecimalField(
+        'Транзит лог и клининг Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('880.00'),
+    )
+    tourist_trips_markup_turkey = models.DecimalField(
+        'Наценка Трипс Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('880.00'),
+    )
+    # Сейшелы
+    tourist_captain_seychelles = models.DecimalField(
+        'Капитан Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_fuel_seychelles = models.DecimalField(
+        'Топливо Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_moorings_seychelles = models.DecimalField(
+        'Стоянки Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_transit_cleaning_seychelles = models.DecimalField(
+        'Транзит лог и клининг Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_trips_markup_seychelles = models.DecimalField(
+        'Наценка Трипс Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    # По умолчанию
+    tourist_captain_default = models.DecimalField(
+        'Капитан по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_fuel_default = models.DecimalField(
+        'Топливо по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_moorings_default = models.DecimalField(
+        'Стоянки по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_transit_cleaning_default = models.DecimalField(
+        'Транзит лог и клининг по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
+    )
+    tourist_trips_markup_default = models.DecimalField(
+        'Наценка Трипс по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'),
     )
     tourist_praslin_extra = models.DecimalField(
         'Надбавка за Praslin Marina (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'),
     )
-    tourist_length_extra = models.DecimalField(
-        'Надбавка за длину >14.2 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('200.00'),
+    # ---- Страхование (per-region) ----
+    tourist_insurance_rate_turkey = models.DecimalField(
+        'Ставка страхования Турция', max_digits=6, decimal_places=4, default=Decimal('0.1000'),
     )
-    tourist_cook_price = models.DecimalField(
-        'Стоимость повара (EUR)', max_digits=8, decimal_places=2, default=Decimal('1400.00'),
+    tourist_insurance_rate_seychelles = models.DecimalField(
+        'Ставка страхования Сейшелы', max_digits=6, decimal_places=4, default=Decimal('0.1000'),
     )
+    tourist_insurance_rate_default = models.DecimalField(
+        'Ставка страхования по умолчанию', max_digits=6, decimal_places=4, default=Decimal('0.1000'),
+    )
+    tourist_insurance_min_turkey = models.DecimalField(
+        'Мин. страховка Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'),
+    )
+    tourist_insurance_min_seychelles = models.DecimalField(
+        'Мин. страховка Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'),
+    )
+    tourist_insurance_min_default = models.DecimalField(
+        'Мин. страховка по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'),
+    )
+    # ---- Повар (per-region) ----
+    tourist_cook_price_turkey = models.DecimalField(
+        'Повар Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('1400.00'),
+    )
+    tourist_cook_price_seychelles = models.DecimalField(
+        'Повар Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('1400.00'),
+    )
+    tourist_cook_price_default = models.DecimalField(
+        'Повар по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('1400.00'),
+    )
+    # ---- Питание (per-region, уже были) ----
     tourist_turkey_dish_base = models.DecimalField(
         'Питание Турция EUR/чел', max_digits=8, decimal_places=2, default=Decimal('150.00'),
     )
@@ -780,17 +895,51 @@ class PriceSettings(models.Model):
     tourist_default_dish_base = models.DecimalField(
         'Питание по умолчанию EUR/чел', max_digits=8, decimal_places=2, default=Decimal('210.00'),
     )
-    tourist_max_double_cabins_free = models.IntegerField(
-        'Бесплатных двойных кают (Сейшелы)', default=4,
+    # ---- Надбавки (per-region) ----
+    tourist_length_extra_turkey = models.DecimalField(
+        'Надбавка длина >14.2 м Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('200.00'),
     )
-    tourist_double_cabin_extra = models.DecimalField(
-        'Надбавка за доп. двойную каюту (EUR)', max_digits=8, decimal_places=2, default=Decimal('180.00'),
+    tourist_length_extra_seychelles = models.DecimalField(
+        'Надбавка длина >14.2 м Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('200.00'),
     )
-    tourist_catamaran_length_extra = models.DecimalField(
-        'Надбавка длина катамарана Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('500.00'),
+    tourist_length_extra_default = models.DecimalField(
+        'Надбавка длина >14.2 м по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('200.00'),
     )
-    tourist_sailing_length_extra = models.DecimalField(
-        'Надбавка длина парусной яхты Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('300.00'),
+    tourist_catamaran_length_extra_turkey = models.DecimalField(
+        'Надбавка катамаран >13.8 м Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('500.00'),
+    )
+    tourist_catamaran_length_extra_seychelles = models.DecimalField(
+        'Надбавка катамаран >13.8 м Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('500.00'),
+    )
+    tourist_catamaran_length_extra_default = models.DecimalField(
+        'Надбавка катамаран >13.8 м по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('500.00'),
+    )
+    tourist_sailing_length_extra_turkey = models.DecimalField(
+        'Надбавка парусная >13.8 м Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('300.00'),
+    )
+    tourist_sailing_length_extra_seychelles = models.DecimalField(
+        'Надбавка парусная >13.8 м Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('300.00'),
+    )
+    tourist_sailing_length_extra_default = models.DecimalField(
+        'Надбавка парусная >13.8 м по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('300.00'),
+    )
+    tourist_double_cabin_extra_turkey = models.DecimalField(
+        'Доп. двойная каюта Турция (EUR)', max_digits=8, decimal_places=2, default=Decimal('180.00'),
+    )
+    tourist_double_cabin_extra_seychelles = models.DecimalField(
+        'Доп. двойная каюта Сейшелы (EUR)', max_digits=8, decimal_places=2, default=Decimal('180.00'),
+    )
+    tourist_double_cabin_extra_default = models.DecimalField(
+        'Доп. двойная каюта по умолчанию (EUR)', max_digits=8, decimal_places=2, default=Decimal('180.00'),
+    )
+    tourist_max_double_cabins_free_turkey = models.IntegerField(
+        'Бесплатных двойных кают Турция', default=4,
+    )
+    tourist_max_double_cabins_free_seychelles = models.IntegerField(
+        'Бесплатных двойных кают Сейшелы', default=4,
+    )
+    tourist_max_double_cabins_free_default = models.IntegerField(
+        'Бесплатных двойных кают по умолчанию', default=4,
     )
 
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
@@ -808,8 +957,20 @@ class PriceSettings(models.Model):
         kwargs.pop('force_insert', None)
         self._state.adding = not type(self).objects.filter(pk=1).exists()
         super().save(*args, **kwargs)
+        self._flush_pricing_caches()
+
+    @staticmethod
+    def _flush_pricing_caches():
+        """Clear settings cache and search price consensus keys."""
         from django.core.cache import cache
         cache.delete('price_settings')
+        try:
+            redis_client = cache._cache.get_client()
+            prefix = ':1:search_price_consensus:*'
+            for key in redis_client.scan_iter(match=prefix, count=500):
+                redis_client.delete(key)
+        except Exception:
+            pass
 
     @classmethod
     def get_settings(cls):
@@ -817,9 +978,85 @@ class PriceSettings(models.Model):
         from django.core.cache import cache
         settings = cache.get('price_settings')
         if settings is None:
-            settings, _ = cls.objects.get_or_create(pk=1)
+            settings, _ = cls.objects.prefetch_related('country_configs').get_or_create(pk=1)
             cache.set('price_settings', settings, 300)
         return settings
+
+
+# ---------- Pricing fields common to every country ----------
+COUNTRY_PRICE_FIELDS = [
+    # (field_name, verbose_label, field_type)
+    ('captain', 'Капитан (EUR)', 'decimal'),
+    ('fuel', 'Топливо (EUR)', 'decimal'),
+    ('moorings', 'Стоянки (EUR)', 'decimal'),
+    ('transit_cleaning', 'Транзит лог и клининг (EUR)', 'decimal'),
+    ('trips_markup', 'Наценка Трипс (EUR)', 'decimal'),
+    ('insurance_rate', 'Ставка страхования', 'decimal'),
+    ('insurance_min', 'Мин. страховка (EUR)', 'decimal'),
+    ('dish_base', 'Питание EUR/чел', 'decimal'),
+    ('cook_price', 'Повар (EUR)', 'decimal'),
+    ('length_extra', 'Длина >14.2 м (EUR)', 'decimal'),
+    ('catamaran_length_extra', 'Катамаран >13.8 м (EUR)', 'decimal'),
+    ('sailing_length_extra', 'Парусная >13.8 м (EUR)', 'decimal'),
+    ('double_cabin_extra', 'Доп. двойная каюта (EUR)', 'decimal'),
+    ('max_double_cabins_free', 'Бесплатных двойных кают', 'int'),
+    ('praslin_extra', 'Марина Praslin (EUR)', 'decimal'),
+]
+
+
+class CountryPriceConfig(models.Model):
+    """Per-country pricing config for tourist offers."""
+
+    price_settings = models.ForeignKey(
+        PriceSettings, on_delete=models.CASCADE, related_name='country_configs',
+    )
+    country_name = models.CharField('Название', max_length=100)
+    country_code = models.SlugField('Код (slug)', max_length=60, unique=True)
+    match_names = models.TextField(
+        'Алиасы для матчинга',
+        blank=True, default='',
+        help_text='Через запятую: turkey, турция',
+    )
+    is_default = models.BooleanField('Профиль по умолчанию', default=False)
+    sort_order = models.IntegerField('Порядок', default=0)
+
+    # ---- pricing fields ----
+    captain = models.DecimalField('Капитан (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
+    fuel = models.DecimalField('Топливо (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
+    moorings = models.DecimalField('Стоянки (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
+    transit_cleaning = models.DecimalField('Транзит лог и клининг (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
+    trips_markup = models.DecimalField('Наценка Трипс (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
+    insurance_rate = models.DecimalField('Ставка страхования', max_digits=6, decimal_places=4, default=Decimal('0.1000'))
+    insurance_min = models.DecimalField('Мин. страховка (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'))
+    dish_base = models.DecimalField('Питание EUR/чел', max_digits=8, decimal_places=2, default=Decimal('210.00'))
+    cook_price = models.DecimalField('Повар (EUR)', max_digits=8, decimal_places=2, default=Decimal('1400.00'))
+    length_extra = models.DecimalField('Длина >14.2 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('200.00'))
+    catamaran_length_extra = models.DecimalField('Катамаран >13.8 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('500.00'))
+    sailing_length_extra = models.DecimalField('Парусная >13.8 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('300.00'))
+    double_cabin_extra = models.DecimalField('Доп. двойная каюта (EUR)', max_digits=8, decimal_places=2, default=Decimal('180.00'))
+    max_double_cabins_free = models.IntegerField('Бесплатных двойных кают', default=4)
+    praslin_extra = models.DecimalField('Марина Praslin (EUR)', max_digits=8, decimal_places=2, default=Decimal('0.00'))
+
+    class Meta:
+        verbose_name = 'Ценовой профиль страны'
+        verbose_name_plural = 'Ценовые профили стран'
+        ordering = ['sort_order', 'country_name']
+
+    def __str__(self):
+        default_tag = ' (по умолч.)' if self.is_default else ''
+        return f'{self.country_name}{default_tag}'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        PriceSettings._flush_pricing_caches()
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+        PriceSettings._flush_pricing_caches()
+
+    def get_match_list(self):
+        """Return lowered alias list for country matching."""
+        return [a.strip().lower() for a in self.match_names.split(',') if a.strip()]
 
 
 class ContractTemplate(models.Model):

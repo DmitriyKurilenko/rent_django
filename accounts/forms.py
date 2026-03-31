@@ -61,7 +61,3 @@ class ProfileUpdateForm(DaisyUIMixin, forms.ModelForm):
             user.save(update_fields=['first_name', 'last_name'])
             profile.save(update_fields=['phone'])
         return profile
-
-        if commit:
-            profile.save()
-        return profile
