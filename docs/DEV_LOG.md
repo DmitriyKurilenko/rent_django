@@ -2,6 +2,58 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-03-31
+- Change:
+  - Restricted search/detail price breakdown visibility by role.
+  - `manager`, `admin`, `superadmin` keep full breakdown; `captain` now sees only charter commission percent and amount.
+  - Added shared view helper for role flags and regression tests for search/detail rendering.
+- Files:
+  - `boats/views.py`
+  - `templates/boats/search.html`
+  - `templates/boats/detail.html`
+  - `boats/tests/test_views.py`
+  - `docs/DECISIONS.md`
+  - `docs/TASK_STATE.md`
+  - `docs/DEV_LOG.md`
+- Why:
+  - Product requirement: internal discount math and agent commission must not be visible to captain-level users in search/detail.
+- Validation:
+  - `docker compose down` — OK
+  - `docker compose up -d --build` — OK
+  - `docker compose run --rm web python manage.py check` — OK
+  - `docker compose run --rm web python manage.py test boats.tests.test_views.BoatViewsTest.test_boat_search_manager_sees_full_price_breakdown boats.tests.test_views.BoatViewsTest.test_boat_search_captain_sees_only_charter_commission boats.tests.test_views.BoatDetailPriceVisibilityTest` — OK
+  - HTTP render checks — OK:
+    - `/ru/boats/search/?destination=croatia` → 200
+    - `/ru/boat/lagoon-42-rhea/?check_in=2026-04-04&check_out=2026-04-11` → 200
+- Risks / follow-up:
+  - Legacy `agent` role is mapped to `captain`; if a separate real `agent` role is reintroduced later, role flags must be updated in one place.
+
+## 2026-03-31 (session 2)
+- Change:
+  - Reverted DEFAULT_CHARTER_COMMISSION=20 hack from `boats/helpers.py` and `boats/pricing.py`. Commission is taken strictly from Charter model.
+  - Created `boats/management/commands/update_charters.py` — scans Boataround API and assigns Charter FK to ParsedBoat records without charter.
+  - Fixed detail page price breakdown readability: replaced DaisyUI semantic colors (`text-secondary`, `text-info`, `text-success`) with Tailwind direct colors (`text-amber-200`, `text-yellow-200`, `text-green-200`) on purple gradient card. Font size 11px→13px, opacity improved.
+- Files:
+  - `boats/helpers.py` — reverted DEFAULT_CHARTER_COMMISSION
+  - `boats/pricing.py` — reverted DEFAULT_CHARTER_COMMISSION
+  - `boats/management/commands/update_charters.py` — new
+  - `templates/boats/detail.html` — color/size fix
+  - `docs/DECISIONS.md` — DR-017
+  - `docs/TASK_STATE.md` — updated
+  - `docs/DEV_LOG.md` — this entry
+- Why:
+  - User requirement: commission must come from Charter object, not hardcoded default. Boats without charter = incomplete data. A command to fill charters from API was needed.
+  - Detail page text was unreadable: purple text on purple gradient background.
+- Validation:
+  - `docker compose down` + `up -d --build` — OK
+  - `manage.py check` — 0 issues
+  - `manage.py test boats.tests` — 6/6 OK
+  - HTTP 200 on `/ru/`
+  - `update_charters --dry-run --max-pages 3` — command runs, finds targets
+- Risks / follow-up:
+  - ~23k boats still without Charter FK — need to run `update_charters` (full scan ~1460 pages).
+  - After `update_charters`, run `import_charter_commissions` to set correct commission percentages.
+
 ## 2026-04-02
 - Change:
   - Fixed price instability on detail page: `BoataroundAPI.get_price()` was not checking cache before attempting consensus loop.

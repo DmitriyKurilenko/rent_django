@@ -2,6 +2,30 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.4.1-dev] - 2026-03-31
+
+### 🔧 Fixed - Charter Commission & Detail UI
+- **Charter commission source**: reverted hardcoded DEFAULT_CHARTER_COMMISSION=20 fallback; commission is taken strictly from Charter model
+- **Detail page readability**: replaced DaisyUI semantic colors (text-secondary/text-info/text-success) with Tailwind direct colors (text-amber-200/text-yellow-200/text-green-200) on purple gradient card; font size 11px → 13px
+
+### ✨ Added - Charter Assignment Command
+- **`update_charters`**: management command that scans Boataround API and assigns Charter FK to ParsedBoat records missing charter
+  - `--destination` — scan specific destination
+  - `--max-pages` — limit API pages
+  - `--all` — update all boats (not just missing)
+  - `--dry-run` — preview without DB writes
+
+### 📄 Documentation
+- **docs/DECISIONS.md**: DR-017 (charter commission source of truth)
+- **docs/TASK_STATE.md**: updated done list, added risk item for 23k boats without charter
+- **docs/DEV_LOG.md**: session 2 entry
+
+### Files Changed
+- `boats/helpers.py`, `boats/pricing.py`: reverted DEFAULT_CHARTER_COMMISSION
+- `boats/management/commands/update_charters.py`: new
+- `templates/boats/detail.html`: color/size fix
+- `VERSION`: 0.4.0-dev → 0.4.1-dev
+
 ## [0.4.0-dev] - 2026-04-02
 
 ### 🔧 Fixed - Price Stability on Detail Page

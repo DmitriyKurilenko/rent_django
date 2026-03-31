@@ -92,11 +92,23 @@ Last updated: 2026-03-31 (Europe/Moscow)
 - Decision: keep HTML persistence for service lists (`extras`, `additional_services`, `delivery_extras`, `not_included`), detail gallery photos, and per-boat amenities (`cockpit`, `entertainment`, `equipment`) because search API exposes these as aggregate filters, not reliable per-boat values. Treat API as source of truth for descriptions, specs, geo/category/review metadata, charter data, and other non-service fields.
 - Consequence: parser save flow stays narrow but preserves amenities correctness; Phase 2.5 API metadata update is restricted to newly created boats from Phase 2 to avoid redundant second-pass updates.
 
+## DR-017: Charter commission source of truth is Charter model only
+- Date: 2026-03-31
+- Context: 92% of ParsedBoat records had no Charter FK. Attempted fallback with DEFAULT_CHARTER_COMMISSION=20 in pricing layer — user rejected: commission must come from Charter object, boats without charter are incomplete data.
+- Decision: pricing layer (`helpers.py`, `pricing.py`) uses charter.commission exclusively; if no charter, commission=0. New `update_charters` management command fills missing charters from API. Existing `import_charter_commissions` sets commission percentages from XLSX.
+- Consequence: two-step workflow to fill commissions: (1) `update_charters` — assigns Charter FK from API, (2) `import_charter_commissions` — sets commission % from XLSX. Boats without charter show no commission breakdown.
+
 ## DR-016: parse_boats_parallel cache stores API metadata payload
 - Date: 2026-03-31
 - Context: when slug list was loaded from local cache, command skipped API search call and had no `api_meta`/`thumb_map`, so Phase 1.5 metadata updates could be incomplete on cache-hit runs.
 - Decision: cache file now persists `slugs`, `thumb_map`, and `api_meta`; cache loader restores all three with backward compatibility for old list-only cache format.
 - Consequence: cache-hit runs keep API metadata update behavior consistent with fresh API scan and avoid unnecessary re-fetching.
+
+## DR-017: Search/detail price breakdown is role-scoped
+- Date: 2026-03-31
+- Context: search and detail pages exposed full internal pricing breakdown to roles that should only see charter commission.
+- Decision: full price breakdown is visible only to `manager`, `admin`, and `superadmin`; `captain` sees only charter commission percent and amount; anonymous and tourist roles see no breakdown.
+- Consequence: internal discount math and agent commission stay hidden from captain-level users, while manager/admin flows keep full pricing debug.
 
 ## DR-017: Cache-first lookup in BoataroundAPI.get_price()
 - Date: 2026-04-02

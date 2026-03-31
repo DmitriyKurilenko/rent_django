@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.utils.translation import override
-from boats.models import Boat, ParsedBoat, Booking, Offer, BoatDescription, BoatDetails, BoatGallery
+from boats.models import Boat, ParsedBoat, Booking, Offer, BoatDescription, BoatDetails, BoatGallery, BoatTechnicalSpecs, Charter
 
 
 class BoatViewsTest(TestCase):
@@ -340,6 +340,98 @@ class BoatViewsTest(TestCase):
         self.assertNotContains(response, 'name="destination_label"')
         self.assertContains(response, 'autocomplete/?query=${encodeURIComponent(query)}')
 
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_manager_sees_full_price_breakdown(self, mock_search, mock_format_boat_data):
+        self.user.profile.role = 'manager'
+        self.user.profile.save(update_fields=['role'])
+        self.client.login(username='testuser', password='testpass123')
+
+        mock_search.return_value = {
+            'boats': [{'slug': 'priced-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'priced-boat',
+            'id': 'priced-boat-id',
+            'name': 'Priced Boat',
+            'country': 'Croatia',
+            'marina': 'Split',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+            'price_breakdown': {
+                'base_price': 2000,
+                'discount_without_extra': 10,
+                'additional_discount': 5,
+                'extra_discount_applied': 3,
+                'final_price': 1500,
+                'charter_commission': 20,
+                'charter_commission_amount': 250,
+                'agent_commission': 125,
+                'charter_name': 'Test Charter',
+            },
+        }
+
+        response = self.client.get(reverse('boat_search'), {'destination': 'croatia'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'скидка')
+        self.assertContains(response, 'агент 125€')
+        self.assertContains(response, 'Test Charter')
+
+    @patch('boats.boataround_api.format_boat_data')
+    @patch('boats.boataround_api.BoataroundAPI.search')
+    def test_boat_search_captain_sees_only_charter_commission(self, mock_search, mock_format_boat_data):
+        self.user.profile.subscription_plan = 'standard'
+        self.user.profile.role = 'captain'
+        self.user.profile.save(update_fields=['subscription_plan', 'role'])
+        self.client.login(username='testuser', password='testpass123')
+
+        mock_search.return_value = {
+            'boats': [{'slug': 'priced-boat', 'thumb': 'https://example.com/thumb.jpg'}],
+            'total': 1,
+            'totalPages': 1,
+        }
+        mock_format_boat_data.return_value = {
+            'slug': 'priced-boat',
+            'id': 'priced-boat-id',
+            'name': 'Priced Boat',
+            'country': 'Croatia',
+            'marina': 'Split',
+            'berths': 8,
+            'cabins': 4,
+            'length': 12.5,
+            'year': 2022,
+            'rating': 4.9,
+            'price': 1500,
+            'currency': 'EUR',
+            'price_breakdown': {
+                'base_price': 2000,
+                'discount_without_extra': 10,
+                'additional_discount': 5,
+                'extra_discount_applied': 3,
+                'final_price': 1500,
+                'charter_commission': 20,
+                'charter_commission_amount': 250,
+                'agent_commission': 125,
+                'charter_name': 'Test Charter',
+            },
+        }
+
+        response = self.client.get(reverse('boat_search'), {'destination': 'croatia'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'комиссия 20,0% (250€)')
+        self.assertNotContains(response, 'агент 125€')
+        self.assertNotContains(response, 'Test Charter')
+        self.assertNotContains(response, 'скидка')
+
 
 class BoatAuthenticationTest(TestCase):
     """Tests для аутентификации в views"""
@@ -546,6 +638,100 @@ class BoatAuthenticationTest(TestCase):
         self.assertEqual(float(offer.discount), 12.0)
         self.assertEqual(float(offer.boat_data.get('totalPrice')), 1400.0)
         self.assertEqual(mock_resolve_price.call_count, 1)
+
+
+class BoatDetailPriceVisibilityTest(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = Client()
+        self.user = User.objects.create_user(username='detailuser', password='testpass123')
+        self.charter = Charter.objects.create(name='Detail Charter', charter_id='detail-charter-1', commission=20)
+        self.parsed_boat = ParsedBoat.objects.create(
+            boat_id='detail-boat-1',
+            slug='detail-boat-slug',
+            manufacturer='Lagoon',
+            model='42',
+            year=2021,
+            charter=self.charter,
+        )
+        BoatDescription.objects.create(
+            boat=self.parsed_boat,
+            language='ru_RU',
+            title='Detail Boat',
+            location='Split',
+            marina='ACI Marina',
+            country='Croatia',
+            region='Dalmatia',
+            city='Split',
+        )
+        BoatDetails.objects.create(boat=self.parsed_boat, language='ru_RU')
+        BoatTechnicalSpecs.objects.create(boat=self.parsed_boat, cabins=4, berths=8, length=12.5)
+
+    @patch('boats.views._ensure_boat_data_for_critical_flow')
+    @patch('boats.boataround_api.BoataroundAPI.search_by_slug', return_value=None)
+    @patch('boats.views.resolve_live_or_fallback_price')
+    def test_boat_detail_manager_sees_full_breakdown(self, mock_resolve_price, _mock_search_by_slug, mock_ensure_boat):
+        self.user.profile.role = 'manager'
+        self.user.profile.save(update_fields=['role'])
+        self.client.login(username='detailuser', password='testpass123')
+        mock_ensure_boat.return_value = (self.parsed_boat, None)
+        mock_resolve_price.return_value = {
+            'base_price': 2000,
+            'discount_without_extra': 10,
+            'additional_discount': 5,
+            'charter_commission_amount': 250,
+            'agent_commission': 125,
+            'extra_discount_applied': 3,
+            'final_price': 1500,
+            'old_price': 2000,
+            'discount_percent': 25,
+            'currency': 'EUR',
+            'source': 'api',
+        }
+
+        response = self.client.get(
+            reverse('boat_detail_api', kwargs={'boat_id': self.parsed_boat.slug}),
+            {'check_in': '2026-04-04', 'check_out': '2026-04-11'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'агент 125€')
+        self.assertContains(response, '−10%')
+        self.assertContains(response, 'Detail Charter')
+
+    @patch('boats.views._ensure_boat_data_for_critical_flow')
+    @patch('boats.boataround_api.BoataroundAPI.search_by_slug', return_value=None)
+    @patch('boats.views.resolve_live_or_fallback_price')
+    def test_boat_detail_captain_sees_only_charter_commission(self, mock_resolve_price, _mock_search_by_slug, mock_ensure_boat):
+        self.user.profile.subscription_plan = 'standard'
+        self.user.profile.role = 'captain'
+        self.user.profile.save(update_fields=['subscription_plan', 'role'])
+        self.client.login(username='detailuser', password='testpass123')
+        mock_ensure_boat.return_value = (self.parsed_boat, None)
+        mock_resolve_price.return_value = {
+            'base_price': 2000,
+            'discount_without_extra': 10,
+            'additional_discount': 5,
+            'charter_commission_amount': 250,
+            'agent_commission': 125,
+            'extra_discount_applied': 3,
+            'final_price': 1500,
+            'old_price': 2000,
+            'discount_percent': 25,
+            'currency': 'EUR',
+            'source': 'api',
+        }
+
+        response = self.client.get(
+            reverse('boat_detail_api', kwargs={'boat_id': self.parsed_boat.slug}),
+            {'check_in': '2026-04-04', 'check_out': '2026-04-11'}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'комиссия 250€ (20%)')
+        self.assertNotContains(response, 'агент 125€')
+        self.assertNotContains(response, 'Detail Charter')
+        self.assertNotContains(response, '−10%')
 
 
 class OfferDetailHydrationTest(TestCase):

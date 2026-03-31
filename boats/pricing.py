@@ -114,20 +114,17 @@ def build_price_breakdown(
     additional_discount = _to_float(additional_discount)
 
     # Определяем доп. скидку от чартера для расшифровки
-    charter_commission = 0.0
-    agent_commission_pct = 0.0
+    charter_commission = float(charter.commission) if charter and getattr(charter, 'commission', None) else 0.0
+    agent_commission_pct = charter_commission / 2
     extra_discount_applied = 0.0
-    if charter and getattr(charter, 'commission', None):
-        charter_commission = float(charter.commission)
-        agent_commission_pct = charter_commission / 2
-        additional_discount_val = additional_discount
-        try:
-            from boats.models import PriceSettings
-            extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
-        except Exception:
-            extra_discount_max = 5.0
-        if additional_discount_val < charter_commission:
-            extra_discount_applied = min(extra_discount_max, charter_commission)
+    additional_discount_val = additional_discount
+    try:
+        from boats.models import PriceSettings
+        extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
+    except Exception:
+        extra_discount_max = 5.0
+    if additional_discount_val < charter_commission:
+        extra_discount_applied = min(extra_discount_max, charter_commission)
 
     final_price = _to_float(
         calculate_final_price_with_discounts(

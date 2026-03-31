@@ -30,6 +30,9 @@ Last updated: 2026-04-02 (Europe/Moscow)
 - Unified pricing resolver is used in detail, offers, booking.
 - Price extraction prefers `policies[0].prices` to avoid unstable top-level fields.
 - Search -> detail links keep only dates in query string (`check_in`, `check_out`), price params removed.
+- Search/detail price breakdown is now role-scoped: full breakdown for manager/admin/superadmin, charter commission only for captain.
+- Added `update_charters` management command: scans API and assigns Charter FK to ParsedBoat records missing charter. Supports `--destination`, `--max-pages`, `--all`, `--dry-run`.
+- Detail page price breakdown colors fixed: replaced DaisyUI semantic colors (text-secondary/text-info/text-success) with Tailwind direct colors (text-amber-200/text-yellow-200/text-green-200) for readability on purple gradient background. Font size increased from 11px to 13px.
 - Destination-based amenities refresh selection now deduplicates and intersects with existing slugs in DB.
 - Async amenities command now verifies active Celery worker and can wait with timeout/poll summary.
 - Tests added for pricing extraction/resolver, detail snapshot behavior, amenities command async behavior.
@@ -40,8 +43,7 @@ Last updated: 2026-04-02 (Europe/Moscow)
 ## Open risks / watch items
 - Upstream Boataround API may return different `totalPrice` for identical query windows.
 - Search “consensus” anti-jitter behavior can still show a new candidate early when no confirmed baseline exists.
-- Network timeouts on price endpoint remain possible in production (fallback path must stay healthy).
-
+- Network timeouts on price endpoint remain possible in production (fallback path must stay healthy).- ~23k boats still without Charter FK — need to run `update_charters` to fill. Commission is 0 for these boats until then.
 ## Required validation workflow (project rule)
 1. `docker compose down`
 2. `docker compose up -d --build`

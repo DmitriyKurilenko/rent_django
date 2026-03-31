@@ -60,6 +60,20 @@ def _localized_destination_display(destination: str) -> str:
     return destination
 
 
+def _price_visibility_flags(user) -> dict:
+    if not getattr(user, 'is_authenticated', False):
+        return {
+            'show_full_price_breakdown': False,
+            'show_charter_commission_only': False,
+        }
+
+    role = getattr(getattr(user, 'profile', None), 'role', '')
+    return {
+        'show_full_price_breakdown': role in ('manager', 'admin', 'superadmin'),
+        'show_charter_commission_only': role == 'captain',
+    }
+
+
 def home(request):
     """Главная страница"""
     form = SearchForm(request.GET or None)
@@ -427,6 +441,7 @@ def boat_search(request):
             'sort': sort,
             'show_pagination': total_pages > 1,
             'search_query_str': search_query_str,
+            **_price_visibility_flags(request.user),
         }
         
         logger.info(f"[Search View] Final context: boats={len(boats)}, total_pages={total_pages}, page={page}, has_next={context['has_next']}")
@@ -461,6 +476,7 @@ def boat_search(request):
             'sort': sort,
             'error_message': f'Ошибка при поиске: {str(e)}',
             'search_query_str': '',
+            **_price_visibility_flags(request.user),
         }
         return render(request, 'boats/search.html', context)
 
@@ -820,6 +836,7 @@ def boat_detail_api(request, boat_id):
                 'rental_days': rental_days,
                 'current_language': current_lang,
                 'is_favorite': False,
+                **_price_visibility_flags(request.user),
             })
 
         # Автопривязка чартера
@@ -976,10 +993,11 @@ def boat_detail_api(request, boat_id):
             'check_out': check_out if has_url_dates else '',
             'rental_days': rental_days,
             'current_language': current_lang,
+            **_price_visibility_flags(request.user),
         }
 
-        # Расшифровка цены для captain/manager/admin
-        if request.user.is_authenticated and request.user.profile.role in ('captain', 'manager', 'superadmin'):
+        # Расшифровка цены видна только ролям с доступом к pricing debug.
+        if context['show_full_price_breakdown'] or context['show_charter_commission_only']:
             charter_name = ''
             if parsed_boat and parsed_boat.charter:
                 charter_name = parsed_boat.charter.name or ''

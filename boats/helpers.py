@@ -78,19 +78,18 @@ def calculate_final_price_with_discounts(base_price, discount_without_extra, add
     total_discount = float(discount_without_extra or 0) + float(additional_discount or 0)
     
     # Условная дополнительная скидка
-    if charter and charter.commission:
-        commission = float(charter.commission)
-        additional_discount_val = float(additional_discount) if additional_discount else 0
+    commission = float(charter.commission) if charter and charter.commission else 0
+    additional_discount_val = float(additional_discount) if additional_discount else 0
 
-        try:
-            from boats.models import PriceSettings
-            extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
-        except Exception:
-            extra_discount_max = 5
+    try:
+        from boats.models import PriceSettings
+        extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
+    except Exception:
+        extra_discount_max = 5
 
-        if additional_discount_val < commission:
-            extra_discount = min(extra_discount_max, commission)
-            total_discount += extra_discount
+    if additional_discount_val < commission:
+        extra_discount = min(extra_discount_max, commission)
+        total_discount += extra_discount
     
     if total_discount:
         price = price * (1 - total_discount / 100)

@@ -519,23 +519,29 @@
                             Скидка до {{ boat.discount_percent|floatformat:0 }}%
                         </div>
                         {% endif %}
+                        {% if show_full_price_breakdown or show_charter_commission_only %}
                         {% if price_breakdown %}
                         {% with pb=price_breakdown %}
-                        <div class="mt-2 text-[11px] font-mono opacity-80 bg-black/15 rounded-lg px-2 py-1.5">
+                        <div class="mt-2 text-[13px] font-mono bg-black/20 rounded-lg px-2 py-1.5">
+                            {% if show_full_price_breakdown %}
                             <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                 <span>{{ pb.base_price|floatformat:0 }}€</span>
                                 {% if pb.discount_without_extra %}<span>−{{ pb.discount_without_extra|floatformat:0 }}%</span>{% endif %}
                                 {% if pb.additional_discount %}<span>−{{ pb.additional_discount|floatformat:0 }}%доп</span>{% endif %}
-                                {% if pb.extra_discount_applied %}<span class="text-info">−{{ pb.extra_discount_applied|floatformat:0 }}%наш</span>{% endif %}
+                                {% if pb.extra_discount_applied %}<span class="text-yellow-200">−{{ pb.extra_discount_applied|floatformat:0 }}%наш</span>{% endif %}
                                 <span class="font-semibold">→ {{ pb.final_price|floatformat:0 }}€</span>
                             </div>
+                            {% endif %}
+                            {% if pb.charter_commission_amount %}
                             <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                                {% if pb.charter_commission_amount %}<span class="text-warning">чарт {{ pb.charter_commission_amount|floatformat:0 }}€ ({{ pb.charter_commission|floatformat:0 }}%)</span>{% endif %}
-                                {% if pb.agent_commission %}<span class="text-success">агент {{ pb.agent_commission|floatformat:0 }}€</span>{% endif %}
-                                {% if pb.charter_name %}<span class="opacity-60">{{ pb.charter_name }}</span>{% endif %}
+                                <span class="text-amber-200">комиссия {{ pb.charter_commission_amount|floatformat:0 }}€ ({{ pb.charter_commission|floatformat:0 }}%)</span>
+                                {% if show_full_price_breakdown and pb.agent_commission %}<span class="text-green-200">агент {{ pb.agent_commission|floatformat:0 }}€</span>{% endif %}
+                                {% if show_full_price_breakdown and pb.charter_name %}<span class="opacity-70">{{ pb.charter_name }}</span>{% endif %}
                             </div>
+                            {% endif %}
                         </div>
                         {% endwith %}
+                        {% endif %}
                         {% endif %}
                     </div>
                     {% else %}
