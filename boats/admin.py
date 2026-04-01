@@ -1,8 +1,9 @@
 from django.contrib import admin
+from django.utils.html import format_html
 from .models import (
     Boat, Favorite, Booking, Review, Offer, ParsedBoat, Charter,
     BoatTechnicalSpecs, BoatDescription, BoatPrice, BoatGallery, BoatDetails,
-    ContractTemplate, Contract, Client, ContractOTP,
+    ContractTemplate, Contract, Client, ContractOTP, ParseJob,
 )
 
 
@@ -272,3 +273,73 @@ class ClientAdmin(admin.ModelAdmin):
     def full_name(self, obj):
         return obj.full_name
     full_name.short_description = 'ФИО'
+
+
+@admin.register(ParseJob)
+class ParseJobAdmin(admin.ModelAdmin):
+    list_display = [
+        'short_id', 'mode', 'destination_display', 'status_colored',
+        'progress', 'success', 'failed', 'skipped', 'duration', 'created_at',
+    ]
+    list_filter = ['status', 'mode', 'created_at']
+    search_fields = ['job_id']
+    readonly_fields = [
+        'job_id', 'celery_task_id', 'total_slugs', 'total_batches',
+        'batches_done', 'processed', 'success', 'failed', 'skipped',
+        'errors', 'summary', 'detailed_log', 'started_at', 'finished_at',
+        'created_at',
+    ]
+    ordering = ['-created_at']
+
+    fieldsets = (
+        ('Задание', {
+            'fields': ('job_id', 'mode', 'destination', 'max_pages', 'batch_size', 'skip_existing'),
+        }),
+        ('Статус', {
+            'fields': ('status', 'celery_task_id', 'started_at', 'finished_at', 'created_at'),
+        }),
+        ('Счётчики', {
+            'fields': (
+                'total_slugs', 'total_batches', 'batches_done',
+                'processed', 'success', 'failed', 'skipped',
+            ),
+        }),
+        ('Отчёты', {
+            'fields': ('summary', 'detailed_log', 'errors'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def short_id(self, obj):
+        return str(obj.job_id)[:8]
+    short_id.short_description = 'ID'
+
+    def destination_display(self, obj):
+        return obj.destination or '— весь каталог —'
+    destination_display.short_description = 'Направление'
+
+    def progress(self, obj):
+        pct = obj.progress_pct
+        if pct == 0 and obj.status == 'completed' and obj.skipped > 0:
+            return '—'
+        return f'{pct}%'
+    progress.short_description = 'Прогресс'
+
+    def duration(self, obj):
+        sec = obj.duration_seconds
+        if sec is None:
+            return '—'
+        if sec < 60:
+            return f'{sec:.0f}с'
+        return f'{sec / 60:.1f} мин'
+    duration.short_description = 'Время'
+
+    def status_colored(self, obj):
+        colors = {
+            'pending': '#999', 'collecting': '#07c', 'running': '#07c',
+            'completed': '#0a0', 'failed': '#c00', 'partial': '#f80',
+            'cancelled': '#999',
+        }
+        color = colors.get(obj.status, '#333')
+        return format_html('<span style="color:{}">{}</span>', color, obj.get_status_display())
+    status_colored.short_description = 'Статус'

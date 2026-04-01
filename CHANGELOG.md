@@ -2,6 +2,51 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.5.0-dev] - 2026-04-01
+
+### ✨ Added — Celery Parsing Pipeline & Agent Commission Settings
+- **`parse_boats` management command**: батчевый парсинг через Celery с тремя режимами:
+  - `--mode api` — только API-метаданные (country, charter, specs, coordinates)
+  - `--mode html` — только HTML-парсинг (фото, extras, описания)
+  - `--mode full` — оба режима последовательно
+  - `--status [JOB_ID]` — просмотр прогресса и отчётов
+  - Поддержка `--destination`, `--max-pages`, `--batch-size`, `--skip-existing`
+- **`ParseJob` модель**: хранение заданий парсинга (прогресс, логи, ошибки, длительность)
+- **`check_data_status` command**: полная диагностика данных (чартеры, геоданные, спеки, галерея, цены, офферы, бронирования, клиенты, договоры, пользователи)
+- **`agent_commission_pct`** в PriceSettings: настраиваемый процент комиссии агента (default 50% от чартера)
+- **Профиль пользователя**: бейджи роли и подписки, отображение комиссии для капитанов
+- **`server_tasks.sh`**: скрипт для фоновых серверных задач (запуск, логи, статус)
+
+### 🔧 Fixed — Captain Price Visibility & Parsing Stability
+- **Комиссия капитана**: капитан видит свою долю (50% от чартера), а не полную комиссию чартера
+- **Расшифровка цен в офферах**: скрыта от капитанов — доступна только менеджеру/админу
+- **Кеш деталей**: инвалидация после автопривязки чартера (комиссия появляется сразу)
+- **pricing.py**: восстановлена переменная `additional_discount_val` (поисковик возвращал 0 результатов)
+- **`update_charters`**: retry-логика при сетевых ошибках (5 попыток, нарастающая задержка 10с→5мин)
+
+### 📄 Documentation
+- **docs/DECISIONS.md**: DR-018 (agent commission from settings)
+- **docs/TASK_STATE.md**: обновлён
+- **docs/DEV_LOG.md**: сессия 2026-04-01
+
+### Files Changed
+- `boats/models.py`: ParseJob model, agent_commission_pct field
+- `boats/tasks.py`: run_parse_job, process_api_batch, process_html_batch
+- `boats/management/commands/parse_boats.py`: new
+- `boats/management/commands/check_data_status.py`: new
+- `boats/management/commands/update_charters.py`: retry logic
+- `boats/pricing.py`: configurable agent commission
+- `boats/views.py`: captain price visibility, cache invalidation
+- `boats/admin.py`: ParseJob admin
+- `boats/tests/test_views.py`: updated commission tests
+- `boats/migrations/0032_parse_job.py`, `0033_agent_commission_pct.py`: new
+- `accounts/views.py`: agent commission in profile context
+- `templates/accounts/profile.html`: role/subscription badges, commission
+- `templates/accounts/price_settings.html`: agent_commission_pct field
+- `templates/boats/search.html`, `detail.html`: captain commission display
+- `server_tasks.sh`: new
+- `VERSION`: 0.4.1-dev → 0.5.0-dev
+
 ## [0.4.1-dev] - 2026-03-31
 
 ### 🔧 Fixed - Charter Commission & Detail UI

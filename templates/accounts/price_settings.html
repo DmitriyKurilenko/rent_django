@@ -43,7 +43,7 @@
                 </p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {% for field, label, ftype, value in price_fields %}
-                    {% if field == 'extra_discount_max' %}
+                    {% if field == 'extra_discount_max' or field == 'agent_commission_pct' %}
                     <div class="form-control">
                         <label class="label py-1">
                             <span class="label-text text-sm font-medium">{{ label }}</span>

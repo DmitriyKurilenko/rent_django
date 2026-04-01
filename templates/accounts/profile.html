@@ -33,8 +33,19 @@
                                     <h2 class="font-bold text-lg">{{ user.username }}</h2>
                                     <p class="text-sm text-base-content/80">{{ user.email }}</p>
                                     {% if user.profile.role %}
-                                    <div class="mt-1">
-                                        <!-- Role/subscription badges removed for minimalism -->
+                                    <div class="mt-1 flex flex-wrap gap-2">
+                                        <span class="badge badge-sm {% if user.profile.role == 'superadmin' %}badge-error{% elif user.profile.role == 'admin' %}badge-warning{% elif user.profile.role == 'manager' %}badge-info{% elif user.profile.role == 'captain' %}badge-primary{% else %}badge-ghost{% endif %}">
+                                            {{ user.profile.get_role_display }}
+                                        </span>
+                                        <span class="badge badge-sm {% if user.profile.subscription_plan == 'advanced' %}badge-success{% elif user.profile.subscription_plan == 'standard' %}badge-accent{% else %}badge-ghost{% endif %}">
+                                            {{ user.profile.get_subscription_plan_display }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    {% if agent_commission_info %}
+                                    <div class="mt-2 text-xs text-base-content/70">
+                                        <i class="fas fa-percent text-success mr-1"></i>
+                                        Ваша комиссия: <span class="font-semibold text-base-content">{{ agent_commission_info.pct }}%</span> от комиссии чартера
                                     </div>
                                     {% endif %}
                                 </div>

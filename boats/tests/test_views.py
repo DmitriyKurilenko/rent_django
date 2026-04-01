@@ -427,8 +427,8 @@ class BoatViewsTest(TestCase):
         response = self.client.get(reverse('boat_search'), {'destination': 'croatia'})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'комиссия 20,0% (250€)')
-        self.assertNotContains(response, 'агент 125€')
+        self.assertContains(response, 'комиссия 125€')
+        self.assertNotContains(response, 'комиссия 20,0%')
         self.assertNotContains(response, 'Test Charter')
         self.assertNotContains(response, 'скидка')
 
@@ -728,8 +728,8 @@ class BoatDetailPriceVisibilityTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'комиссия 250€ (20%)')
-        self.assertNotContains(response, 'агент 125€')
+        self.assertContains(response, 'комиссия 125€')
+        self.assertNotContains(response, 'комиссия 250€')
         self.assertNotContains(response, 'Detail Charter')
         self.assertNotContains(response, '−10%')
 

@@ -105,6 +105,11 @@ def profile_view(request):
             context['offers_count'] = Offer.objects.count()
         else:
             context['offers_count'] = Offer.objects.filter(created_by=request.user).count()
+    if request.user.profile.role == 'captain':
+        from boats.models import PriceSettings as _PS
+        context['agent_commission_info'] = {
+            'pct': _PS.get_settings().agent_commission_pct,
+        }
     if request.user.profile.can_manage_prices():
         from boats.models import PriceSettings, COUNTRY_PRICE_FIELDS
         ps = PriceSettings.get_settings()
@@ -167,6 +172,7 @@ PRICE_FIELDS = [
     # (field_name, label, field_type)  — field_type: 'decimal' | 'int'
     # --- Общие ---
     ('extra_discount_max', 'Макс. доп. скидка — поисковик + агент (%)', 'int'),
+    ('agent_commission_pct', 'Комиссия агента (% от комиссии чартера)', 'int'),
 ]
 
 

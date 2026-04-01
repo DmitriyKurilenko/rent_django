@@ -413,9 +413,13 @@
                                 {% endif %}
                                 {% if pb.charter_commission %}
                                 <div class="flex flex-wrap items-center gap-x-3">
+                                    {% if show_charter_commission_only %}
+                                    <span class="text-success font-semibold">комиссия {{ pb.agent_commission|floatformat:0 }}€</span>
+                                    {% else %}
                                     <span class="text-secondary">комиссия {{ pb.charter_commission|floatformat:1 }}% ({{ pb.charter_commission_amount|floatformat:0 }}€)</span>
-                                    {% if show_full_price_breakdown and pb.agent_commission %}<span class="text-success font-semibold">агент {{ pb.agent_commission|floatformat:0 }}€</span>{% endif %}
-                                    {% if show_full_price_breakdown and pb.charter_name %}<span class="text-base-content/50">{{ pb.charter_name }}</span>{% endif %}
+                                    {% if pb.agent_commission %}<span class="text-success font-semibold">агент {{ pb.agent_commission|floatformat:0 }}€</span>{% endif %}
+                                    {% if pb.charter_name %}<span class="text-base-content/50">{{ pb.charter_name }}</span>{% endif %}
+                                    {% endif %}
                                 </div>
                                 {% endif %}
                             </div>

@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-03-31 (Europe/Moscow)
+Last updated: 2026-04-01 (Europe/Moscow)
 
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
@@ -127,3 +127,27 @@ Last updated: 2026-03-31 (Europe/Moscow)
 - Context: On cache-hit and partial metadata runs, some boats received `en_EN` geo values copied into `ru_RU/de_DE/fr_FR/es_ES` when localized API payload was missing for those languages.
 - Decision: in `_update_api_metadata()`, update `BoatDescription` per-language only from that language payload; keep English fallback only for `en_EN`; do not copy English geo values to non-English records.
 - Consequence: new metadata updates preserve localization correctness; stale mixed-language records require destination-scoped backfill runs to be corrected in DB.
+
+## DR-019: Celery-batched parsing via parse_boats command
+- Date: 2026-04-01
+- Context: existing `parse_boats_parallel` runs synchronously in Django process using ThreadPoolExecutor, blocking the management command for hours and risking OOM/timeout on large catalogs. No persistent report storage — output lost if terminal closed.
+- Decision: new `parse_boats` management command dispatches work to Celery via `ParseJob` model + batch tasks (`process_api_batch`, `process_html_batch`). Orchestrator task `run_parse_job` collects slugs from API, splits into batches, dispatches to Celery, and aggregates results. Three modes: `api` (metadata only), `html` (full HTML parse), `full` (both). Reports stored in DB (`summary`, `detailed_log`, `errors` JSON).
+- Consequence: server not blocked during parsing; progress queryable via `--status`; network retries (5 attempts with exponential backoff) prevent single DNS/timeout failure from aborting entire job; old commands untouched for backward compatibility.
+
+## DR-020: update_charters network retry
+- Date: 2026-04-01
+- Context: `update_charters --all` crashed on page 806/1471 due to transient DNS resolution failure (`Failed to resolve 'api.boataround.com'`). No retry logic — entire remaining catalog unprocessed.
+- Decision: added 5-retry loop with exponential backoff (10s→30s→60s→2min→5min) per API page. Catches `ConnectionError`, `Timeout`, `OSError`. On exhausted retries, page is skipped (not aborted). Unexpected exceptions also skip page with error log.
+- Consequence: transient network issues no longer abort full-catalog scans; worst case = a few skipped pages instead of 665 unprocessed pages.
+
+## DR-021: Agent commission is configurable via PriceSettings
+- Date: 2026-04-01
+- Context: agent commission was hardcoded as `charter_commission / 2` in pricing.py and _build_price_debug. Business needs flexibility to change agent share without code changes.
+- Decision: added `agent_commission_pct` field to PriceSettings (default=50, meaning 50% of charter commission). Used in pricing.py, views.py (_build_price_debug), and displayed in captain profile.
+- Consequence: agent commission adjustable via /price-settings/ UI; captains see only their commission, not full charter commission.
+
+## DR-022: Captain price visibility restricted
+- Date: 2026-04-01
+- Context: captains saw full charter commission (%) and price breakdown in offers, exposing internal pricing structure.
+- Decision: (1) offer price_debug hidden from captains — only manager/admin/superadmin see it. (2) search/detail: captain sees agent commission amount only, not charter % or charter name. Manager/admin see full breakdown.
+- Consequence: internal pricing math is no longer exposed to captain-level users.

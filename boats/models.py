@@ -792,6 +792,11 @@ class PriceSettings(models.Model):
         default=5,
         help_text='Условная доп. скидка при additional_discount < commission чартера',
     )
+    agent_commission_pct = models.IntegerField(
+        'Комиссия агента (% от комиссии чартера)',
+        default=50,
+        help_text='Доля агента от комиссии чартера. 50 = агент получает половину комиссии.',
+    )
 
     # ---- Туристический оффер ------------------------------------------------
     tourist_turkey_base = models.DecimalField(
@@ -1236,3 +1241,108 @@ class ContractOTP(models.Model):
             delivery_method=delivery_method,
             expires_at=timezone.now() + timedelta(seconds=cls.CODE_LIFETIME_SECONDS),
         )
+
+
+class ParseJob(models.Model):
+    """Задание на парсинг лодок. Хранит параметры запуска и отчёт о выполнении."""
+
+    MODE_CHOICES = [
+        ('api', 'Только API-метаданные'),
+        ('html', 'Только HTML-парсинг'),
+        ('full', 'Полный (API + HTML)'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'В очереди'),
+        ('collecting', 'Сбор slug\'ов'),
+        ('running', 'Выполняется'),
+        ('completed', 'Завершено'),
+        ('failed', 'Ошибка'),
+        ('partial', 'Частично'),
+        ('cancelled', 'Отменено'),
+    ]
+
+    # Идентификация
+    job_id = models.UUIDField('ID задания', default=_uuid4, editable=False, unique=True)
+
+    # Параметры запуска
+    mode = models.CharField('Режим', max_length=10, choices=MODE_CHOICES, default='full')
+    destination = models.CharField('Направление', max_length=100, blank=True, default='')
+    max_pages = models.IntegerField('Макс. страниц', null=True, blank=True)
+    batch_size = models.IntegerField('Размер батча', default=50)
+    skip_existing = models.BooleanField('Пропускать существующие', default=False)
+
+    # Статус
+    status = models.CharField('Статус', max_length=20, choices=STATUS_CHOICES, default='pending')
+    celery_task_id = models.CharField('Celery Task ID', max_length=255, blank=True, default='')
+
+    # Счётчики (обновляются атомарно из Celery-задач)
+    total_slugs = models.IntegerField('Всего slug\'ов', default=0)
+    total_batches = models.IntegerField('Всего батчей', default=0)
+    batches_done = models.IntegerField('Батчей выполнено', default=0)
+    processed = models.IntegerField('Обработано', default=0)
+    success = models.IntegerField('Успешно', default=0)
+    failed = models.IntegerField('Ошибки', default=0)
+    skipped = models.IntegerField('Пропущено', default=0)
+
+    # Отчёты
+    errors = models.JSONField('Список ошибок', default=list, blank=True)
+    summary = models.TextField('Краткий отчёт', blank=True, default='')
+    detailed_log = models.TextField('Подробный лог', blank=True, default='')
+
+    # Метаданные
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='parse_jobs', verbose_name='Кто запустил',
+    )
+    started_at = models.DateTimeField('Начало', null=True, blank=True)
+    finished_at = models.DateTimeField('Завершение', null=True, blank=True)
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Задание парсинга'
+        verbose_name_plural = 'Задания парсинга'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['job_id']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"[{self.get_mode_display()}] {self.job_id} — {self.get_status_display()}"
+
+    @property
+    def progress_pct(self):
+        if self.total_slugs == 0:
+            return 0
+        return round(self.processed * 100 / self.total_slugs, 1)
+
+    @property
+    def duration_seconds(self):
+        if not self.started_at:
+            return None
+        end = self.finished_at or __import__('django').utils.timezone.now()
+        return (end - self.started_at).total_seconds()
+
+    def append_log(self, line: str):
+        """Добавляет строку в detailed_log (без перезагрузки объекта)."""
+        from django.utils import timezone
+        ts = timezone.now().strftime('%H:%M:%S')
+        entry = f"[{ts}] {line}\n"
+        ParseJob.objects.filter(pk=self.pk).update(
+            detailed_log=models.functions.Concat(
+                models.F('detailed_log'), models.Value(entry),
+            )
+        )
+
+    def append_error(self, slug: str, error: str):
+        """Добавляет ошибку в JSON-список errors атомарно."""
+        from django.db.models import F
+        from django.db.models.functions import JSONObject
+        # Для PostgreSQL используем raw update, чтобы не перезаписать конкурентные ошибки.
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute(
+                "UPDATE boats_parsejob SET errors = errors || %s::jsonb WHERE id = %s",
+                [__import__('json').dumps([{'slug': slug, 'error': error}]), self.pk],
+            )

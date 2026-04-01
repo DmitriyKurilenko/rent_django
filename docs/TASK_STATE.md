@@ -43,7 +43,21 @@ Last updated: 2026-04-02 (Europe/Moscow)
 ## Open risks / watch items
 - Upstream Boataround API may return different `totalPrice` for identical query windows.
 - Search “consensus” anti-jitter behavior can still show a new candidate early when no confirmed baseline exists.
-- Network timeouts on price endpoint remain possible in production (fallback path must stay healthy).- ~23k boats still without Charter FK — need to run `update_charters` to fill. Commission is 0 for these boats until then.
+- Network timeouts on price endpoint remain possible in production (fallback path must stay healthy).
+- ~10k boats still without Charter FK — `update_charters` crashed on page 806/1471 due to DNS error. Command now has retry logic (5 attempts + skip on failure). Needs re-run.
+
+### P7: Celery-batched parse_boats command
+- Status: **implemented, Docker-validated, E2E tested** (2026-04-01).
+- Goal: unified management command for all parsing modes (API metadata, HTML parsing, combined) with Celery batch dispatch, progress tracking, and persistent reports.
+- Scope:
+  - `ParseJob` model for job state/counters/reports,
+  - `parse_boats` management command with `--mode api|html|full`, `--destination`, `--max-pages`, `--batch-size`, `--skip-existing`, `--status`,
+  - Celery tasks: `run_parse_job` (orchestrator), `process_api_batch`, `process_html_batch` (workers),
+  - Batch dispatch to avoid overloading server,
+  - Network retry with exponential backoff (5 retries per page),
+  - `summary` (brief report) + `detailed_log` + `errors` (JSON) stored in DB,
+  - Django admin with colored status, progress, duration columns,
+  - Old commands (`parse_boats_parallel`, `parse_all_boats`, etc.) untouched.
 ## Required validation workflow (project rule)
 1. `docker compose down`
 2. `docker compose up -d --build`

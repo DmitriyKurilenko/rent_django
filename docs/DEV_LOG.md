@@ -2,6 +2,60 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-01
+- Change:
+  - New `parse_boats` management command — Celery-batched parsing with 3 modes (api/html/full).
+  - `ParseJob` model for persistent job state, counters, and reports (summary + detailed_log + errors JSON).
+  - Celery tasks: `run_parse_job` (orchestrator), `process_api_batch`, `process_html_batch` (batch workers).
+  - Network retry with exponential backoff in both `parse_boats` tasks and `update_charters` command.
+  - `check_data_status` command extended to check ALL data entities (charters, geo, specs, gallery, prices, details, offers, bookings, clients, contracts, users, price settings).
+  - `check_data_status` now distinguishes active vs stale boats (30-day threshold).
+  - Django admin registration for ParseJob with colored status, progress, duration.
+  - `server_tasks.sh` helper script for background task management on server.
+  - **`agent_commission_pct`** added to PriceSettings (default 50%). Replaces hardcoded `/2` in pricing.py and _build_price_debug. Configurable via /price-settings/ UI.
+  - **Captain price visibility restricted**: offer price_debug hidden from captains; search/detail show agent commission (50% of charter) instead of full charter commission. Manager/admin see full breakdown.
+  - **Profile page**: role and subscription badges, captain commission rate display.
+- Files:
+  - `boats/models.py` — ParseJob model, agent_commission_pct field
+  - `boats/migrations/0032_parsejob.py` — new migration
+  - `boats/migrations/0033_agent_commission_pct.py` — new migration
+  - `boats/tasks.py` — 3 new Celery tasks (run_parse_job, process_api_batch, process_html_batch)
+  - `boats/management/commands/parse_boats.py` — new command
+  - `boats/management/commands/check_data_status.py` — new command
+  - `boats/management/commands/update_charters.py` — added retry logic
+  - `boats/pricing.py` — configurable agent commission from PriceSettings
+  - `boats/views.py` — captain price visibility, cache invalidation after charter linking
+  - `boats/admin.py` — ParseJobAdmin
+  - `boats/tests/test_views.py` — updated captain commission tests
+  - `accounts/views.py` — agent_commission_info in profile context
+  - `templates/accounts/profile.html` — role/subscription badges, commission
+  - `templates/accounts/price_settings.html` — agent_commission_pct field
+  - `templates/boats/search.html`, `detail.html` — captain sees own commission only
+  - `server_tasks.sh` — new helper script
+  - `docs/DECISIONS.md` — DR-019, DR-020, DR-021, DR-022
+  - `docs/TASK_STATE.md` — updated
+  - `CHANGELOG.md` — v0.5.0-dev entry
+  - `VERSION` — 0.4.1-dev → 0.5.0-dev
+- Why:
+  - `parse_boats_parallel` runs synchronously, blocks server, output lost on disconnect. Need async Celery-based pipeline with persistent reports.
+  - `update_charters` crashed at page 806/1471 from transient DNS error — no retry logic.
+  - `check_data_status` only checked ParsedBoat/charters/geo — user requested full coverage.
+- Validation:
+  - `docker compose down` + `up -d --build` — OK
+  - `python manage.py check` — 0 issues
+  - `migrate --check` — no unapplied migrations
+  - HTTP: / 200, /boats/search/ 200, /accounts/login/ 200
+  - E2E test all 3 modes:
+    - `--mode api --destination turkey --max-pages 1` → 18/18 OK
+    - `--mode html --destination turkey --max-pages 1 --skip-existing` → 18 skipped OK
+    - `--mode full --destination turkey --max-pages 1` → 36/36 (18 API + 18 HTML) OK, progress 100%
+  - `--status` listing: 6 jobs displayed correctly
+  - Reports: summary, detailed_log, errors all persisted in DB
+- Risks / follow-up:
+  - Old commands (`parse_boats_parallel`, `parse_all_boats`, etc.) still present — can be deprecated after `parse_boats` is proven on full catalog.
+  - `parse_boats` reuses existing `parse_boataround_url()` and `_update_api_metadata()` — any bugs in those functions affect new command too.
+  - Full catalog run (~1460 pages, ~26k boats) not yet tested — only Turkey (1 page, 18 boats) validated.
+
 ## 2026-03-31
 - Change:
   - Restricted search/detail price breakdown visibility by role.

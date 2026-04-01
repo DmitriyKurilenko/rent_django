@@ -13,9 +13,13 @@ import sys
 import time
 
 from django.core.management.base import BaseCommand
+from requests.exceptions import ConnectionError, Timeout
 
 from boats.boataround_api import BoataroundAPI
 from boats.models import Charter, ParsedBoat
+
+MAX_RETRIES = 5
+RETRY_DELAYS = [10, 30, 60, 120, 300]  # секунды между попытками
 
 
 class Command(BaseCommand):
@@ -88,60 +92,95 @@ class Command(BaseCommand):
         label = destination or "весь каталог"
 
         while True:
-            try:
-                results = BoataroundAPI.search(
-                    destination=destination,
-                    page=page,
-                    limit=18,
-                    lang="en_EN",
-                )
+            retries = 0
+            results = None
 
-                if not results or not results.get("boats"):
-                    break
-
-                if total_pages_api is None:
-                    total_pages_api = int(results.get("totalPages") or 1)
-
-                for boat in results["boats"]:
-                    slug = boat.get("slug")
-                    if not slug:
-                        continue
-                    charter_id = boat.get("charter_id", "")
-                    charter_name = boat.get("charter", "")
-                    if not charter_id or not charter_name:
-                        continue
-
-                    # Собираем данные только для целевых лодок
-                    if slug in target_slugs:
-                        charter_data[slug] = {
-                            "charter_id": charter_id,
-                            "charter_name": charter_name,
-                            "charter_logo": boat.get("charter_logo", ""),
-                            "charter_rank": boat.get("charter_rank", {}),
-                        }
-
-                scanned += len(results["boats"])
-
-                # Прогресс
-                effective_total = total_pages_api
-                if max_pages and max_pages > 0:
-                    effective_total = min(effective_total, max_pages)
-
-                if page % 10 == 0 or page == 1:
-                    sys.stdout.write(
-                        f"\r   🔍 {label}... стр. {page}/{effective_total}, "
-                        f"найдено чартеров для целевых: {len(charter_data)}"
+            while retries <= MAX_RETRIES:
+                try:
+                    results = BoataroundAPI.search(
+                        destination=destination,
+                        page=page,
+                        limit=18,
+                        lang="en_EN",
                     )
-                    sys.stdout.flush()
-
-                if page >= effective_total:
+                    break  # Успех — выходим из retry-цикла
+                except (ConnectionError, Timeout, OSError) as e:
+                    retries += 1
+                    if retries > MAX_RETRIES:
+                        self.stderr.write(
+                            self.style.ERROR(
+                                f"\n✗ Стр.{page}: {MAX_RETRIES} попыток "
+                                f"исчерпано, пропускаю. Ошибка: {e}"
+                            )
+                        )
+                        results = None
+                        break
+                    delay = RETRY_DELAYS[min(retries - 1, len(RETRY_DELAYS) - 1)]
+                    self.stderr.write(
+                        self.style.WARNING(
+                            f"\n⚠ Стр.{page}: сетевая ошибка ({e}). "
+                            f"Попытка {retries}/{MAX_RETRIES} через {delay}с..."
+                        )
+                    )
+                    time.sleep(delay)
+                except Exception as e:
+                    self.stderr.write(
+                        self.style.ERROR(
+                            f"\n✗ Стр.{page}: непредвиденная ошибка: {e}"
+                        )
+                    )
+                    results = None
                     break
 
-                page += 1
-
-            except Exception as e:
-                self.stderr.write(f"Ошибка на стр.{page}: {e}")
+            if not results or not results.get("boats"):
+                if retries > MAX_RETRIES:
+                    # Сетевая ошибка — пробуем следующую страницу
+                    page += 1
+                    if max_pages and page > max_pages:
+                        break
+                    continue
+                # Пустой ответ — конец каталога
                 break
+
+            if total_pages_api is None:
+                total_pages_api = int(results.get("totalPages") or 1)
+
+            for boat in results["boats"]:
+                slug = boat.get("slug")
+                if not slug:
+                    continue
+                charter_id = boat.get("charter_id", "")
+                charter_name = boat.get("charter", "")
+                if not charter_id or not charter_name:
+                    continue
+
+                # Собираем данные только для целевых лодок
+                if slug in target_slugs:
+                    charter_data[slug] = {
+                        "charter_id": charter_id,
+                        "charter_name": charter_name,
+                        "charter_logo": boat.get("charter_logo", ""),
+                        "charter_rank": boat.get("charter_rank", {}),
+                    }
+
+            scanned += len(results["boats"])
+
+            # Прогресс
+            effective_total = total_pages_api
+            if max_pages and max_pages > 0:
+                effective_total = min(effective_total, max_pages)
+
+            if page % 10 == 0 or page == 1:
+                sys.stdout.write(
+                    f"\r   🔍 {label}... стр. {page}/{effective_total}, "
+                    f"найдено чартеров для целевых: {len(charter_data)}"
+                )
+                sys.stdout.flush()
+
+            if page >= effective_total:
+                break
+
+            page += 1
 
         self.stdout.write(
             f"\n   Просканировано: {scanned} лодок, {page} стр."

@@ -854,6 +854,8 @@ def boat_detail_api(request, boat_id):
                     if charter_obj:
                         parsed_boat.charter = charter_obj
                         parsed_boat.save(update_fields=['charter'])
+                        # Инвалидируем кэш, чтобы _charter_commission обновилась
+                        cache.delete(f'boat_data:{boat_id}:{db_lang}')
                         logger.info(f"[Boat Detail] Auto-linked charter for {parsed_boat.slug}: {charter_obj.name} ({charter_obj.commission}%)")
             except Exception as charter_err:
                 logger.warning(f"[Boat Detail] Failed to auto-link charter for {parsed_boat.slug}: {charter_err}")
@@ -948,7 +950,8 @@ def boat_detail_api(request, boat_id):
             api_check_out = (today + timedelta(days=14)).strftime('%Y-%m-%d')
 
         slug = boat_static['slug']
-        charter_commission = float(boat_static.get('_charter_commission', 0))
+        # Комиссия всегда из живого объекта БД, а не из кэша
+        charter_commission = float(parsed_boat.charter.commission) if parsed_boat.charter else 0.0
 
         class _Charter:
             commission = charter_commission
@@ -2087,7 +2090,7 @@ def offer_detail(request, uuid):
         'data_error': data_error,
     }
 
-    if request.user.is_authenticated and request.user.profile.role in ('captain', 'manager', 'admin', 'superadmin'):
+    if request.user.is_authenticated and request.user.profile.role in ('manager', 'admin', 'superadmin'):
         context['price_debug'] = _build_price_debug(offer)
 
     # Выбираем шаблон в зависимости от типа оффера
@@ -2116,10 +2119,11 @@ def _build_price_debug(offer):
     bd = offer.boat_data
     adjustment = float(offer.price_adjustment or 0)
 
-    # Комиссия чартера и агентская комиссия (сумма = 50% от чартерной в деньгах)
+    # Комиссия чартера и агентская комиссия
     charter_commission = 0.0
     charter_commission_amount = 0.0
     agent_commission = 0.0
+    agent_pct = float(cfg.agent_commission_pct) / 100.0
     try:
         import re
         slug_match = re.search(r'/(?:boat|yachta)/([^/?#]+)', offer.source_url or '')
@@ -2128,7 +2132,7 @@ def _build_price_debug(offer):
             if pb and pb.charter and pb.charter.commission:
                 charter_commission = float(pb.charter.commission)
                 charter_commission_amount = round(float(offer.total_price) * charter_commission / 100, 2)
-                agent_commission = round(charter_commission_amount / 2, 2)
+                agent_commission = round(charter_commission_amount * agent_pct, 2)
     except Exception:
         pass
 
