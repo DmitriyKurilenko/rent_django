@@ -100,13 +100,14 @@ Last updated: 2026-04-02 (Europe/Moscow)
   - or apply multi-sample quorum before display.
 
 ### P5: Source-of-truth split (HTML vs API)
-- Status: implemented, ready for full server run.
+- Status: **implemented, production-validated** (2026-04-02).
 - Goal: keep HTML only for service lists and photos; all other fields from API.
 - Scope:
   - HTML writes: `extras`, `additional_services`, `delivery_extras`, `not_included`, `BoatGallery` photos, plus `cockpit` / `entertainment` / `equipment` (per-boat amenities).
   - API writes: `ParsedBoat` metadata, `BoatDescription`, `BoatTechnicalSpecs`, `Charter` linkage/rank fields.
   - API updater creates missing `BoatDescription` and `BoatTechnicalSpecs` records for newly parsed boats.
-  - Phase 2.5 API updater runs only for newly created boats (no repeated update for existing boats).
+  - **Detail/offer flow**: `_ensure_boat_data_for_critical_flow` runs API metadata first, then HTML parsing (DR-023). No split modes outside management commands.
+  - Management commands (`parse_boats`) support separate modes (api/html/full) for batch operations.
   - Cache payload stores `api_meta` and `thumb_map`, so cache-hit runs still execute complete Phase 1.5 metadata hydration.
 
 ### P6: Geo-data localization integrity

@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-01 (Europe/Moscow)
+Last updated: 2026-04-02 (Europe/Moscow)
 
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
@@ -151,3 +151,9 @@ Last updated: 2026-04-01 (Europe/Moscow)
 - Context: captains saw full charter commission (%) and price breakdown in offers, exposing internal pricing structure.
 - Decision: (1) offer price_debug hidden from captains — only manager/admin/superadmin see it. (2) search/detail: captain sees agent commission amount only, not charter % or charter name. Manager/admin see full breakdown.
 - Consequence: internal pricing math is no longer exposed to captain-level users.
+
+## DR-023: Detail/offer full parsing order (API → HTML)
+- Date: 2026-04-02
+- Context: detail page called only HTML parser for missing boats. BoatTechnicalSpecs (source-of-truth: API) was never created, causing RelatedObjectDoesNotExist crash.
+- Decision: `_ensure_boat_data_for_critical_flow` now runs API metadata first (specs, charter, descriptions), then HTML (photos, services, amenities). Uses `_update_api_metadata` from `parse_boats_parallel`. Management commands keep separate modes (api/html/full); all other flows always do full parsing.
+- Consequence: any boat opened via detail/offer gets complete data from both sources; specs created from API before HTML rendering needs them.

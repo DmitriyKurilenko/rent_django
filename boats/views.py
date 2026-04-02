@@ -10,7 +10,7 @@ from django.utils.translation import get_language, gettext as _
 from django.utils import timezone
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, Contract, ContractTemplate, Client, ContractOTP
+from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, Contract, ContractTemplate, Client, ContractOTP, BoatTechnicalSpecs
 from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm, ContractCreateForm, ContractSignForm, ClientForm
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
@@ -734,19 +734,41 @@ def _boat_data_completeness(parsed_boat, lang_code='ru_RU'):
 def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
     """
     Для detail/offer: данные должны быть в БД и быть полными.
-    Если запись отсутствует или неполная — выполняем парсинг.
-    Если после парсинга данные всё ещё неполные — возвращаем явную ошибку.
+    Если запись отсутствует или неполная — выполняем полный парсинг:
+    1) API → ParsedBoat metadata, BoatTechnicalSpecs, BoatDescription, Charter
+    2) HTML → BoatGallery, BoatDetails (услуги, amenities)
     """
     parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
     completeness = _boat_data_completeness(parsed_boat, lang_code) if parsed_boat else {'is_complete': False}
 
     if parsed_boat and completeness['is_complete']:
+        # Даже если данные полные, specs мог не создаться — проверим
+        has_specs = BoatTechnicalSpecs.objects.filter(boat=parsed_boat).exists()
+        if not has_specs:
+            _ensure_api_metadata_for_boat(parsed_boat)
         return parsed_boat, None
 
     logger.warning(
-        f"[Boat Data] Missing/incomplete DB data for {boat_slug}, parsing now "
+        f"[Boat Data] Missing/incomplete DB data for {boat_slug}, full parsing now "
         f"(state={completeness})"
     )
+
+    # --- Фаза 1: API metadata (specs, descriptions, charter) ---
+    # Если ParsedBoat ещё не создан — создаём минимальную запись
+    if not parsed_boat:
+        raw_boat = BoataroundAPI.search_by_slug(boat_slug, raw=True)
+        if raw_boat:
+            boat_id = raw_boat.get('_id') or raw_boat.get('id', '')
+            parsed_boat, _ = ParsedBoat.objects.get_or_create(
+                slug=boat_slug,
+                defaults={'boat_id': boat_id or boat_slug, 'source_url': f'https://www.boataround.com/ru/yachta/{boat_slug}/'}
+            )
+            _ensure_api_metadata_for_boat(parsed_boat, raw_boat)
+        # Если API не нашёл — HTML-парсинг создаст ParsedBoat сам
+    else:
+        _ensure_api_metadata_for_boat(parsed_boat)
+
+    # --- Фаза 2: HTML parsing (gallery, services, amenities, geo) ---
     boat_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/'
     parsed_result = parse_boataround_url(boat_url, save_to_db=True)
     if not parsed_result:
@@ -774,6 +796,51 @@ def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
         )
 
     return parsed_boat, None
+
+
+def _ensure_api_metadata_for_boat(parsed_boat, raw_boat=None):
+    """
+    Подтягивает BoatTechnicalSpecs и Charter из API для одной лодки.
+    Использует _update_api_metadata из parse_boats_parallel (batch=1).
+    """
+    try:
+        if not raw_boat:
+            raw_boat = BoataroundAPI.search_by_slug(parsed_boat.slug, raw=True)
+        if not raw_boat:
+            logger.warning(f"[Boat Data] API returned no data for {parsed_boat.slug}, skipping API metadata")
+            return
+
+        api_meta = {
+            parsed_boat.slug: {
+                'country': raw_boat.get('country', ''),
+                'region': raw_boat.get('region', ''),
+                'city': raw_boat.get('city', ''),
+                'marina': raw_boat.get('marina', ''),
+                'title': raw_boat.get('title', ''),
+                'location': raw_boat.get('location', '') or raw_boat.get('region', '') or raw_boat.get('country', ''),
+                'flag': raw_boat.get('flag', ''),
+                'coordinates': raw_boat.get('coordinates', []),
+                'category': raw_boat.get('category', ''),
+                'category_slug': raw_boat.get('category_slug', ''),
+                'engine_type': raw_boat.get('engineType', ''),
+                'sail': raw_boat.get('sail', ''),
+                'reviews_score': raw_boat.get('reviewsScore'),
+                'total_reviews': raw_boat.get('totalReviews'),
+                'prepayment': raw_boat.get('prepayment'),
+                'parameters': raw_boat.get('parameters', {}),
+                'charter_name': raw_boat.get('charter', ''),
+                'charter_id': raw_boat.get('charter_id', ''),
+                'charter_logo': raw_boat.get('charter_logo', ''),
+                'charter_rank': raw_boat.get('charter_rank', {}),
+            }
+        }
+
+        from boats.management.commands.parse_boats_parallel import Command as PBPCommand
+        PBPCommand._update_api_metadata(api_meta)
+        logger.info(f"[Boat Data] API metadata updated for {parsed_boat.slug}")
+
+    except Exception as e:
+        logger.warning(f"[Boat Data] Failed to update API metadata for {parsed_boat.slug}: {e}")
 
 
 def boat_detail_api(request, boat_id):
@@ -889,7 +956,10 @@ def boat_detail_api(request, boat_id):
             if not details:
                 details = parsed_boat.details.filter(language='ru_RU').first()
 
-            tech_specs = parsed_boat.technical_specs
+            try:
+                tech_specs = parsed_boat.technical_specs
+            except ParsedBoat.technical_specs.RelatedObjectDoesNotExist:
+                tech_specs = None
 
             boat_static = {
                 'name': description.title if description else 'Неизвестная лодка',

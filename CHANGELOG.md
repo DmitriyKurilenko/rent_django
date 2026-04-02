@@ -2,6 +2,15 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.5.1-dev] - 2026-04-02
+
+### 🔧 Fixed — Detail page full parsing & error resilience
+- **Detail/offer: полный парсинг (API → HTML)**: при отсутствии данных лодки detail page теперь парсит сначала API (BoatTechnicalSpecs, descriptions, charter), затем HTML (фото, сервисы, amenities). Ранее — только HTML, specs не создавались.
+- **`_ensure_api_metadata_for_boat()`**: новый helper — подтягивает specs и charter из API для одной лодки через `_update_api_metadata`.
+- **`search_by_slug(raw=True)`**: возвращает сырые API данные (с `parameters`) для создания specs.
+- **`technical_specs` RelatedObjectDoesNotExist**: обёрнуто в try/except — лодки без specs рендерятся gracefully.
+- **`detail.html` error path**: при `boat=None` (ошибка парсинга) шаблон больше не падает на `{% url 'toggle_favorite' boat.slug %}`.
+
 ## [0.5.0-dev] - 2026-04-01
 
 ### ✨ Added — Celery Parsing Pipeline & Agent Commission Settings

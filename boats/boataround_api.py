@@ -694,12 +694,13 @@ class BoataroundAPI:
             return {}
     
     @staticmethod
-    def search_by_slug(slug: str) -> Dict:
+    def search_by_slug(slug: str, raw: bool = False) -> Dict:
         """
         Поиск лодки по slug через API
         
         Args:
             slug: Slug лодки
+            raw: Если True — вернуть сырые данные из API (для _update_api_metadata)
             
         Returns:
             Dict: Данные лодки или {}
@@ -739,6 +740,8 @@ class BoataroundAPI:
                                 if current_slug != target_slug:
                                     continue
                                 logger.info(f"[search_by_slug] ✅ Found exact slug: {boat_data.get('title')}")
+                                if raw:
+                                    return boat_data
                                 return format_boat_data(boat_data)
             
             logger.warning(f"[search_by_slug] No exact slug match for {slug}")

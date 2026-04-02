@@ -2,6 +2,33 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-02
+- Change:
+  - Detail/offer flow: полный парсинг (API → HTML). `_ensure_boat_data_for_critical_flow` теперь сначала вызывает API (`search_by_slug(raw=True)` → `_update_api_metadata`) для создания BoatTechnicalSpecs/Charter/BoatDescription, затем HTML-парсинг для фото и сервисов.
+  - `_ensure_api_metadata_for_boat()` — новый helper для подтягивания API-метаданных одной лодки.
+  - `search_by_slug(raw=True)` — возвращает сырые API данные с `parameters` dict.
+  - `technical_specs` access обёрнут в try/except (`RelatedObjectDoesNotExist`).
+  - `detail.html`: при `boat=None` (error path) шаблон не рендерит body с `toggle_favorite`, предотвращая `NoReverseMatch`.
+- Files:
+  - `boats/views.py` — `_ensure_boat_data_for_critical_flow`, `_ensure_api_metadata_for_boat`, import BoatTechnicalSpecs, try/except for specs access
+  - `boats/boataround_api.py` — `search_by_slug(raw=True)` parameter
+  - `templates/boats/detail.html` — `{% if not boat %}` guard + `{% endif %}` closing
+  - `VERSION` — 0.5.0-dev → 0.5.1-dev
+  - `CHANGELOG.md` — [0.5.1-dev] entry
+  - `docs/DECISIONS.md` — DR-023
+  - `docs/TASK_STATE.md` — updated P5
+- Why:
+  - Production crash: `RelatedObjectDoesNotExist: ParsedBoat has no technical_specs` на `lagoon-52-f-costabella-1`. Лодки, не прошедшие `parse_boats_parallel`, не имели BoatTechnicalSpecs — HTML-парсер их не создаёт (source-of-truth: API per DR/P5).
+  - Шаблон detail.html падал на error path: `NoReverseMatch: toggle_favorite with args ('',)`.
+- Validation:
+  - `docker compose exec web python manage.py check` — 0 issues
+  - Template compile check — OK
+  - E2E test: удалил specs у живой лодки → `_ensure_api_metadata_for_boat` → specs восстановлены (length, cabins, berths, beam, draft)
+  - 21 лодка без specs — все устаревшие (удалены из API), gracefully handled with None
+- Risks:
+  - Detail page для новой лодки делает 2 внешних запроса (API search + HTML parse) — ~15-20с. Это ожидаемо для первого захода.
+  - Если API не находит лодку по slug — specs не создаются, но страница рендерится с None values.
+
 ## 2026-04-01
 - Change:
   - New `parse_boats` management command — Celery-batched parsing with 3 modes (api/html/full).
