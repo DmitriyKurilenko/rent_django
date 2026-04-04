@@ -40,13 +40,13 @@ Security policies and best practices:
 ### 🛠️ DevOps / System Administrators  
 Step-by-step production deployment guides:
 
-1. **[QUICK_DEPLOY.md](./QUICK_DEPLOY.md)** ⚡ START HERE (~30 min full setup)
+1. **[QUICK_DEPLOY.md](./archive/QUICK_DEPLOY.md)** ⚡ START HERE (~30 min full setup)
    - One consolidated bash script for Ubuntu 20.04+
    - Installs PostgreSQL, Redis, Nginx, Gunicorn, Celery
    - Configures SSL with Let's Encrypt
    - Sets up systemd services
 
-2. **[PRODUCTION_UBUNTU_DEPLOYMENT.md](./PRODUCTION_UBUNTU_DEPLOYMENT.md)** 📖 DETAILED GUIDE
+2. **[PRODUCTION_UBUNTU_DEPLOYMENT.md](./archive/PRODUCTION_UBUNTU_DEPLOYMENT.md)** 📖 DETAILED GUIDE
    - 10-step detailed walkthrough with explanations
    - Pre-deployment checklist
    - Server hardware requirements
@@ -112,7 +112,7 @@ Environment and infrastructure setup:
   - AWS S3 credentials
   - SSL/TLS settings
 
-- **[./PRODUCTION_INIT.md](./PRODUCTION_INIT.md)** - S3 & ParsedBoat initialization
+- **[./PRODUCTION_INIT.md](./archive/PRODUCTION_INIT.md)** - S3 & ParsedBoat initialization
   - S3 bucket setup
   - Image upload workflow
   - Fixture export/import
@@ -174,7 +174,7 @@ docs/
 
 ### Step 1: Plan (Review Documentation)
 1. Read: [README.md](../README.md) - Overall architecture and features
-2. Review: [PRODUCTION_UBUNTU_DEPLOYMENT.md](./PRODUCTION_UBUNTU_DEPLOYMENT.md) - What will be installed
+2. Review: [PRODUCTION_UBUNTU_DEPLOYMENT.md](./archive/PRODUCTION_UBUNTU_DEPLOYMENT.md) - What will be installed
 3. Prepare: [../DEPLOYMENT_CHECKLIST_FINAL.md](../DEPLOYMENT_CHECKLIST_FINAL.md) - 200+ checklist items
 
 ### Step 2: Configure
@@ -184,7 +184,7 @@ docs/
 
 ### Step 3: Deploy
 1. SSH into server
-2. Execute: [QUICK_DEPLOY.md](./QUICK_DEPLOY.md) commands (or follow detailed steps)
+2. Execute: [QUICK_DEPLOY.md](./archive/QUICK_DEPLOY.md) commands (or follow detailed steps)
 3. Verify: [../DEPLOYMENT_CHECKLIST_FINAL.md](../DEPLOYMENT_CHECKLIST_FINAL.md)
 
 ### Step 4: Populate Data
@@ -204,22 +204,22 @@ docs/
 ## 🎯 Common Scenarios
 
 ### "I want to deploy this in 30 minutes"
-→ [QUICK_DEPLOY.md](./QUICK_DEPLOY.md)
+→ [QUICK_DEPLOY.md](./archive/QUICK_DEPLOY.md)
 
 ### "I need step-by-step instructions with explanations"
-→ [PRODUCTION_UBUNTU_DEPLOYMENT.md](./PRODUCTION_UBUNTU_DEPLOYMENT.md)
+→ [PRODUCTION_UBUNTU_DEPLOYMENT.md](./archive/PRODUCTION_UBUNTU_DEPLOYMENT.md)
 
 ### "I need to verify everything before going live"
-→ [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)
+→ [DEPLOYMENT_CHECKLIST.md](../DEPLOYMENT_CHECKLIST_FINAL.md)
 
 ### "I need to understand the architecture"
 → [.github/copilot-instructions.md](../.github/copilot-instructions.md)
 
 ### "I need to parse ~28,000 boats"
-→ [BOAT_PARSING_GUIDE.md](../BOAT_PARSING_GUIDE.md)
+→ [BOAT_PARSING_GUIDE.md](../.github/copilot-instructions.md)
 
 ### "I need to set up S3 and upload images"
-→ [PRODUCTION_INIT.md](./PRODUCTION_INIT.md)
+→ [PRODUCTION_INIT.md](./archive/PRODUCTION_INIT.md)
 
 ### "Something is broken in production"
 → [PRODUCTION_UBUNTU_DEPLOYMENT.md](./PRODUCTION_UBUNTU_DEPLOYMENT.md#-troubleshooting)
@@ -303,10 +303,10 @@ CDN cdn2.prvms.ru (раздача изображений)
 
 These docs are generated from live codebase (boats/parser.py, boats/boataround_api.py, etc.)
 
-**Last Updated**: February 2026
-**Tested**: Ubuntu 20.04 LTS, Python 3.8+, Django 4.2
+**Last Updated**: April 2026
+**Tested**: Ubuntu 22.04 LTS, Python 3.13, Django 5.2 LTS
 **Status**: Production-ready ✅
 
 ---
 
-**Next Step**: Start with [QUICK_DEPLOY.md](./QUICK_DEPLOY.md) or [README_PRODUCTION.md](../README_PRODUCTION.md)
+**Next Step**: Start with [STAGING_RUNBOOK.md](./STAGING_RUNBOOK.md) or [TRIAL_DEPLOY_CHECKLIST.md](./TRIAL_DEPLOY_CHECKLIST.md)

@@ -2,14 +2,48 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-04 (session 2)
+- Change:
+  - Hide "Гибкая отмена" (slug `flexible-cancellation`) from all UI. Added `HIDDEN_SERVICE_SLUGS` constant in `helpers.py`, filter in 3 view functions (`boat_detail_api`, `_build_boat_data_from_db`, `offer_view`), template guards in `detail.html` and `offer_captain.html`.
+  - Full documentation audit: fixed Django 4.2→5.2, Python 3.8→3.13, stale command names, broken links across 15+ files.
+  - Archived 7 obsolete docs to `docs/archive/`.
+  - Deleted `CONTRIBUTING.md`, `SECURITY.md` (outdated/fake data).
+  - Rewrote `README.md` from scratch (Russian, accurate stack/commands/models).
+  - Created `docs/RELEASE_NOTES.md` (user-facing changelog).
+  - Added RELEASE_NOTES rules to AGENTS.md Update Ritual.
+  - Fixed duplicate DR-017 IDs in DECISIONS.md → DR-024/025/026/027.
+- Files:
+  - `boats/helpers.py` — `HIDDEN_SERVICE_SLUGS`
+  - `boats/views.py` — 3 filter locations
+  - `templates/boats/detail.html` — template guard
+  - `templates/boats/offer_captain.html` — template guard
+  - `README.md` — full rewrite
+  - `AGENTS.md` — stack fix + RELEASE_NOTES rules
+  - `docs/RELEASE_NOTES.md` — new
+  - `docs/DECISIONS.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/FAQ.md`, `docs/INDEX.md`, `docs/I18N_ARCHITECTURE.md`, `docs/I18N_QUICK_REFERENCE.md`, `docs/KNOWN_ISSUES.md` — updates
+  - `CONTRIBUTING.md`, `SECURITY.md` — deleted
+  - 7 files moved to `docs/archive/`
+- Why:
+  - "Гибкая отмена" — business decision, service not relevant to users.
+  - Documentation had widespread version drift (Django 4.2 referenced in 10+ places), broken links to archived/renamed files, duplicate decision IDs, and 6 redundant I18N files (2305 lines).
+- Validation:
+  - `docker compose down && docker compose up -d --build` — OK
+  - `docker compose run --rm web python manage.py check` — 0 issues
+  - HTTP check: / → 200, /boats/search/ → 200
+  - Template compilation: detail.html, offer_captain.html, offer_tourist.html — OK
+- Risks:
+  - Existing `Offer.boat_data` JSON snapshots still contain `flexible-cancellation` in `additional_services` — template guard handles this.
+  - Archived docs in `docs/archive/` are not updated — they are frozen snapshots.
+
 ## 2026-04-03
 - Change:
   - `_collect_slugs_from_api` refactored: collects all 5 languages per page in single pass (option A), matching proven `parse_boats_parallel` approach. Returns `api_meta_by_lang` alongside slugs/thumb_map/api_meta.
-  - Added slug cache: `_load_slug_cache`/`_save_slug_cache` using JSON files in `CACHE_DIR` with 12h TTL. Same pattern as `parse_boats_parallel.py`.
+  - Added slug cache: `_load_slug_cache`/`_save_slug_cache` using JSON files in `CACHE_DIR`, no TTL (reset via `--no-cache`). Saves after every page, resumes from partial.
   - Removed `_fetch_lang_meta_for_slugs` (was fetching lang meta per-batch, doubled total time).
   - Reverted `process_api_batch` signature: accepts `api_meta_by_lang_subset` directly from orchestrator (no more destination/page_start/page_end).
   - Reverted `run_parse_job` batch formation: passes pre-collected `api_meta_by_lang` subsets to batches.
-  - Retry logic unchanged: retry on empty results (not exceptions, since `BoataroundAPI.search()` never throws), 10 consecutive empty pages threshold.
+  - Concurrent lang fetch: 4 languages per page via `ThreadPoolExecutor(max_workers=4)`.
+  - Removed double retry (search() has 3 internal retries already). 1 empty page = stop + save cache.
 - Files:
   - `boats/tasks.py` — `_collect_slugs_from_api`, `_load_slug_cache`, `_save_slug_cache`, `CACHE_DIR`, removed `_fetch_lang_meta_for_slugs`, `process_api_batch`, `run_parse_job`
 - Why:
@@ -20,7 +54,7 @@ Purpose: short, append-only engineering memory to avoid re-discovery and regress
 - Validation:
   - `docker compose run --rm web python manage.py check` — 0 issues
 - Risks:
-  - Collection phase now takes ~1.5h for full catalog (1484 pages × 5 langs = 7420 requests). Cache mitigates re-runs within 12h.
+  - Collection phase now takes ~1.5h for full catalog (1484 pages × 5 langs = 7420 requests). Cache persists until `--no-cache`, resumes from partial on restart.
   - Large `api_meta_by_lang` dict serialized into Celery task args — for 27k boats ~50-100MB. Should be fine for Redis broker but monitor memory.
 
 ## 2026-04-02

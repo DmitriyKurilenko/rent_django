@@ -809,6 +809,7 @@ def boat_detail_api(request, boat_id):
     """
     try:
         from django.core.cache import cache
+        from boats.helpers import HIDDEN_SERVICE_SLUGS
 
         logger.info(f"[Boat Detail] Loading boat: {boat_id}")
 
@@ -949,7 +950,7 @@ def boat_detail_api(request, boat_id):
                 'gallery': [g.cdn_url for g in gallery],
 
                 'extras': details.extras if details else [],
-                'additional_services': details.additional_services if details else [],
+                'additional_services': [s for s in (details.additional_services or []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS],
                 'delivery_extras': details.delivery_extras if details else [],
                 'not_included': details.not_included if details else [],
                 'cockpit': details.cockpit if details else [],
@@ -1694,6 +1695,7 @@ def offers_list(request):
 
 def _build_boat_data_from_db(parsed_boat):
     """Собирает полный boat_data dict из ParsedBoat для сохранения в оффере."""
+    from boats.helpers import HIDDEN_SERVICE_SLUGS
     desc = parsed_boat.descriptions.filter(language='ru_RU').first()
     try:
         tech = parsed_boat.technical_specs
@@ -1735,7 +1737,7 @@ def _build_boat_data_from_db(parsed_boat):
         'images': list(parsed_boat.gallery.values_list('cdn_url', flat=True)),
         # Детали (extras, equipment и т.д.)
         'extras': details.extras if details else [],
-        'additional_services': details.additional_services if details else [],
+        'additional_services': [s for s in (details.additional_services or []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS],
         'delivery_extras': details.delivery_extras if details else [],
         'not_included': details.not_included if details else [],
         'cockpit': details.cockpit if details else [],
@@ -2300,12 +2302,13 @@ def offer_view(request, uuid):
     offer.increment_views()
     
     # Подготавливаем данные для шаблона
+    from boats.helpers import HIDDEN_SERVICE_SLUGS
     boat_data = offer.boat_data
     boat_info = boat_data.get('boat_info', {})
     prices = boat_data.get('prices', {})
     pictures = boat_data.get('pictures', [])
     extras = boat_data.get('extras', [])
-    additional_services = boat_data.get('additional_services', [])
+    additional_services = [s for s in boat_data.get('additional_services', []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS]
     not_included = boat_data.get('not_included', [])
     delivery_extras = boat_data.get('delivery_extras', [])
     

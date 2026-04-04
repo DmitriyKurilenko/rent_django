@@ -1,6 +1,6 @@
 # KNOWN ISSUES
 
-Last updated: 2026-04-02 (Europe/Moscow)
+Last updated: 2026-04-04 (Europe/Moscow)
 
 ## KI-001: Upstream price jitter for identical requests
 - Severity: medium (PARTIALLY RESOLVED 2026-04-02)

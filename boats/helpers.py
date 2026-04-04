@@ -21,6 +21,9 @@ DOUBLE_CABIN_EXTRA = 200
 CATAMARAN_LENGTH_EXTRA = 500
 SAILING_LENGTH_EXTRA = 300
 
+# Slugs услуг, скрытых из выдачи
+HIDDEN_SERVICE_SLUGS = {'flexible-cancellation'}
+
 # Названия стран для проверок
 TURKEY_NAMES = ('turkey', 'турция')
 SEYCHELLES_NAMES = ('seychelles', 'сейшелы')

@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-02 (Europe/Moscow)
+Last updated: 2026-04-04 (Europe/Moscow)
 
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
@@ -104,29 +104,35 @@ Last updated: 2026-04-02 (Europe/Moscow)
 - Decision: cache file now persists `slugs`, `thumb_map`, and `api_meta`; cache loader restores all three with backward compatibility for old list-only cache format.
 - Consequence: cache-hit runs keep API metadata update behavior consistent with fresh API scan and avoid unnecessary re-fetching.
 
-## DR-017: Search/detail price breakdown is role-scoped
+## DR-024: Search/detail price breakdown is role-scoped
 - Date: 2026-03-31
 - Context: search and detail pages exposed full internal pricing breakdown to roles that should only see charter commission.
 - Decision: full price breakdown is visible only to `manager`, `admin`, and `superadmin`; `captain` sees only charter commission percent and amount; anonymous and tourist roles see no breakdown.
 - Consequence: internal discount math and agent commission stay hidden from captain-level users, while manager/admin flows keep full pricing debug.
 
-## DR-017: Cache-first lookup in BoataroundAPI.get_price()
+## DR-025: Cache-first lookup in BoataroundAPI.get_price()
 - Date: 2026-04-02
 - Context: price inconsistency symptom: user refreshes detail page with same URL (identical slug, check_in, check_out) and sees different prices. Root cause: `get_price()` consensus algorithm did NOT check Redis cache before making 5 API requests, causing every call to fetch fresh data and potentially resolve to different consensus values.
 - Decision: check cache key `price_consensus:{slug}:{check_in}:{check_out}:{currency}` at function start and return immediately if found (6-hour TTL). Only perform consensus loop if cache miss.
 - Consequence: price is stable for 6 hours per date range; second page refresh shows cached value in logs (INFO "Using cached price"); eliminates upstream jitter symptom for users within cache window; minimal latency improvement (saves 5 sequential API calls on hit).
 
-## DR-017: geo-data population uses presence check instead of truthiness check
+## DR-026: geo-data population uses presence check instead of truthiness check
 - Date: 2026-03-31
 - Context: After analysis, only 1,619 boats (6.6%) had `country/region/city` in BoatDescription despite API providing these fields for ~8,000+ boats. Root cause: `_update_api_metadata()` was using `if meta.get('country'):` which fails when API returns empty string `''` because empty string is falsy in Python.
 - Decision: changed all geo-field checks from truthiness `if meta.get('country'):` to presence checks `if 'country' in meta:`. This way, even empty strings from API are properly captured and stored in database.
 - Consequence: geo-data coverage improved from 1,619 boats (1.3%) to 8,900+ boats (7.2%) in single backfill run. New boats created via parse_boats_parallel now always receive available API geo-metadata. Remaining ~15,000 boats without geo-data genuinely lack it in the API (not a parsing/storage issue, but a source data limitation).
 
-## DR-018: no cross-language fallback for BoatDescription geo fields
+## DR-027: no cross-language fallback for BoatDescription geo fields
 - Date: 2026-03-31
 - Context: On cache-hit and partial metadata runs, some boats received `en_EN` geo values copied into `ru_RU/de_DE/fr_FR/es_ES` when localized API payload was missing for those languages.
 - Decision: in `_update_api_metadata()`, update `BoatDescription` per-language only from that language payload; keep English fallback only for `en_EN`; do not copy English geo values to non-English records.
 - Consequence: new metadata updates preserve localization correctness; stale mixed-language records require destination-scoped backfill runs to be corrected in DB.
+
+## DR-028: Hidden service slugs filtered at view + template level
+- Date: 2026-04-04
+- Context: "Гибкая отмена / 8% от полной стоимости" (slug: `flexible-cancellation`) appears in additional_services from parser but should not be shown to users.
+- Decision: `HIDDEN_SERVICE_SLUGS` set in `helpers.py` filters additional_services in 3 view functions + 2 templates. Double layer: view filters for new data, template guards for existing offer snapshots in `boat_data` JSON.
+- Consequence: hidden services are suppressed everywhere without modifying parser output or stored data. Adding new hidden slugs requires only updating the set.
 
 ## DR-019: Celery-batched parsing via parse_boats command
 - Date: 2026-04-01

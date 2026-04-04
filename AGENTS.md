@@ -15,7 +15,7 @@ If instructions conflict, do not guess. Stop and ask the user for a decision.
 
 ## Non-Negotiable Guardrails
 - Keep stack unchanged unless user explicitly approves extension:
-  - Django, Ninja, Redis, Celery, Postgres, Docker, DaisyUI, AlpineJS, htmx, charts.js
+  - Django 5.2 LTS, Python 3.13, Redis, Celery, PostgreSQL, Docker, DaisyUI + Tailwind CSS, Alpine.js, Font Awesome
 - Do not remove production data without explicit user approval.
 - **Docker-only development.** NEVER install packages on the host machine (no `brew install`, no `pip install`, no `npm install -g`, no local venv). All commands run through `docker compose exec` or `docker run --rm`. CSS builds: `docker run --rm -v "$(pwd)":/app -w /app node:18-alpine sh -c "npm install && npx tailwindcss ..."`.
 - Do not introduce one-off hacks for symptoms. Fix root logic and all affected flows.
@@ -39,6 +39,11 @@ After each meaningful code change:
 2. Update `docs/TASK_STATE.md` (done/in progress/blocked).
 3. Add concise entry to `docs/DEV_LOG.md` with date, files, validation, risks.
 4. If a known bug is discovered or closed, update `docs/KNOWN_ISSUES.md`.
+5. If the change is visible to end users (UI, behavior, removed/added features), add entry to `docs/RELEASE_NOTES.md`:
+   - Language: Russian.
+   - No technical details (no file names, model names, API internals).
+   - Group by date (newest first), then by section: «Новое», «Улучшения», «Исправления».
+   - One sentence per item, from the user's perspective.
 
 ## Validation Baseline (Docker)
 Unless task says otherwise, use:

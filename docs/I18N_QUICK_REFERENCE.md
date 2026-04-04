@@ -102,7 +102,7 @@ python compile_messages.py
 
 ### Перепарсить лодку на всех языках
 ```bash
-docker-compose exec web python manage.py parse_all_boats --sync --limit 1
+docker-compose exec web python manage.py parse_boats_parallel --workers 1 --max-pages 1
 # Автоматически парсит SUPPORTED_LANGUAGES и сохраняет в BoatDescription/BoatDetails
 ```
 
@@ -241,10 +241,10 @@ ParsedBoat: "bavaria-cruiser-46"
 
 ```bash
 # Парсить 5 лодок (все языки)
-docker-compose exec web python manage.py parse_all_boats --sync --limit 5
+docker-compose exec web python manage.py parse_boats_parallel --workers 1 --max-pages 1
 
 # Парсить 100 лодок асинхронно
-docker-compose exec web python manage.py parse_all_boats --async --limit 100
+docker-compose exec web python manage.py parse_boats_parallel --workers 5
 
 # Скомпилировать переводы
 python compile_messages.py

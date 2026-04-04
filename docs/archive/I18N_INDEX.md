@@ -397,9 +397,9 @@ boat_rental/
 ## 📚 Additional Resources
 
 ### Django Documentation
-- [Django i18n Documentation](https://docs.djangoproject.com/en/4.2/topics/i18n/)
-- [URL Internationalization](https://docs.djangoproject.com/en/4.2/topics/i18n/translation/#how-django-discovers-language-preference)
-- [Translation Management](https://docs.djangoproject.com/en/4.2/topics/i18n/translation/)
+- [Django i18n Documentation](https://docs.djangoproject.com/en/5.2/topics/i18n/)
+- [URL Internationalization](https://docs.djangoproject.com/en/5.2/topics/i18n/translation/#how-django-discovers-language-preference)
+- [Translation Management](https://docs.djangoproject.com/en/5.2/topics/i18n/translation/)
 
 ### External Tools
 - [Poedit](https://poedit.net/) - Standalone .po file editor

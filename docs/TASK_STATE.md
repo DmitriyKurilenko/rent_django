@@ -1,6 +1,6 @@
 # TASK STATE
 
-Last updated: 2026-04-02 (Europe/Moscow)
+Last updated: 2026-04-04 (Europe/Moscow)
 
 ## Current priorities
 
@@ -39,6 +39,8 @@ Last updated: 2026-04-02 (Europe/Moscow)
 - Added `import_charter_commissions` management command to import charter commissions from `.xlsx` by charter name normalization (including `d.o.o.` suffix stripping), with CSV audit outputs (`loaded` / `not_loaded`).
 - **Major stack upgrade completed (2026-03-27):** Python 3.13, Django 5.2.12 LTS, Tailwind 4.2.2, DaisyUI 5.5.19, Node 22, all Python packages to latest. Validated: manage.py check, migrations, HTTP pages, CSS, Celery.
 - **Dynamic country pricing (2026-03-28):** Replaced hardcoded 3-region pricing (55 fields on PriceSettings) with `CountryPriceConfig` model (FK, 15 fields per country). Admin can add/edit/delete countries from price settings UI. Migration 0030 seeds Turkey/Seychelles/Default. Templates and pricing logic fully dynamic.
+- **Hidden service slugs (2026-04-04):** "Гибкая отмена" (flexible-cancellation) filtered from all UI via `HIDDEN_SERVICE_SLUGS` in helpers.py + view/template guards. DR-028.
+- **Full documentation audit (2026-04-04):** README.md rewritten, 7 obsolete docs archived, CONTRIBUTING.md/SECURITY.md deleted, version/command/link fixes across 15+ files.
 
 ## Open risks / watch items
 - Upstream Boataround API may return different `totalPrice` for identical query windows.
@@ -47,24 +49,15 @@ Last updated: 2026-04-02 (Europe/Moscow)
 - ~10k boats still without Charter FK — `update_charters` crashed on page 806/1471 due to DNS error. Command now has retry logic (5 attempts + skip on failure). Needs re-run.
 
 ### P7: Celery-batched parse_boats command
-- Status: **refactored** (2026-04-03). Slug collection now single-pass with all 5 languages + JSON cache (12h TTL). Lang meta passed to batches from orchestrator (no per-batch API calls). Retry on empty results (10 consecutive threshold). Ready for production re-test.
+- Status: **refactored** (2026-04-04). Slug collection: single-pass all 5 languages, incremental JSON cache (saves every page, resumes from partial), no TTL (reset via `--no-cache`), concurrent lang fetch (4 threads), 1 empty page = stop. Lang meta passed to batches from orchestrator.
 - Goal: unified management command for all parsing modes (API metadata, HTML parsing, combined) with Celery batch dispatch, progress tracking, and persistent reports.
 - Scope:
   - `ParseJob` model for job state/counters/reports,
-  - `parse_boats` management command with `--mode api|html|full`, `--destination`, `--max-pages`, `--batch-size`, `--skip-existing`, `--status`,
+  - `parse_boats` management command with `--mode api|html|full`, `--destination`, `--max-pages`, `--batch-size`, `--skip-existing`, `--status`, `--no-cache`,
   - Celery tasks: `run_parse_job` (orchestrator), `process_api_batch`, `process_html_batch` (workers),
-  - Batch dispatch to avoid overloading server,
-  - Network retry with exponential backoff (5 retries per page),
-  - `summary` (brief report) + `detailed_log` + `errors` (JSON) stored in DB,
+  - Incremental slug cache in `.parse_cache/` — saves after every page, resumes on restart,
   - Django admin with colored status, progress, duration columns,
-  - Old commands (`parse_boats_parallel`, `parse_all_boats`, etc.) untouched.
-## Required validation workflow (project rule)
-1. `docker compose down`
-2. `docker compose up -d --build`
-3. `docker compose run --rm web python manage.py check`
-4. Run tests for touched modules
-5. Verify affected HTTP pages render correctly
-6. If any error: fix and rerun from failed step
+  - Old commands (`parse_boats_parallel`) untouched.
 
 ### P3: Online contract signing
 - Status: implemented, ready for testing.

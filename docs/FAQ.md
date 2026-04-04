@@ -16,7 +16,7 @@
 BoatRental is a Django-based boat rental platform that integrates with boataround.com to provide search, booking, and offer management for ~28,000 boats worldwide.
 
 ### What technologies are used?
-- **Backend**: Django 4.2, PostgreSQL 15, Redis 7, Celery 5.3
+- **Backend**: Django 5.2 LTS, Python 3.13, PostgreSQL 15, Redis 7, Celery 5.4
 - **Frontend**: Alpine.js, Tailwind CSS, DaisyUI (JSON API + fetch)
 - **External API**: boataround.com REST API + BeautifulSoup HTML parsing
 - **Storage**: VK Cloud S3 + Free CDN (imageresizer.yachtsbt.com)
@@ -59,13 +59,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed setup instructions.
 Docker ensures consistent environments across development, testing, and production. All dependencies (PostgreSQL, Redis, Celery) are pre-configured.
 
 ### Can I run without Docker?
-Yes, but you'll need to manually install:
-- Python 3.8+
-- PostgreSQL 15
-- Redis 7
-- Configure environment variables
-
-See [PRODUCTION_UBUNTU_DEPLOYMENT.md](./PRODUCTION_UBUNTU_DEPLOYMENT.md) for manual setup.
+The project uses Docker-only development policy. All commands run through `docker compose exec` or `docker run --rm`. See [AGENTS.md](../AGENTS.md) for details.
 
 ### How do I add a new language?
 
@@ -113,7 +107,7 @@ See [I18N_ARCHITECTURE.md](./I18N_ARCHITECTURE.md) for full guide.
 - 100 GB SSD
 - Ubuntu 22.04 LTS
 
-See [PRODUCTION_UBUNTU_DEPLOYMENT.md](./PRODUCTION_UBUNTU_DEPLOYMENT.md) section 1.
+See [STAGING_RUNBOOK.md](./STAGING_RUNBOOK.md) for deployment workflow.
 
 ### How long does initial deployment take?
 - Server setup: 30-60 minutes
@@ -220,7 +214,7 @@ make parse-async LIMIT=1000
 make parse-turkey
 ```
 
-See [BOAT_PARSING_GUIDE.md](../BOAT_PARSING_GUIDE.md) for complete workflow.
+See [copilot-instructions.md](../.github/copilot-instructions.md) for complete parsing workflow.
 
 ### Why use async parsing?
 Synchronous parsing of 28k boats would take days and block the terminal. Async parsing uses Celery workers to parse in parallel with automatic retries.
@@ -243,7 +237,7 @@ docker-compose exec web python manage.py shell
 ### Can I skip already parsed boats?
 Yes, use `--skip-existing` flag:
 ```bash
-docker-compose exec web python manage.py parse_all_boats --async --skip-existing --limit 5000
+docker-compose exec web python manage.py parse_boats_parallel --skip-existing --workers 5
 ```
 
 ### What if parsing fails?

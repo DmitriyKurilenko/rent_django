@@ -294,9 +294,9 @@ cache_key = f"boat:{slug}:{lang_code}"
 
 ## 📚 Дополнительные ресурсы
 
-- [Django i18n Documentation](https://docs.djangoproject.com/en/4.2/topics/i18n/)
-- [URL Internationalization](https://docs.djangoproject.com/en/4.2/topics/i18n/translation/#how-django-discovers-language-preference)
-- [Translation Management](https://docs.djangoproject.com/en/4.2/topics/i18n/translation/)
+- [Django i18n Documentation](https://docs.djangoproject.com/en/5.2/topics/i18n/)
+- [URL Internationalization](https://docs.djangoproject.com/en/5.2/topics/i18n/translation/#how-django-discovers-language-preference)
+- [Translation Management](https://docs.djangoproject.com/en/5.2/topics/i18n/translation/)
 
 ---
 
