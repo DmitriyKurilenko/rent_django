@@ -2,6 +2,27 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-03
+- Change:
+  - `_collect_slugs_from_api` refactored: collects all 5 languages per page in single pass (option A), matching proven `parse_boats_parallel` approach. Returns `api_meta_by_lang` alongside slugs/thumb_map/api_meta.
+  - Added slug cache: `_load_slug_cache`/`_save_slug_cache` using JSON files in `CACHE_DIR` with 12h TTL. Same pattern as `parse_boats_parallel.py`.
+  - Removed `_fetch_lang_meta_for_slugs` (was fetching lang meta per-batch, doubled total time).
+  - Reverted `process_api_batch` signature: accepts `api_meta_by_lang_subset` directly from orchestrator (no more destination/page_start/page_end).
+  - Reverted `run_parse_job` batch formation: passes pre-collected `api_meta_by_lang` subsets to batches.
+  - Retry logic unchanged: retry on empty results (not exceptions, since `BoataroundAPI.search()` never throws), 10 consecutive empty pages threshold.
+- Files:
+  - `boats/tasks.py` — `_collect_slugs_from_api`, `_load_slug_cache`, `_save_slug_cache`, `CACHE_DIR`, removed `_fetch_lang_meta_for_slugs`, `process_api_batch`, `run_parse_job`
+- Why:
+  - Production parse job stuck for 24h. Root cause: 5 requests/page in collection + aggressive retry delays.
+  - After fixing to EN-only collection, lang meta was fetched per-batch inside `process_api_batch` — doubled total time (~3.5h vs ~1.5h).
+  - Option A (single-pass with all langs in collection phase) is proven in `parse_boats_parallel` and faster.
+  - Slug caching was present in `parse_boats_parallel` but missing in Celery tasks — now added.
+- Validation:
+  - `docker compose run --rm web python manage.py check` — 0 issues
+- Risks:
+  - Collection phase now takes ~1.5h for full catalog (1484 pages × 5 langs = 7420 requests). Cache mitigates re-runs within 12h.
+  - Large `api_meta_by_lang` dict serialized into Celery task args — for 27k boats ~50-100MB. Should be fine for Redis broker but monitor memory.
+
 ## 2026-04-02
 - Change:
   - Detail/offer flow: полный парсинг (API → HTML). `_ensure_boat_data_for_critical_flow` теперь сначала вызывает API (`search_by_slug(raw=True)` → `_update_api_metadata`) для создания BoatTechnicalSpecs/Charter/BoatDescription, затем HTML-парсинг для фото и сервисов.

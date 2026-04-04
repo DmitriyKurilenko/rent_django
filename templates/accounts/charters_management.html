@@ -37,16 +37,6 @@
         </div>
     </div>
 
-    {% if messages %}
-    <div class="space-y-2 mb-4">
-        {% for message in messages %}
-        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
-            <span>{{ message }}</span>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
     <div class="card bg-base-100 shadow-sm">
         <div class="card-body p-0">
             <div class="overflow-x-auto">
@@ -98,5 +88,30 @@
             </div>
         </div>
     </div>
+    {% if charters.has_other_pages %}
+    <div class="flex items-center justify-between mt-4">
+        <div class="flex gap-1">
+            {% if charters.has_previous %}
+            <a href="?{% if query %}q={{ query }}&{% endif %}per_page={{ per_page }}&page={{ charters.previous_page_number }}" class="btn btn-sm btn-ghost">&laquo;</a>
+            {% endif %}
+            {% for num in charters.paginator.page_range %}
+                {% if charters.number == num %}
+                <button class="btn btn-sm btn-primary">{{ num }}</button>
+                {% elif num > charters.number|add:'-3' and num < charters.number|add:'3' %}
+                <a href="?{% if query %}q={{ query }}&{% endif %}per_page={{ per_page }}&page={{ num }}" class="btn btn-sm btn-ghost">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+            {% if charters.has_next %}
+            <a href="?{% if query %}q={{ query }}&{% endif %}per_page={{ per_page }}&page={{ charters.next_page_number }}" class="btn btn-sm btn-ghost">&raquo;</a>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+            <span class="opacity-70">На странице:</span>
+            {% for size in page_sizes %}
+            <a href="?{% if query %}q={{ query }}&{% endif %}per_page={{ size }}" class="btn btn-xs {% if per_page == size %}btn-primary{% else %}btn-ghost{% endif %}">{{ size }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

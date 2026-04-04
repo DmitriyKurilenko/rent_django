@@ -710,63 +710,31 @@ def boat_detail(request, pk):
     return render(request, 'boats/detail.html', context)
 
 
-def _boat_data_completeness(parsed_boat, lang_code='ru_RU'):
-    """Проверка полноты данных лодки в БД для критичных сценариев (detail/offer)."""
-    desc_qs = parsed_boat.descriptions.filter(language=lang_code).exclude(title='')
-    if not desc_qs.exists():
-        desc_qs = parsed_boat.descriptions.filter(language='ru_RU').exclude(title='')
-    has_description = desc_qs.exists()
-    has_country = desc_qs.filter(country__gt='').exists() if has_description else False
-    has_details = (
-        parsed_boat.details.filter(language=lang_code).exists()
-        or parsed_boat.details.filter(language='ru_RU').exists()
-    )
-    has_gallery = parsed_boat.gallery.exists()
-    return {
-        'has_description': has_description,
-        'has_country': has_country,
-        'has_details': has_details,
-        'has_gallery': has_gallery,
-        'is_complete': bool(has_description and has_country and has_details and has_gallery),
-    }
-
-
 def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
     """
-    Для detail/offer: данные должны быть в БД и быть полными.
-    Если запись отсутствует или неполная — выполняем полный парсинг:
-    1) API → ParsedBoat metadata, BoatTechnicalSpecs, BoatDescription, Charter
-    2) HTML → BoatGallery, BoatDetails (услуги, amenities)
+    Для detail/offer: если лодка есть в БД — возвращаем.
+    Если нет — полный парсинг: API → HTML.
     """
     parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
-    completeness = _boat_data_completeness(parsed_boat, lang_code) if parsed_boat else {'is_complete': False}
 
-    if parsed_boat and completeness['is_complete']:
-        # Даже если данные полные, specs мог не создаться — проверим
-        has_specs = BoatTechnicalSpecs.objects.filter(boat=parsed_boat).exists()
-        if not has_specs:
+    if parsed_boat:
+        # Если specs нет — подтянем из API (одноразовая операция)
+        if not BoatTechnicalSpecs.objects.filter(boat=parsed_boat).exists():
             _ensure_api_metadata_for_boat(parsed_boat)
         return parsed_boat, None
 
-    logger.warning(
-        f"[Boat Data] Missing/incomplete DB data for {boat_slug}, full parsing now "
-        f"(state={completeness})"
-    )
+    # Лодки нет в БД — полный парсинг
+    logger.info(f"[Boat Data] {boat_slug} not in DB, starting full parse")
 
     # --- Фаза 1: API metadata (specs, descriptions, charter) ---
-    # Если ParsedBoat ещё не создан — создаём минимальную запись
-    if not parsed_boat:
-        raw_boat = BoataroundAPI.search_by_slug(boat_slug, raw=True)
-        if raw_boat:
-            boat_id = raw_boat.get('_id') or raw_boat.get('id', '')
-            parsed_boat, _ = ParsedBoat.objects.get_or_create(
-                slug=boat_slug,
-                defaults={'boat_id': boat_id or boat_slug, 'source_url': f'https://www.boataround.com/ru/yachta/{boat_slug}/'}
-            )
-            _ensure_api_metadata_for_boat(parsed_boat, raw_boat)
-        # Если API не нашёл — HTML-парсинг создаст ParsedBoat сам
-    else:
-        _ensure_api_metadata_for_boat(parsed_boat)
+    raw_boat = BoataroundAPI.search_by_slug(boat_slug, raw=True)
+    if raw_boat:
+        boat_id = raw_boat.get('_id') or raw_boat.get('id', '')
+        parsed_boat, _ = ParsedBoat.objects.get_or_create(
+            slug=boat_slug,
+            defaults={'boat_id': boat_id or boat_slug, 'source_url': f'https://www.boataround.com/ru/yachta/{boat_slug}/'}
+        )
+        _ensure_api_metadata_for_boat(parsed_boat, raw_boat)
 
     # --- Фаза 2: HTML parsing (gallery, services, amenities, geo) ---
     boat_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/'
@@ -774,8 +742,7 @@ def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
     if not parsed_result:
         return None, (
             f"Критическая ошибка данных лодки {boat_slug}: "
-            "не удалось получить полные данные из источника. "
-            "Проверьте доступ к Boataround и S3."
+            "не удалось получить данные из источника."
         )
 
     parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
@@ -783,16 +750,6 @@ def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
         return None, (
             f"Критическая ошибка данных лодки {boat_slug}: "
             "запись не была сохранена в БД после парсинга."
-        )
-
-    completeness = _boat_data_completeness(parsed_boat, lang_code)
-    if not completeness['is_complete']:
-        return None, (
-            f"Критическая ошибка данных лодки {boat_slug}: "
-            "после парсинга данные остались неполными "
-            f"(описание={completeness['has_description']}, "
-            f"страна={completeness['has_country']}, "
-            f"детали={completeness['has_details']}, фото={completeness['has_gallery']})."
         )
 
     return parsed_boat, None

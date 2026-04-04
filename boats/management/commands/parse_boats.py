@@ -63,6 +63,11 @@ class Command(BaseCommand):
             help='Пропускать лодки, уже существующие в БД (только для mode=html)',
         )
         parser.add_argument(
+            '--no-cache',
+            action='store_true',
+            help='Сбросить кэш slug\'ов и собрать заново.',
+        )
+        parser.add_argument(
             '--status',
             nargs='?',
             const='__list__',
@@ -111,7 +116,8 @@ class Command(BaseCommand):
         )
 
         # Запускаем оркестратор
-        task = run_parse_job.delay(str(job.job_id))
+        no_cache = options.get('no_cache', False)
+        task = run_parse_job.delay(str(job.job_id), no_cache=no_cache)
         job.celery_task_id = task.id
         job.save(update_fields=['celery_task_id'])
 

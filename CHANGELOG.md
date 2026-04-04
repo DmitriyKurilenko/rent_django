@@ -2,6 +2,16 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.5.2-dev] - 2026-04-04
+
+### ⚡ Perf — Slug collection: incremental cache, concurrent lang fetch
+- **Incremental cache**: slug collection saves to `.parse_cache/` after every page. On restart resumes from `last_page`, no work lost. Complete cache returned instantly on next run.
+- **Concurrent lang fetch**: 4 languages per page via `ThreadPoolExecutor` (~5s/page instead of ~17s sequential).
+- **Removed double retry**: `search()` already has 3 internal retries; outer retry loop removed. 1 empty page = stop + save cache.
+- **Single-pass lang meta**: `_fetch_lang_meta_for_slugs` removed — lang meta collected during collection phase, passed to batch tasks directly.
+- **`--no-cache` flag**: deletes cache file, forces fresh collection. No TTL — cache persists until explicit `--no-cache`.
+- **Removed `_boat_data_completeness`**: boat exists in DB = return it, no intermediate completeness checks.
+
 ## [0.5.1-dev] - 2026-04-02
 
 ### 🔧 Fixed — Detail page full parsing & error resilience

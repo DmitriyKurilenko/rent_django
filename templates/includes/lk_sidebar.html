@@ -73,6 +73,13 @@
                 </a>
                 {% endif %}
                 {% endif %}
+
+                {# Комиссии чартеров #}
+                {% if user.profile.can_manage_charters %}
+                <a href="{% url 'charters_management' %}" class="btn btn-sm {% if active_page == 'charters' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-building"></i> {% trans "Комиссии чартеров" %}
+                </a>
+                {% endif %}
             </div>
         </div>
     </div>

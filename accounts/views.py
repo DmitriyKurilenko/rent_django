@@ -6,6 +6,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.http import HttpResponseForbidden
 from .forms import RegisterForm, ProfileUpdateForm
 
@@ -153,17 +154,32 @@ def charters_management_view(request):
 
         charter.commission = commission
         charter.save(update_fields=['commission', 'updated_at'])
-        messages.success(request, f'Комиссия для {charter.name} обновлена: {commission}%')
         return redirect('charters_management')
 
     charters = Charter.objects.all().order_by('name')
     if query:
         charters = charters.filter(name__icontains=query)
 
+    total_count = charters.count()
+
+    page_sizes = [10, 50, 100]
+    try:
+        per_page = int(request.GET.get('per_page', 50))
+    except (TypeError, ValueError):
+        per_page = 50
+    if per_page not in page_sizes:
+        per_page = 50
+
+    paginator = Paginator(charters, per_page)
+    page_num = request.GET.get('page', 1)
+    charters_page = paginator.get_page(page_num)
+
     context = {
-        'charters': charters,
-        'charters_count': charters.count(),
+        'charters': charters_page,
+        'charters_count': total_count,
         'query': query,
+        'per_page': per_page,
+        'page_sizes': page_sizes,
     }
     return render(request, 'accounts/charters_management.html', context)
 

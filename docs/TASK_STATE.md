@@ -47,7 +47,7 @@ Last updated: 2026-04-02 (Europe/Moscow)
 - ~10k boats still without Charter FK — `update_charters` crashed on page 806/1471 due to DNS error. Command now has retry logic (5 attempts + skip on failure). Needs re-run.
 
 ### P7: Celery-batched parse_boats command
-- Status: **implemented, Docker-validated, E2E tested** (2026-04-01).
+- Status: **refactored** (2026-04-03). Slug collection now single-pass with all 5 languages + JSON cache (12h TTL). Lang meta passed to batches from orchestrator (no per-batch API calls). Retry on empty results (10 consecutive threshold). Ready for production re-test.
 - Goal: unified management command for all parsing modes (API metadata, HTML parsing, combined) with Celery batch dispatch, progress tracking, and persistent reports.
 - Scope:
   - `ParseJob` model for job state/counters/reports,
