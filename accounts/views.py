@@ -34,7 +34,7 @@ def register_view(request):
             role = 'tourist' if subscription_plan == 'free' else 'captain'
             user.profile.subscription_plan = subscription_plan
             user.profile.role = role
-            user.profile.save(update_fields=['subscription_plan', 'role'])
+            user.profile.save(update_fields=['subscription_plan', 'role_ref'])
 
             login(request, user)
             messages.success(request, f'Добро пожаловать, {user.username}!')
@@ -98,15 +98,15 @@ def profile_view(request):
     }
     # Если потребуется выводить списки — использовать select_related/prefetch_related
     # Пример: Favorite.objects.filter(user=request.user).select_related('parsed_boat')[:20]
-    if request.user.profile.can_manage_boats:
+    if request.user.profile.can_manage_boats():
         from boats.models import Boat
         context['boats_count'] = Boat.objects.filter(owner=request.user).count()
-    if request.user.profile.can_create_offers:
-        if request.user.profile.role == 'admin':
+    if request.user.profile.can_create_offers():
+        if request.user.profile.can_see_all_bookings():
             context['offers_count'] = Offer.objects.count()
         else:
             context['offers_count'] = Offer.objects.filter(created_by=request.user).count()
-    if request.user.profile.role == 'captain':
+    if request.user.profile.can_create_captain_offers():
         from boats.models import PriceSettings as _PS
         context['agent_commission_info'] = {
             'pct': _PS.get_settings().agent_commission_pct,

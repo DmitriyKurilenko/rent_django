@@ -1,11 +1,18 @@
 # TASK STATE
 
-Last updated: 2026-04-04 (Europe/Moscow)
+Last updated: 2026-04-06 (Europe/Moscow)
 
 ## Current priorities
 
 ### P0: Pricing consistency across search/detail/offers
 - Status: **RESOLVED (2026-04-02)** — cache-first lookup in `get_price()` eliminates price jitter symptom for users.
+
+### P0.5: Permission-based role system
+- Status: **DONE (2026-04-06)** — Permission + Role models, 3-step migration, all `can_*()` delegate to `has_perm()`.
+- Full audit completed: 28 hardcoded role checks found, 15 CRITICAL fixed. All views now use `can_*()` methods.
+- ORM compatibility fixes: `profile__role` → `profile__role_ref__codename`, `check_data_status` values_list, `additional_services` guard.
+- All 120 tests pass.
+- Assistant role fully functional: offers, bookings, contracts, clients, navigation.
 - Goal: one pricing pipeline and predictable user-visible price per request context.
 - Scope:
   - search cards,

@@ -8,9 +8,9 @@ from django.urls import reverse
 from django.core.cache import cache
 from django.utils import translation
 
-from boats.models import PriceSettings
+from boats.models import PriceSettings, CountryPriceConfig
 from boats.helpers import calculate_tourist_price, calculate_final_price_with_discounts
-from accounts.models import UserProfile
+from accounts.models import Role, UserProfile
 
 
 def url(name, **kwargs):
@@ -23,7 +23,9 @@ def make_user(username, role):
     user = User.objects.create_user(username=username, password='pass')
     user.profile.role = role
     # bypass subscription_plan guard for admin/superadmin
-    UserProfile.objects.filter(pk=user.profile.pk).update(role=role)
+    UserProfile.objects.filter(pk=user.profile.pk).update(
+        role_ref=Role.objects.get(codename=role),
+    )
     user.profile.refresh_from_db()
     return user
 
@@ -42,8 +44,8 @@ class PriceSettingsModelTest(TestCase):
     def test_defaults(self):
         s, _ = PriceSettings.objects.get_or_create(pk=1)
         self.assertEqual(s.extra_discount_max, 5)
-        self.assertEqual(s.tourist_insurance_rate, Decimal('0.1000'))
-        self.assertEqual(s.tourist_insurance_min, Decimal('400.00'))
+        self.assertEqual(s.tourist_insurance_rate_default, Decimal('0.1000'))
+        self.assertEqual(s.tourist_insurance_min_default, Decimal('400.00'))
         self.assertEqual(s.tourist_turkey_base, Decimal('4400.00'))
         self.assertEqual(s.tourist_seychelles_base, Decimal('4500.00'))
         self.assertEqual(s.tourist_default_base, Decimal('4500.00'))
@@ -69,6 +71,74 @@ class CalculateTouristPriceTest(TestCase):
     def setUp(self):
         cache.clear()
         self.settings, _ = PriceSettings.objects.get_or_create(pk=1)
+        # Create country pricing configs required by _resolve_country_config
+        self.cc_turkey = CountryPriceConfig.objects.create(
+            price_settings=self.settings,
+            country_name='Турция',
+            country_code='turkey',
+            match_names='turkey,турция',
+            captain=Decimal('880.00'),
+            fuel=Decimal('880.00'),
+            moorings=Decimal('880.00'),
+            transit_cleaning=Decimal('880.00'),
+            trips_markup=Decimal('880.00'),
+            insurance_rate=Decimal('0.1000'),
+            insurance_min=Decimal('400.00'),
+            dish_base=Decimal('150.00'),
+            cook_price=Decimal('1400.00'),
+            length_extra=Decimal('200.00'),
+            catamaran_length_extra=Decimal('500.00'),
+            sailing_length_extra=Decimal('300.00'),
+            double_cabin_extra=Decimal('180.00'),
+            max_double_cabins_free=4,
+            praslin_extra=Decimal('0.00'),
+            sort_order=1,
+        )
+        self.cc_seychelles = CountryPriceConfig.objects.create(
+            price_settings=self.settings,
+            country_name='Сейшелы',
+            country_code='seychelles',
+            match_names='seychelles,сейшелы',
+            captain=Decimal('900.00'),
+            fuel=Decimal('900.00'),
+            moorings=Decimal('900.00'),
+            transit_cleaning=Decimal('900.00'),
+            trips_markup=Decimal('900.00'),
+            insurance_rate=Decimal('0.1000'),
+            insurance_min=Decimal('400.00'),
+            dish_base=Decimal('210.00'),
+            cook_price=Decimal('1400.00'),
+            length_extra=Decimal('200.00'),
+            catamaran_length_extra=Decimal('500.00'),
+            sailing_length_extra=Decimal('300.00'),
+            double_cabin_extra=Decimal('180.00'),
+            max_double_cabins_free=4,
+            praslin_extra=Decimal('400.00'),
+            sort_order=2,
+        )
+        self.cc_default = CountryPriceConfig.objects.create(
+            price_settings=self.settings,
+            country_name='По умолчанию',
+            country_code='default',
+            match_names='',
+            is_default=True,
+            captain=Decimal('900.00'),
+            fuel=Decimal('900.00'),
+            moorings=Decimal('900.00'),
+            transit_cleaning=Decimal('900.00'),
+            trips_markup=Decimal('900.00'),
+            insurance_rate=Decimal('0.1000'),
+            insurance_min=Decimal('400.00'),
+            dish_base=Decimal('210.00'),
+            cook_price=Decimal('1400.00'),
+            length_extra=Decimal('200.00'),
+            catamaran_length_extra=Decimal('500.00'),
+            sailing_length_extra=Decimal('300.00'),
+            double_cabin_extra=Decimal('180.00'),
+            max_double_cabins_free=4,
+            praslin_extra=Decimal('0.00'),
+            sort_order=100,
+        )
 
     def _boat_data(self, country='france', length=12.0, max_sleeps=6, doubles=2, marina=''):
         return {
@@ -113,7 +183,7 @@ class CalculateTouristPriceTest(TestCase):
         r_yes = calculate_tourist_price(data_yes)
         self.assertAlmostEqual(
             float(r_yes['total_price']) - float(r_no['total_price']),
-            float(self.settings.tourist_praslin_extra),
+            float(self.cc_seychelles.praslin_extra),
             places=1,
         )
 
@@ -125,12 +195,12 @@ class CalculateTouristPriceTest(TestCase):
         self.assertGreater(r_long['total_price'], r_short['total_price'])
 
     def test_custom_settings_applied(self):
-        """Changing PriceSettings changes calculated price."""
+        """Changing CountryPriceConfig changes calculated price."""
         data = self._boat_data(country='france')
         r_before = calculate_tourist_price(data)
 
-        self.settings.tourist_default_base = Decimal('9000.00')
-        self.settings.save()
+        self.cc_default.captain = Decimal('5000.00')
+        self.cc_default.save()
         cache.clear()
 
         r_after = calculate_tourist_price(data)
@@ -212,51 +282,48 @@ class PriceSettingsViewTest(TestCase):
     def test_post_saves_values(self):
         user = make_user('admin2', 'admin')
         self.client.force_login(user)
+        settings = PriceSettings.objects.get(pk=1)
+        cc = CountryPriceConfig.objects.create(
+            price_settings=settings,
+            country_name='Test Country',
+            country_code='test',
+            match_names='test',
+            captain=Decimal('900.00'),
+        )
         payload = {
             'extra_discount_max': '7',
-            'tourist_insurance_rate': '0.1200',
-            'tourist_insurance_min': '350.00',
-            'tourist_turkey_base': '4600.00',
-            'tourist_seychelles_base': '4700.00',
-            'tourist_default_base': '4700.00',
-            'tourist_praslin_extra': '450.00',
-            'tourist_length_extra': '250.00',
-            'tourist_cook_price': '1500.00',
-            'tourist_turkey_dish_base': '160.00',
-            'tourist_seychelles_dish_base': '220.00',
-            'tourist_default_dish_base': '220.00',
-            'tourist_max_double_cabins_free': '3',
-            'tourist_double_cabin_extra': '190.00',
-            'tourist_catamaran_length_extra': '550.00',
-            'tourist_sailing_length_extra': '320.00',
+            'agent_commission_pct': '60',
+            f'cc_{cc.pk}_captain': '1100.00',
+            f'cc_{cc.pk}_fuel': '900.00',
+            f'cc_{cc.pk}_moorings': '900.00',
+            f'cc_{cc.pk}_transit_cleaning': '900.00',
+            f'cc_{cc.pk}_trips_markup': '900.00',
+            f'cc_{cc.pk}_insurance_rate': '0.1200',
+            f'cc_{cc.pk}_insurance_min': '350.00',
+            f'cc_{cc.pk}_dish_base': '210.00',
+            f'cc_{cc.pk}_cook_price': '1400.00',
+            f'cc_{cc.pk}_length_extra': '200.00',
+            f'cc_{cc.pk}_catamaran_length_extra': '500.00',
+            f'cc_{cc.pk}_sailing_length_extra': '300.00',
+            f'cc_{cc.pk}_double_cabin_extra': '180.00',
+            f'cc_{cc.pk}_max_double_cabins_free': '4',
+            f'cc_{cc.pk}_praslin_extra': '0.00',
         }
         resp = self.client.post(url('price_settings'), data=payload)
         self.assertEqual(resp.status_code, 302)
         s = PriceSettings.objects.get(pk=1)
         self.assertEqual(s.extra_discount_max, 7)
-        self.assertEqual(s.tourist_insurance_rate, Decimal('0.1200'))
-        self.assertEqual(s.tourist_turkey_base, Decimal('4600.00'))
+        self.assertEqual(s.agent_commission_pct, 60)
+        cc.refresh_from_db()
+        self.assertEqual(cc.captain, Decimal('1100.00'))
+        self.assertEqual(cc.insurance_rate, Decimal('0.1200'))
 
     def test_post_invalid_value_shows_error(self):
         user = make_user('admin3', 'admin')
         self.client.force_login(user)
         payload = {
             'extra_discount_max': 'not_a_number',
-            'tourist_insurance_rate': '0.10',
-            'tourist_insurance_min': '400',
-            'tourist_turkey_base': '4400',
-            'tourist_seychelles_base': '4500',
-            'tourist_default_base': '4500',
-            'tourist_praslin_extra': '400',
-            'tourist_length_extra': '200',
-            'tourist_cook_price': '1400',
-            'tourist_turkey_dish_base': '150',
-            'tourist_seychelles_dish_base': '210',
-            'tourist_default_dish_base': '210',
-            'tourist_max_double_cabins_free': '4',
-            'tourist_double_cabin_extra': '180',
-            'tourist_catamaran_length_extra': '500',
-            'tourist_sailing_length_extra': '300',
+            'agent_commission_pct': '50',
         }
         resp = self.client.post(url('price_settings'), data=payload)
         self.assertEqual(resp.status_code, 200)

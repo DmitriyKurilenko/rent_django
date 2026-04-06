@@ -582,8 +582,8 @@ def autocomplete_api(request):
             if len(local_results) >= 10:
                 break
 
-    except Exception as e:
-        print(f"Error in local search: {e}")
+    except Exception:
+        logger.exception('[View Autocomplete] Local search failed for query=%r', query)
 
     # ==========================================
     # ШАГ 2: Fallback на внешний API
@@ -591,14 +591,18 @@ def autocomplete_api(request):
     api_results = []
     try:
         # Пробуем сначала язык текущей локали, затем en_EN как fallback
-        print(f"[View Autocomplete] Trying API with query={query}")
+        logger.info('[View Autocomplete] Trying API with query=%s', query)
         api_results_primary = BoataroundAPI.autocomplete(query, language=preferred_api_lang, limit=10)
-        print(f"[View Autocomplete] PRIMARY({preferred_api_lang}) results: {len(api_results_primary)}")
+        logger.info(
+            '[View Autocomplete] PRIMARY(%s) results: %s',
+            preferred_api_lang,
+            len(api_results_primary),
+        )
 
         api_results_fallback = []
         if preferred_api_lang != 'en_EN':
             api_results_fallback = BoataroundAPI.autocomplete(query, language='en_EN', limit=10)
-            print(f"[View Autocomplete] EN fallback results: {len(api_results_fallback)}")
+            logger.info('[View Autocomplete] EN fallback results: %s', len(api_results_fallback))
 
         # Объединяем результаты: приоритет текущему языку
         combined = {}
@@ -642,14 +646,12 @@ def autocomplete_api(request):
                 }
 
         api_results = list(combined.values())[:10]
-        print(f"[View Autocomplete] Final API results: {len(api_results)}")
+        logger.info('[View Autocomplete] Final API results: %s', len(api_results))
         if api_results:
-            print(f"[View Autocomplete] First result: {api_results[0]}")
+            logger.debug('[View Autocomplete] First result payload: %s', api_results[0])
 
-    except Exception as e:
-        print(f"Error in API search: {e}")
-        import traceback
-        print(traceback.format_exc())
+    except Exception:
+        logger.exception('[View Autocomplete] API search failed for query=%r', query)
 
     # ==========================================
     # ШАГ 3: Сливаем API + local
@@ -950,7 +952,7 @@ def boat_detail_api(request, boat_id):
                 'gallery': [g.cdn_url for g in gallery],
 
                 'extras': details.extras if details else [],
-                'additional_services': [s for s in (details.additional_services or []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS],
+                'additional_services': [s for s in (details.additional_services or []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS] if details else [],
                 'delivery_extras': details.delivery_extras if details else [],
                 'not_included': details.not_included if details else [],
                 'cockpit': details.cockpit if details else [],
@@ -1206,13 +1208,13 @@ def my_bookings(request):
     """Мои бронирования (для туристов и менеджеров)"""
     user = request.user
 
-    # Только менеджер видит все бронирования.
-    # Все остальные роли видят только свои.
+    # Роли с view_all_bookings видят все бронирования.
+    # Остальные роли видят только свои.
     from django.core.paginator import Paginator
     page_number = request.GET.get('page', 1)
     base_select = ('offer', 'offer__created_by', 'user', 'assigned_manager', 'client')
 
-    if user.profile.role in ('manager', 'superadmin'):
+    if user.profile.can_see_all_bookings():
         bookings_qs = Booking.objects.all().select_related(*base_select).order_by('-created_at')
         author_query = request.GET.get('author_q', '').strip()
         if author_query:
@@ -1283,13 +1285,13 @@ def my_bookings(request):
                 try:
                     booking_price_debug[b.pk] = _build_price_debug(b.offer)
                 except Exception:
-                    pass
+                    logger.exception('[Bookings] Failed to build price debug for booking_id=%s', b.pk)
 
     # Список менеджеров для суперадмина
     managers = []
     if user.profile.role == 'superadmin':
         from django.contrib.auth.models import User as AuthUser
-        managers = AuthUser.objects.filter(profile__role='manager').order_by('first_name', 'username')
+        managers = AuthUser.objects.filter(profile__role_ref__codename='manager').order_by('first_name', 'username')
 
     context = {
         'bookings': bookings,
@@ -1365,7 +1367,7 @@ def assign_booking_manager(request, booking_id):
         manager_id = request.POST.get('manager_id')
         if manager_id:
             from accounts.models import UserProfile
-            manager = get_object_or_404(User, id=manager_id, profile__role='manager')
+            manager = get_object_or_404(User, id=manager_id, profile__role_ref__codename='manager')
             booking.assigned_manager = manager
             booking.save(update_fields=['assigned_manager', 'updated_at'])
             messages.success(request, f'Менеджер {manager.get_full_name() or manager.username} назначен')
@@ -2142,7 +2144,6 @@ def _strip_last_sentence(text: str) -> str:
 def _build_price_debug(offer):
     """Разбивка формулы цены для отладки."""
     from boats.models import PriceSettings, ParsedBoat
-    from boats.helpers import TURKEY_NAMES, SEYCHELLES_NAMES
 
     cfg = PriceSettings.get_settings()
     bd = offer.boat_data
@@ -2163,7 +2164,7 @@ def _build_price_debug(offer):
                 charter_commission_amount = round(float(offer.total_price) * charter_commission / 100, 2)
                 agent_commission = round(charter_commission_amount * agent_pct, 2)
     except Exception:
-        pass
+        logger.exception('[Price Debug] Failed to resolve charter commission for offer=%s', offer.pk)
 
     if offer.is_captain_offer():
         api_price = float(bd.get('price', 0))

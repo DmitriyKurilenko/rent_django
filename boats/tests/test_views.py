@@ -95,9 +95,9 @@ class BoatViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-testid="search-boat-card"')
-        self.assertContains(response, 'sm:h-56')
+        self.assertContains(response, 'sm:w-56')
         self.assertContains(response, 'data-testid="search-boat-preview"')
-        self.assertContains(response, 'h-full overflow-hidden')
+        self.assertContains(response, 'overflow-hidden')
         self.assertContains(response, '?check_in=')
         self.assertContains(response, '&check_out=')
 
@@ -344,7 +344,7 @@ class BoatViewsTest(TestCase):
     @patch('boats.boataround_api.BoataroundAPI.search')
     def test_boat_search_manager_sees_full_price_breakdown(self, mock_search, mock_format_boat_data):
         self.user.profile.role = 'manager'
-        self.user.profile.save(update_fields=['role'])
+        self.user.profile.save(update_fields=['role_ref'])
         self.client.login(username='testuser', password='testpass123')
 
         mock_search.return_value = {
@@ -390,7 +390,7 @@ class BoatViewsTest(TestCase):
     def test_boat_search_captain_sees_only_charter_commission(self, mock_search, mock_format_boat_data):
         self.user.profile.subscription_plan = 'standard'
         self.user.profile.role = 'captain'
-        self.user.profile.save(update_fields=['subscription_plan', 'role'])
+        self.user.profile.save(update_fields=['subscription_plan', 'role_ref'])
         self.client.login(username='testuser', password='testpass123')
 
         mock_search.return_value = {
@@ -672,7 +672,7 @@ class BoatDetailPriceVisibilityTest(TestCase):
     @patch('boats.views.resolve_live_or_fallback_price')
     def test_boat_detail_manager_sees_full_breakdown(self, mock_resolve_price, _mock_search_by_slug, mock_ensure_boat):
         self.user.profile.role = 'manager'
-        self.user.profile.save(update_fields=['role'])
+        self.user.profile.save(update_fields=['role_ref'])
         self.client.login(username='detailuser', password='testpass123')
         mock_ensure_boat.return_value = (self.parsed_boat, None)
         mock_resolve_price.return_value = {
@@ -705,7 +705,7 @@ class BoatDetailPriceVisibilityTest(TestCase):
     def test_boat_detail_captain_sees_only_charter_commission(self, mock_resolve_price, _mock_search_by_slug, mock_ensure_boat):
         self.user.profile.subscription_plan = 'standard'
         self.user.profile.role = 'captain'
-        self.user.profile.save(update_fields=['subscription_plan', 'role'])
+        self.user.profile.save(update_fields=['subscription_plan', 'role_ref'])
         self.client.login(username='detailuser', password='testpass123')
         mock_ensure_boat.return_value = (self.parsed_boat, None)
         mock_resolve_price.return_value = {

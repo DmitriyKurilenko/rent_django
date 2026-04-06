@@ -393,7 +393,7 @@
                     </h2>
                     <div class="space-y-2">
                         {% for item in boat.additional_services %}
-                        {% if item.slug != "flexible-cancellation" %}
+                        {% if item.slug != "flexible-cancellation" and item.slug != "flexible_cancellation" %}
                         <div class="flex justify-between items-start gap-4 pb-2 border-b border-base-200 last:border-b-0 text-sm">
                             <div>
                                 <div class="font-semibold">{{ item.name }}</div>

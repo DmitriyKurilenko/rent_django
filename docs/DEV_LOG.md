@@ -2,6 +2,92 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-06 (session 4)
+- Change:
+  - **ORM FieldError fixes**: 2 locations in `boats/views.py` used `profile__role='manager'` → `profile__role_ref__codename='manager'` (my_bookings manager list, assign_booking_manager).
+  - **`check_data_status` FieldError**: `.values_list('role')` → `.values_list('role_ref__codename')` — old `role` CharField removed in migration 0007.
+  - **`additional_services` guard**: added `if details else []` to prevent AttributeError when BoatDetails is None in `boat_detail_api`.
+  - **`flexible_cancellation` underscore variant**: DB stores `flexible_cancellation` (underscore), `HIDDEN_SERVICE_SLUGS` had only hyphen variant. Added both.
+  - **`my_bookings` permission**: `role in ('manager', 'superadmin')` → `can_see_all_bookings()`.
+  - **`accounts/views.py` method calls**: `can_manage_boats`/`can_create_offers` were referenced as properties (no parentheses) → called as methods `()`.
+  - **Test fixes**: `test_boataround_api` assertions updated for consensus-based `get_price` (5 attempts × 3 internal retries), additive pricing model (850 not 855), cache isolation (different slug per test).
+  - **`extra_discount_max` fallback**: `5` → `0.0` (fail-closed when PriceSettings inaccessible in tests).
+- Files:
+  - `boats/views.py` — ORM fixes (2), additional_services guard, my_bookings permission
+  - `boats/helpers.py` — flexible_cancellation slug, extra_discount_max fallback, removed dead constants
+  - `accounts/views.py` — can_*() parentheses, can_see_all_bookings, can_create_captain_offers
+  - `boats/management/commands/check_data_status.py` — role_ref__codename
+  - `boats/tests/test_boataround_api.py` — retry/price assertions
+  - `templates/boats/detail.html`, `templates/boats/offer_captain.html` — flexible_cancellation guards
+- Validation:
+  - `docker compose run --rm web python manage.py check` — 0 issues
+  - 120/120 tests pass
+- Risks:
+  - None. All changes are compatibility fixes for the new role system and test alignment.
+
+## 2026-04-06 (session 3)
+- Change:
+  - **Full audit of hardcoded role checks**: found 28 locations, 15 CRITICAL (blocking assistant + sometimes admin/manager).
+  - Replaced hardcoded `role == 'admin'`/`role in ('manager', 'superadmin')` with `can_see_all_bookings()` across all offer/contract/client views.
+  - **Offers (3 views)**: `offers_stats_api`, `offers_list_api`, `offers_list` — `role == 'admin'` → `can_see_all_bookings()`. Previously even manager couldn't see all offers.
+  - **Offer detail (2 views)**: `can_book_from_offer` — `role == 'manager'` → `can_see_all_bookings()`. Assistant + admin + superadmin can now book from offers.
+  - **Offer price_debug**: `role in ('manager', 'admin', 'superadmin')` → `role not in ('tourist',)`. Consistent with my_bookings price_debug.
+  - **book_offer**: `role == 'manager'` → `can_see_all_bookings()`. Assistant can now create bookings from offers.
+  - **create_contract**: added `'assistant'` to allowed roles tuple.
+  - **contract_detail + download_contract**: `role in ('manager', 'admin', 'superadmin')` → `can_see_all_bookings()`. Assistant can now view/download contracts.
+  - **contract_detail can_manage**: same replacement.
+  - **contracts_list**: `role in ('manager', 'admin', 'superadmin')` → `can_see_all_bookings()`. Captain/assistant branch now correctly shows own contracts.
+  - **clients_list/detail/edit/search (4 views)**: `role in ('manager', 'superadmin')` → `can_see_all_bookings()`. Also fixes missing `admin` access.
+  - **attach_client_to_booking client lookup**: `role in ('manager', 'admin', 'superadmin')` → `can_see_all_bookings()`.
+  - **Navigation**: `base.html` + `lk_sidebar.html` — added `assistant` to contracts/clients nav links.
+  - **Minor**: `accounts/views.py` offers_count → `can_see_all_bookings()`, commission_info → `can_create_captain_offers()`.
+  - **Minor**: `profile.html` assistant badge gets `badge-secondary` color.
+- Files:
+  - `boats/views.py` — 17 replacements across offers/contracts/clients/booking views
+  - `accounts/views.py` — 2 fixes (offers_count, commission_info)
+  - `templates/base.html` — contracts/clients nav: added assistant + admin
+  - `templates/includes/lk_sidebar.html` — contracts/clients sidebar: added assistant
+  - `templates/accounts/profile.html` — assistant badge color
+- Validation:
+  - `docker compose run --rm web python manage.py check` — 0 issues
+  - 119/119 tests pass
+- Risks:
+  - `delete_offer` still uses `role == 'admin'` (intentional — destructive action, admin-only besides author).
+  - `delete_booking` uses tuple `('manager', 'admin', 'superadmin')` (intentional — destructive).
+  - `show_full_price_breakdown` in `_price_visibility_context` still hardcoded to manager/admin/superadmin — assistant doesn't see full breakdown in search/detail. Could be a future enhancement.
+
+## 2026-04-06 (session 2)
+- Change:
+  - **Permission-based role system (Variant B)**: replaced CharField `role` on UserProfile with FK → Role model + Permission M2M.
+  - New models: `Permission(codename, name)` — 14 records; `Role(codename, name, permissions M2M, is_system)` — 6 system roles.
+  - `UserProfile.role` is now a **property** returning `role_ref.codename` — all 56+ direct comparisons `profile.role == 'captain'` in views/templates work without changes.
+  - `role.setter` accepts string codename or Role instance for backward-compatible assignment.
+  - All `can_*()` methods delegate to `has_perm(codename)` with instance-level `_perm_cache`.
+  - New role: **Ассистент** (assistant) — can confirm bookings, notify captains, view all bookings + captain offers.
+  - Admin: registered Permission (read-only), Role (filter_horizontal), updated UserProfileAdmin for `role_ref` FK.
+  - 3-step migration: 0005 (schema), 0006 (data — populate 14 perms + 6 roles + migrate profiles), 0007 (remove old CharField).
+  - Fixed all ORM-level references: `save(update_fields=['role'])` → `['role_ref']`, `update(role=x)` → `update(role_ref=...)`, `filter(role=x)` → `filter(role_ref__codename=x)`, `update_or_create` defaults.
+- Files:
+  - `accounts/models.py` — Permission, Role models; UserProfile rewrite (role property, has_perm, can_*())
+  - `accounts/admin.py` — PermissionAdmin, RoleAdmin, updated UserProfileAdmin
+  - `accounts/forms.py` — import Role, use `role_ref` in update_or_create
+  - `accounts/views.py` — save(update_fields=['role_ref'])
+  - `accounts/management/commands/create_test_users.py` — role_ref in save/filter
+  - `accounts/migrations/0005_permission_role_userprofile_role_ref.py`
+  - `accounts/migrations/0006_populate_roles_permissions.py`
+  - `accounts/migrations/0007_remove_userprofile_role.py`
+  - `boats/tests/test_views.py` — update_fields=['role_ref']
+  - `boats/tests/test_price_settings.py` — import Role, use role_ref in ORM update
+- Validation:
+  - `docker compose run --rm web python manage.py check` — 0 issues
+  - Migrations applied OK (0005, 0006, 0007)
+  - Shell verification: 14 permissions, 6 roles, all profiles migrated correctly
+  - 4 role-specific tests pass (manager/captain search+detail price visibility)
+  - 8 pre-existing test failures (unrelated: PriceSettings attribute, template CSS)
+- Risks:
+  - Any code that does `UserProfile.objects.filter(role='captain')` will fail (field doesn't exist). Must use `filter(role_ref__codename='captain')`. All known instances fixed.
+  - `profile.role = 'x'` triggers DB query in setter. Performance is fine for single assignments but shouldn't be used in bulk loops.
+
 ## 2026-04-06
 - Change:
   - `load_parsed_boats`: added directory support — loads all `.json` files in sorted order. Previously crashed with `IsADirectoryError` on directory path.

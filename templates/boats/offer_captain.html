@@ -252,7 +252,7 @@
                     <h3 class="font-bold text-sm mb-2">{% trans "Услуги" %}</h3>
                     <div class="space-y-1 text-xs">
                         {% for item in offer.boat_data.additional_services %}
-                        {% if item.slug != "flexible-cancellation" %}
+                        {% if item.slug != "flexible-cancellation" and item.slug != "flexible_cancellation" %}
                         <div class="flex justify-between">
                             <span>{{ item.name|striptags }}</span>
                             <span>{{ item.amount_with_unit|default:item.amount|default:"-" }}</span>

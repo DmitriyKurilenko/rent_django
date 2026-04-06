@@ -163,3 +163,21 @@ Last updated: 2026-04-04 (Europe/Moscow)
 - Context: detail page called only HTML parser for missing boats. BoatTechnicalSpecs (source-of-truth: API) was never created, causing RelatedObjectDoesNotExist crash.
 - Decision: `_ensure_boat_data_for_critical_flow` now runs API metadata first (specs, charter, descriptions), then HTML (photos, services, amenities). Uses `_update_api_metadata` from `parse_boats_parallel`. Management commands keep separate modes (api/html/full); all other flows always do full parsing.
 - Consequence: any boat opened via detail/offer gets complete data from both sources; specs created from API before HTML rendering needs them.
+
+## DR-024: Permission-based role system (Variant B)
+- Date: 2026-04-06
+- Context: CharField `role` на UserProfile с 5 жёстко заданными ролями. 15 `can_*()` методов с хардкодом. Нужна роль «Ассистент» и гибкое назначение прав.
+- Decision: Новые модели `Permission(codename, name)` + `Role(codename, name, permissions M2M, is_system)`. UserProfile.role_ref → FK на Role. Свойство `role` (property) возвращает `role_ref.codename`, обеспечивая полную обратную совместимость с `profile.role == 'captain'` в views/templates. Все `can_*()` делегируют в `has_perm(codename)` с кэшем `_perm_cache`.
+- Consequence: 6 системных ролей (tourist, captain, assistant, manager, admin, superadmin), 14 разрешений. Новые роли можно создавать через админку без изменения кода. Все 56+ прямых сравнений `role == 'string'` в views/templates продолжают работать.
+
+## DR-030: extra_discount_max fallback is fail-closed (0.0)
+- Date: 2026-04-06
+- Context: `calculate_final_price_with_discounts` had `except: extra_discount_max = 5` — when PriceSettings was unavailable (e.g. in tests), a hidden 5% discount was silently applied, making test assertions unpredictable.
+- Decision: change fallback to `0.0` (fail-closed). If PriceSettings cannot be loaded, no extra discount is applied.
+- Consequence: pricing in degraded mode is conservative (no hidden discounts); test environment doesn't depend on PriceSettings existing in DB for correct assertions.
+
+## DR-029: Views/templates use can_*() methods instead of hardcoded role strings
+- Date: 2026-04-06
+- Context: Despite permission system (DR-024), 28 locations in views/templates still used hardcoded `role == 'manager'`/`role in ('manager', 'superadmin')`. Assistant role was blocked from offers, contracts, clients, booking-from-offer. Manager was blocked from see-all-offers.
+- Decision: Replace all "see all data" role checks with `can_see_all_bookings()`, "book from offer" with `can_see_all_bookings()` (owner always allowed too). Add `'assistant'` to contract creation role tuple. Navigation templates list all non-tourist roles explicitly.
+- Consequence: Any role with `view_all_bookings` permission automatically gets access to all offers, bookings, contracts, clients. Destructive actions (delete_offer, delete_booking) remain restricted to admin/superadmin. New roles added via admin will work correctly if given appropriate permissions.

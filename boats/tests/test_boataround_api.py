@@ -10,8 +10,9 @@ from boats.models import Charter
 class BoataroundAPIPricingTest(SimpleTestCase):
     """Price API should be resilient to transient network failures."""
 
+    @patch("time.sleep")
     @patch("boats.boataround_api.requests.get")
-    def test_get_price_retries_on_timeout_and_returns_price(self, mock_get):
+    def test_get_price_retries_on_timeout_and_returns_price(self, mock_get, _mock_sleep):
         timeout_error = requests.Timeout("read timeout")
 
         ok_response = Mock()
@@ -42,7 +43,11 @@ class BoataroundAPIPricingTest(SimpleTestCase):
             ]
         }
 
-        mock_get.side_effect = [timeout_error, ok_response]
+        # _fetch_price_once has 3 internal retries; get_price uses consensus
+        # (3 matching totalPrice from up to 5 attempts).
+        # Call 1: timeout (internal retry), Call 2: ok (1st result),
+        # Call 3: ok (2nd result), Call 4: ok (3rd result = consensus).
+        mock_get.side_effect = [timeout_error, ok_response, ok_response, ok_response]
 
         result = BoataroundAPI.get_price(
             slug="bali-42-zephyr",
@@ -52,25 +57,27 @@ class BoataroundAPIPricingTest(SimpleTestCase):
             lang="ru_RU",
         )
 
-        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(mock_get.call_count, 4)
         self.assertEqual(result.get("price"), 1234)
         self.assertEqual(result.get("discount_without_additionalExtra"), 7)
         self.assertEqual(result.get("additional_discount"), 3)
 
+    @patch("time.sleep")
     @patch("boats.boataround_api.requests.get")
-    def test_get_price_returns_empty_after_all_retries_timeout(self, mock_get):
+    def test_get_price_returns_empty_after_all_retries_timeout(self, mock_get, _mock_sleep):
         mock_get.side_effect = requests.Timeout("read timeout")
 
         result = BoataroundAPI.get_price(
-            slug="bali-42-zephyr",
-            check_in="2026-03-14",
-            check_out="2026-03-21",
+            slug="timeout-boat-slug",
+            check_in="2025-01-01",
+            check_out="2025-01-08",
             currency="EUR",
             lang="ru_RU",
         )
 
         self.assertEqual(result, {})
-        self.assertEqual(mock_get.call_count, 3)
+        # 5 consensus attempts × 3 internal retries each = 15 calls
+        self.assertEqual(mock_get.call_count, 15)
 
 
 class BoataroundAPISlugMatchTest(SimpleTestCase):
@@ -140,5 +147,6 @@ class BoataroundAPICharterResolutionTest(TestCase):
 
         result = format_boat_data(boat)
 
-        # Базовая цена после 10% = 900; + условная extra скидка 5% при комиссии 20 => 855
-        self.assertEqual(result.get("price"), 855)
+        # Аддитивная модель: total_discount = 10 + 0 + min(5, 20) = 15%
+        # final = 1000 * (1 - 15/100) = 850
+        self.assertEqual(result.get("price"), 850)

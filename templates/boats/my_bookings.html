@@ -23,7 +23,7 @@
                 <p class="text-sm text-base-content/70 mt-1">
                     {% if user.profile.role == 'tourist' %}
                         {% trans "Ваши бронирования и круизы" %}
-                    {% elif user.profile.role == 'manager' or user.profile.role == 'admin' %}
+                    {% elif user.profile.can_see_all_bookings %}
                         {% trans "Управление всеми бронированиями" %}
                     {% else %}
                         {% trans "Бронирования по вашим офферам" %}
@@ -31,7 +31,7 @@
                 </p>
             </div>
 
-            {% if user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+            {% if user.profile.can_see_all_bookings %}
             <div class="card bg-base-100 shadow-sm mb-4">
                 <div class="card-body p-4">
                     <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end" x-data="{ t: null }">
@@ -111,12 +111,12 @@
                             <th>{% trans "Даты" %}</th>
                             <th>{% trans "Цена" %}</th>
                             <th>{% trans "Статус" %}</th>
-                            {% if user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                            {% if user.profile.can_see_all_bookings %}
                                 <th>{% trans "Менеджер" %}</th>
                             {% endif %}
                             <th>{% trans "Оффер" %}</th>
                             <th>{% trans "Договор" %}</th>
-                            {% if user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                            {% if user.profile.can_confirm_booking %}
                                 <th>{% trans "Управление" %}</th>
                             {% endif %}
                         </tr>
@@ -145,7 +145,7 @@
 
                             <!-- Клиент -->
                             <td>
-                                {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                                {% if user.profile.role != 'tourist' %}
                                 <div x-data="clientAttach({{ booking.id }}, {{ booking.client.id|default:'null' }}, '{{ booking.client.full_name|default:'' }}')">
                                     <template x-if="clientName">
                                         <div>
@@ -215,9 +215,9 @@
                             </td>
 
                             <!-- Менеджер -->
-                            {% if user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                            {% if user.profile.can_see_all_bookings %}
                             <td>
-                                {% if user.profile.role == 'manager' %}
+                                {% if user.profile.role == 'manager' or user.profile.role == 'assistant' or user.profile.role == 'admin' %}
                                     {% if booking.assigned_manager == user %}
                                         <div class="flex items-center gap-1">
                                             <span class="text-sm text-primary">{% trans "Вы" %}</span>
@@ -272,15 +272,15 @@
                                     <a href="{% url 'contract_detail' booking.active_contract.uuid %}" class="link text-sm no-underline hover:underline {% if booking.active_contract.status == 'signed' %}link-success{% else %}link-info{% endif %}">
                                         {{ booking.active_contract.get_status_display }}
                                     </a>
-                                {% elif user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                                {% elif user.profile.role != 'tourist' %}
                                     <a href="{% url 'create_contract' booking.id %}" class="link link-primary text-sm no-underline hover:underline">{% trans "Создать" %}</a>
                                 {% else %}
                                     <span class="text-base-content/30 text-sm">—</span>
                                 {% endif %}
                             </td>
 
-                            <!-- Управление (только для менеджеров) -->
-                            {% if user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                            <!-- Управление -->
+                            {% if user.profile.can_confirm_booking %}
                             <td>
                                 {% if booking.status == 'pending' %}
                                     <div class="flex items-center gap-2">
@@ -356,7 +356,7 @@
                                 {% endwith %}
                             </div>
 
-                            {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                            {% if user.profile.role != 'tourist' %}
                             <div class="text-base-content/50">{% trans "Клиент" %}</div>
                             <div x-data="clientAttach({{ booking.id }}, {{ booking.client.id|default:'null' }}, '{{ booking.client.full_name|default:'' }}')">
                                 <template x-if="clientName">
@@ -404,7 +404,7 @@
                                     <a href="{% url 'contract_detail' booking.active_contract.uuid %}" class="link text-sm {% if booking.active_contract.status == 'signed' %}link-success{% else %}link-info{% endif %}">
                                         {{ booking.active_contract.get_status_display }}
                                     </a>
-                                {% elif user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                                {% elif user.profile.role != 'tourist' %}
                                     <a href="{% url 'create_contract' booking.id %}" class="link link-primary text-sm">{% trans "Создать" %}</a>
                                 {% else %}
                                     <span class="text-base-content/30">—</span>
@@ -412,17 +412,17 @@
                             </div>
                         </div>
 
-                        <!-- Управление (менеджер) -->
-                        {% if user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                        <!-- Управление -->
+                        {% if user.profile.can_confirm_booking %}
                         <div class="flex items-center gap-3 border-t border-base-200 pt-2 text-sm">
-                            {% if not booking.assigned_manager and user.profile.role == 'manager' %}
+                            {% if not booking.assigned_manager and user.profile.can_see_all_bookings %}
                                 <form method="POST" action="{% url 'assign_booking_manager' booking.id %}" class="inline">
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="assign_self">
                                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                     <button type="submit" class="link link-info no-underline hover:underline">{% trans "Взять на себя" %}</button>
                                 </form>
-                            {% elif booking.assigned_manager == user and user.profile.role == 'manager' %}
+                            {% elif booking.assigned_manager == user and user.profile.can_see_all_bookings %}
                                 <form method="POST" action="{% url 'assign_booking_manager' booking.id %}" class="inline">
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="unassign">

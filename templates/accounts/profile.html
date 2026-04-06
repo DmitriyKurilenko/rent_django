@@ -34,7 +34,7 @@
                                     <p class="text-sm text-base-content/80">{{ user.email }}</p>
                                     {% if user.profile.role %}
                                     <div class="mt-1 flex flex-wrap gap-2">
-                                        <span class="badge badge-sm {% if user.profile.role == 'superadmin' %}badge-error{% elif user.profile.role == 'admin' %}badge-warning{% elif user.profile.role == 'manager' %}badge-info{% elif user.profile.role == 'captain' %}badge-primary{% else %}badge-ghost{% endif %}">
+                                        <span class="badge badge-sm {% if user.profile.role == 'superadmin' %}badge-error{% elif user.profile.role == 'admin' %}badge-warning{% elif user.profile.role == 'manager' %}badge-info{% elif user.profile.role == 'captain' %}badge-primary{% elif user.profile.role == 'assistant' %}badge-secondary{% else %}badge-ghost{% endif %}">
                                             {{ user.profile.get_role_display }}
                                         </span>
                                         <span class="badge badge-sm {% if user.profile.subscription_plan == 'advanced' %}badge-success{% elif user.profile.subscription_plan == 'standard' %}badge-accent{% else %}badge-ghost{% endif %}">

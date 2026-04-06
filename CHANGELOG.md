@@ -2,6 +2,36 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.6.0-dev] - 2026-04-06
+
+### ✨ Added — Permission-based role system
+- **Permission + Role models**: `accounts/models.py` — `Permission(codename, name)` + `Role(codename, name, permissions M2M, is_system)`. 14 permissions, 6 system roles (tourist, captain, assistant, manager, admin, superadmin).
+- **New role «Ассистент»**: подтверждение бронирований, уведомление капитанов, просмотр всех бронирований и капитанских офферов.
+- **`UserProfile.role_ref`**: FK → Role. Свойство `role` (property) возвращает `role_ref.codename` — полная обратная совместимость с `profile.role == 'captain'`.
+- **`can_*()` → `has_perm(codename)`**: все 15 permission-методов делегируют в `has_perm()` с кэшем `_perm_cache`.
+- **Admin**: PermissionAdmin (readonly), RoleAdmin (filter_horizontal), updated UserProfileAdmin.
+- **3-step migration**: 0005 (schema), 0006 (data populate), 0007 (remove old CharField).
+
+### 🔧 Fixed — Role check hardcodes & ORM compatibility
+- **28 hardcoded role checks → `can_*()` methods**: offers, contracts, clients, bookings — assistant/manager/admin access corrected.
+- **ORM FieldError**: `profile__role='manager'` → `profile__role_ref__codename='manager'` (2 locations in views.py).
+- **`my_bookings`**: `role in ('manager', 'superadmin')` → `can_see_all_bookings()`.
+- **`accounts/views.py`**: `can_manage_boats`/`can_create_offers` called as properties → methods with `()`.
+- **`check_data_status`**: `.values_list('role')` → `.values_list('role_ref__codename')`.
+- **`additional_services` guard**: `if details else []` prevents AttributeError when BoatDetails is None.
+- **`flexible_cancellation` underscore variant**: added to `HIDDEN_SERVICE_SLUGS` set (DB has underscore, not hyphen).
+- **`extra_discount_max` fallback**: `5` → `0.0` (fail-closed when PriceSettings unavailable).
+
+### 🧹 Refactored — Cleanup
+- **Removed dead constants**: `INSURANCE_RATE`, `COOK_PRICE`, `TURKEY_NAMES`, etc. from `helpers.py` (moved to `PriceSettings`/`CountryPriceConfig` earlier).
+- **`print()` → `logger`**: autocomplete_api, _build_price_debug, my_bookings price debug.
+- **`pass` → `logger.exception()`**: silent exception swallowing replaced with proper logging.
+
+### 🧪 Tests
+- **test_boataround_api**: assertions updated for consensus-based `get_price` (5×3 retry matrix) and additive pricing model (850 not 855).
+- **test_price_settings, test_views, test_boat_detail_api, test_pricing**: adapted for `role_ref` FK.
+- **test_check_data_status_command**: new test file for `check_data_status` command.
+
 ## [0.5.4-dev] - 2026-04-06
 
 ### 🔧 Fixed — dump/load commands

@@ -4,6 +4,39 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 
+class Permission(models.Model):
+    """Разрешение, назначаемое ролям"""
+    codename = models.CharField('Код', max_length=50, unique=True, db_index=True)
+    name = models.CharField('Название', max_length=100)
+
+    class Meta:
+        verbose_name = 'Разрешение'
+        verbose_name_plural = 'Разрешения'
+        ordering = ['codename']
+
+    def __str__(self):
+        return f'{self.codename} — {self.name}'
+
+
+class Role(models.Model):
+    """Роль пользователя с набором разрешений"""
+    codename = models.CharField('Код', max_length=20, unique=True, db_index=True)
+    name = models.CharField('Название', max_length=50)
+    permissions = models.ManyToManyField(
+        Permission, blank=True, related_name='roles', verbose_name='Разрешения'
+    )
+    is_system = models.BooleanField('Системная', default=False,
+                                     help_text='Системные роли нельзя удалить')
+
+    class Meta:
+        verbose_name = 'Роль'
+        verbose_name_plural = 'Роли'
+        ordering = ['codename']
+
+    def __str__(self):
+        return self.name
+
+
 class UserProfile(models.Model):
     """Профиль пользователя с ролью"""
 
@@ -12,25 +45,22 @@ class UserProfile(models.Model):
         ('standard', 'Стандарт (500 ₽/мес)'),
         ('advanced', 'Продвинутая'),
     ]
-    
+
+    # Legacy — оставлены для обратной совместимости (шаблоны, тесты)
     ROLE_CHOICES = [
-        ('tourist', 'Турист'),           # Поиск, просмотр, избранное
-        ('captain', 'Капитан'),          # + Капитанский оффер
-        ('manager', 'Менеджер'),         # + Туристический оффер
-        ('admin', 'Администратор'),      # Все права
-        ('superadmin', 'Суперадмин'),    # Максимальные права (управление чартерами)
+        ('tourist', 'Турист'),
+        ('captain', 'Капитан'),
+        ('assistant', 'Ассистент'),
+        ('manager', 'Менеджер'),
+        ('admin', 'Администратор'),
+        ('superadmin', 'Суперадмин'),
     ]
     
-    # Legacy роли для обратной совместимости (будут мигрированы)
-    LEGACY_ROLE_MAPPING = {
-        'client': 'tourist',
-        'agent': 'captain',
-        'manager': 'manager',
-        'admin': 'admin',
-    }
-    
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    role = models.CharField('Роль', max_length=20, choices=ROLE_CHOICES, default='tourist')
+    role_ref = models.ForeignKey(
+        Role, on_delete=models.PROTECT, related_name='profiles',
+        verbose_name='Роль', null=True,
+    )
     subscription_plan = models.CharField('Подписка', max_length=20, choices=SUBSCRIPTION_CHOICES, default='free')
     phone = models.CharField('Телефон', max_length=20, blank=True)
     bio = models.TextField('О себе', blank=True)
@@ -40,129 +70,165 @@ class UserProfile(models.Model):
     class Meta:
         verbose_name = 'Профиль пользователя'
         verbose_name_plural = 'Профили пользователей'
-    
+
     def __str__(self):
         return f"{self.user.username} ({self.get_role_display()})"
 
+    # =========================================================================
+    # role property — обратная совместимость с шаблонами и views
+    # profile.role == 'captain' продолжает работать
+    # =========================================================================
+
+    @property
+    def role(self):
+        """Возвращает codename роли (str). Совместимо с profile.role == 'captain'."""
+        if self.role_ref_id:
+            return self.role_ref.codename
+        return 'tourist'
+
+    @role.setter
+    def role(self, value):
+        """Устанавливает роль по codename. Совместимо с profile.role = 'captain'."""
+        if isinstance(value, Role):
+            self.role_ref = value
+        else:
+            try:
+                self.role_ref = Role.objects.get(codename=value)
+            except Role.DoesNotExist:
+                pass
+
+    def get_role_display(self):
+        """Человекочитаемое название роли."""
+        if self.role_ref_id:
+            return self.role_ref.name
+        return 'Турист'
+
     def save(self, *args, **kwargs):
-        if self.role in ['tourist', 'captain']:
+        # Авто-назначение роли по подписке для tourist/captain
+        if self.role_ref_id and self.role in ['tourist', 'captain']:
             if self.subscription_plan == 'free':
                 self.role = 'tourist'
             elif self.subscription_plan in ['standard', 'advanced']:
                 self.role = 'captain'
+        # Если role_ref не задан — ставим tourist
+        if not self.role_ref_id:
+            tourist_role = Role.objects.filter(codename='tourist').first()
+            if tourist_role:
+                self.role_ref = tourist_role
         super().save(*args, **kwargs)
-    
+
     # =========================================================================
-    # Свойства для проверки ролей
+    # Свойства для проверки ролей — обратная совместимость
     # =========================================================================
-    
+
     @property
     def is_tourist(self):
-        """Турист - базовая роль"""
         return self.role == 'tourist'
-    
+
     @property
     def is_captain(self):
-        """Капитан - может создавать капитанские офферы"""
         return self.role == 'captain'
-    
+
+    @property
+    def is_assistant(self):
+        return self.role == 'assistant'
+
     @property
     def is_manager(self):
-        """Менеджер - может создавать туристические офферы"""
         return self.role == 'manager'
-    
+
     @property
     def is_admin_role(self):
-        """Администратор - все права"""
         return self.role == 'admin'
-    
+
     @property
     def is_superadmin(self):
-        """Суперадминистратор - максимальные права"""
         return self.role == 'superadmin'
-    
-    # Legacy properties для обратной совместимости
+
+    # Legacy
     @property
     def is_client(self):
-        """Legacy: client → tourist"""
         return self.is_tourist
-    
+
     @property
     def is_agent(self):
-        """Legacy: agent → captain"""
         return self.is_captain
-    
+
     # =========================================================================
-    # Методы проверки прав доступа
+    # Система разрешений
     # =========================================================================
-    
+
+    _perm_cache = None
+
+    def has_perm(self, codename):
+        """Проверяет наличие разрешения у роли пользователя."""
+        if not self.role_ref_id:
+            return False
+        if self._perm_cache is None:
+            self._perm_cache = set(
+                self.role_ref.permissions.values_list('codename', flat=True)
+            )
+        return codename in self._perm_cache
+
+    def clear_perm_cache(self):
+        self._perm_cache = None
+
+    # =========================================================================
+    # Методы проверки прав — делегируют в has_perm()
+    # =========================================================================
+
     def can_search_boats(self):
-        """Может искать лодки (все роли)"""
-        return True
-    
+        return self.has_perm('search_boats')
+
     def can_add_to_favorites(self):
-        """Может добавлять в избранное (все роли)"""
-        return True
+        return self.has_perm('add_favorites')
 
     def can_book_boats(self):
-        """Может бронировать лодки с детальной страницы"""
-        return self.role in ['tourist', 'captain', 'agent']
-    
+        return self.has_perm('book_boats')
+
     def can_create_captain_offers(self):
-        """Может создавать капитанские (агентские) офферы"""
-        return self.role in ['captain', 'manager', 'superadmin']
-    
+        return self.has_perm('create_captain_offers')
+
     def can_create_tourist_offers(self):
-        """Может создавать туристические офферы (только manager и superadmin)"""
-        return self.role in ['manager', 'superadmin']
-    
+        return self.has_perm('create_tourist_offers')
+
     def can_create_offers(self):
-        """Может создавать офферы согласно доступным типам"""
         return self.can_create_captain_offers() or self.can_create_tourist_offers()
-    
-    def can_manage_boats(self):
-        """Может управлять лодками (manager, admin)"""
-        return self.role in ['manager', 'admin']
-    
+
+    def can_confirm_booking(self):
+        return self.has_perm('confirm_booking')
+
+    def can_notify_captains(self):
+        return self.has_perm('notify_captains')
+
     def can_see_all_bookings(self):
-        """Может видеть все бронирования (только manager)"""
-        return self.role == 'manager'
-    
+        return self.has_perm('view_all_bookings')
+
+    def can_manage_boats(self):
+        return self.has_perm('manage_boats')
+
     def can_access_admin_panel(self):
-        """Может заходить в админку (manager, admin, superadmin)"""
-        return self.role in ['manager', 'admin', 'superadmin']
-    
+        return self.has_perm('access_admin')
+
     def can_manage_charters(self):
-        """Может управлять чартерными компаниями (только superadmin)"""
-        return self.role == 'superadmin'
+        return self.has_perm('manage_charters')
 
     def can_manage_prices(self):
-        """Может управлять настройками цен (admin и superadmin)"""
-        return self.role in ['admin', 'superadmin']
+        return self.has_perm('manage_prices')
 
     def can_use_no_branding(self):
-        """Может использовать режим без брендинга в офферах"""
-        return self.subscription_plan == 'advanced' or self.role in ['admin', 'superadmin']
+        return self.subscription_plan == 'advanced' or self.has_perm('no_branding')
 
     def can_use_custom_branding(self):
-        """Может использовать кастомный брендинг в офферах"""
-        return self.subscription_plan == 'advanced' or self.role in ['admin', 'superadmin']
-    
+        return self.subscription_plan == 'advanced' or self.has_perm('custom_branding')
+
     def get_allowed_offer_types(self):
-        """
-        Возвращает список типов офферов, которые может создавать пользователь.
-        
-        Returns:
-            list: ['tourist', 'captain'] или []
-        """
+        """Возвращает список типов офферов, доступных пользователю."""
         allowed = []
-        
         if self.can_create_tourist_offers():
             allowed.append('tourist')
-        
         if self.can_create_captain_offers():
             allowed.append('captain')
-        
         return allowed
 
 

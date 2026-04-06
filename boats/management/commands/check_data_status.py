@@ -422,7 +422,7 @@ class Command(BaseCommand):
         active = User.objects.filter(is_active=True).count()
         by_role = dict(
             UserProfile.objects
-            .values_list('role')
+            .values_list('role_ref__codename')
             .annotate(cnt=Count('id'))
             .order_by()
         )

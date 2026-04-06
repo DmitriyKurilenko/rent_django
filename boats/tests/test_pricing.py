@@ -72,7 +72,8 @@ class PricingExtractionTest(SimpleTestCase):
         base_price, discount_without_extra, additional_discount = extract_price_components(payload)
 
         self.assertEqual(base_price, 9150)
-        self.assertEqual(round(discount_without_extra, 2), 60.0)
+        # Additive reconciliation: dwe = (1 - 3477/9150)*100 - 5 = 57.0
+        self.assertEqual(round(discount_without_extra, 2), 57.0)
         self.assertEqual(additional_discount, 5)
 
 

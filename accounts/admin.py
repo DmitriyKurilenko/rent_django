@@ -1,18 +1,46 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import UserProfile
+from .models import Permission, Role, UserProfile
+
+
+@admin.register(Permission)
+class PermissionAdmin(admin.ModelAdmin):
+    list_display = ['codename', 'name']
+    search_fields = ['codename', 'name']
+    ordering = ['codename']
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ['codename', 'name', 'is_system', 'get_permissions_list']
+    list_filter = ['is_system']
+    search_fields = ['codename', 'name']
+    filter_horizontal = ['permissions']
+    ordering = ['codename']
+
+    def get_permissions_list(self, obj):
+        return ', '.join(obj.permissions.values_list('codename', flat=True))
+    get_permissions_list.short_description = 'Разрешения'
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.is_system:
+            return False
+        return super().has_delete_permission(request, obj)
 
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ['user', 'get_role_badge', 'phone', 'created_at']
-    list_filter = ['role', 'created_at']
+    list_filter = ['role_ref', 'created_at']
     search_fields = ['user__username', 'user__email', 'phone']
     ordering = ['-created_at']
     
     fieldsets = (
         ('Пользователь', {
-            'fields': ('user', 'role')
+            'fields': ('user', 'role_ref')
         }),
         ('Контакты', {
             'fields': ('phone',)
@@ -33,8 +61,10 @@ class UserProfileAdmin(admin.ModelAdmin):
         colors = {
             'tourist': '#3b82f6',    # blue
             'captain': '#8b5cf6',    # purple
+            'assistant': '#10b981',  # green
             'manager': '#f59e0b',    # orange
             'admin': '#ef4444',      # red
+            'superadmin': '#dc2626', # dark red
         }
         color = colors.get(obj.role, '#6b7280')
         
@@ -49,15 +79,5 @@ class UserProfileAdmin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         """Пользователи не могут менять свою роль через админку"""
         if obj and obj.user == request.user:
-            return self.readonly_fields + ['role']
+            return self.readonly_fields + ['role_ref']
         return self.readonly_fields
-
-
-# Добавляем описание ролей в help_text админки
-UserProfile._meta.get_field('role').help_text = """
-<b>Роли пользователей:</b><br>
-• <b>Турист</b> - базовая роль. Поиск лодок, просмотр, добавление в избранное.<br>
-• <b>Капитан</b> - может создавать капитанские офферы (детальные, со всей информацией).<br>
-• <b>Менеджер</b> - может создавать туристические и капитанские офферы, управлять лодками.<br>
-• <b>Администратор</b> - полный доступ ко всем функциям системы.
-"""

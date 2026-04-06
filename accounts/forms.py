@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import UserProfile
+from .models import Role, UserProfile
 from boats.forms import DaisyUIMixin
 
 
@@ -30,7 +30,7 @@ class RegisterForm(DaisyUIMixin, UserCreationForm):
                 user=user,
                 defaults={
                     'subscription_plan': subscription_plan,
-                    'role': role,
+                    'role_ref': Role.objects.get(codename=role),
                     'phone': self.cleaned_data['phone'],
                 }
             )

@@ -105,7 +105,7 @@ class Command(BaseCommand):
             profile, _ = UserProfile.objects.get_or_create(user=user)
             profile.subscription_plan = user_data["subscription_plan"]
             profile.role = user_data["role"]
-            profile.save(update_fields=["subscription_plan", "role"])
+            profile.save(update_fields=["subscription_plan", "role_ref"])
 
             action = "Created" if created else "Updated"
             self.stdout.write(
@@ -117,7 +117,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.NOTICE("\n=== ROLE STATS ==="))
         for role_code, role_name in UserProfile.ROLE_CHOICES:
-            count = UserProfile.objects.filter(role=role_code).count()
+            count = UserProfile.objects.filter(role_ref__codename=role_code).count()
             self.stdout.write(f"{role_name}: {count}")
 
         self.stdout.write(self.style.NOTICE("\n=== TEST ACCOUNTS ==="))

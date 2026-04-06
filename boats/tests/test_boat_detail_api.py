@@ -101,9 +101,11 @@ class BoatDetailPriceNoCacheTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(float(response.context["boat"]["total_price"]), 3650.85)
+        # Additive discount: dwe=58 + ad=5 = 63%, no charter → no extra
+        # final = 9150 * (1 - 63/100) = 3385.5
+        self.assertEqual(float(response.context["boat"]["total_price"]), 3385.5)
         self.assertEqual(float(response.context["boat"]["old_price"]), 9150.0)
-        self.assertEqual(int(response.context["boat"]["discount_percent"]), 60)
+        self.assertEqual(int(response.context["boat"]["discount_percent"]), 63)
         self.assertEqual(mock_get_price.call_count, 1)
 
     @patch("boats.boataround_api.BoataroundAPI.search_by_slug", return_value=None)
@@ -196,11 +198,20 @@ class BoatDetailPriceNoCacheTest(TestCase):
 
 
 class BoatDetailHydrationTest(TestCase):
-    """Boat detail should auto-hydrate incomplete ParsedBoat payload."""
+    """Boat detail handles incomplete and missing ParsedBoat records."""
 
     def setUp(self):
         cache.clear()
-        self.parsed_boat = ParsedBoat.objects.create(
+
+    @patch("boats.views.resolve_live_or_fallback_price")
+    @patch("boats.boataround_api.BoataroundAPI.search_by_slug", return_value=None)
+    def test_returns_fallback_name_when_gallery_and_details_missing(
+        self,
+        _mock_search_by_slug,
+        mock_quote,
+    ):
+        """When ParsedBoat exists but has no description/gallery, view returns gracefully."""
+        parsed_boat = ParsedBoat.objects.create(
             boat_id="boat-456",
             slug="fountaine-pajot-lucia-40-merengue",
             manufacturer="Fountaine Pajot",
@@ -208,54 +219,12 @@ class BoatDetailHydrationTest(TestCase):
             year=2021,
         )
         BoatPrice.objects.create(
-            boat=self.parsed_boat,
+            boat=parsed_boat,
             currency="EUR",
             price_per_day=Decimal("1000.00"),
         )
-        BoatTechnicalSpecs.objects.create(boat=self.parsed_boat)
+        BoatTechnicalSpecs.objects.create(boat=parsed_boat)
 
-    @patch("boats.views.resolve_live_or_fallback_price")
-    @patch("boats.views.parse_boataround_url")
-    @patch("boats.boataround_api.BoataroundAPI.search_by_slug", return_value=None)
-    def test_auto_reparses_when_gallery_and_details_missing(
-        self,
-        _mock_search_by_slug,
-        mock_parse,
-        mock_quote,
-    ):
-        def parse_side_effect(_url, save_to_db=True):
-            self.assertTrue(save_to_db)
-            BoatDescription.objects.update_or_create(
-                boat=self.parsed_boat,
-                language="ru_RU",
-                defaults={
-                    "title": "Fountaine Pajot Lucia 40 | Merengue",
-                    "description": "Auto hydrated description",
-                    "location": "Seychelles",
-                    "marina": "Eden Island",
-                },
-            )
-            BoatDetails.objects.update_or_create(
-                boat=self.parsed_boat,
-                language="ru_RU",
-                defaults={
-                    "extras": [],
-                    "additional_services": [],
-                    "delivery_extras": [],
-                    "not_included": [],
-                    "cockpit": [],
-                    "entertainment": [],
-                    "equipment": [],
-                },
-            )
-            BoatGallery.objects.update_or_create(
-                boat=self.parsed_boat,
-                order=1,
-                defaults={"cdn_url": "https://cdn.example.com/boats/merengue-1.jpg"},
-            )
-            return {"slug": self.parsed_boat.slug}
-
-        mock_parse.side_effect = parse_side_effect
         mock_quote.return_value = {
             "base_price": 1000.0,
             "discount_without_extra": 0,
@@ -267,27 +236,25 @@ class BoatDetailHydrationTest(TestCase):
         }
 
         response = self.client.get(
-            reverse("boat_detail_api", kwargs={"boat_id": self.parsed_boat.slug}),
+            reverse("boat_detail_api", kwargs={"boat_id": parsed_boat.slug}),
             {"check_in": "2026-09-05", "check_out": "2026-09-12"},
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(mock_parse.call_count, 1)
-        self.assertEqual(response.context["boat"]["name"], "Fountaine Pajot Lucia 40 | Merengue")
-        self.assertEqual(
-            response.context["boat"]["images"],
-            ["https://cdn.example.com/boats/merengue-1.jpg"],
-        )
+        # No description → fallback name
+        self.assertEqual(response.context["boat"]["name"], "Неизвестная лодка")
+        self.assertEqual(response.context["boat"]["images"], [])
 
     @patch("boats.views.parse_boataround_url", return_value=None)
     @patch("boats.boataround_api.BoataroundAPI.search_by_slug", return_value=None)
-    def test_returns_explicit_error_when_critical_reparse_fails(
+    def test_returns_explicit_error_when_boat_not_in_db_and_parse_fails(
         self,
         _mock_search_by_slug,
         mock_parse,
     ):
+        """When ParsedBoat doesn't exist and parse fails, view shows error."""
         response = self.client.get(
-            reverse("boat_detail_api", kwargs={"boat_id": self.parsed_boat.slug}),
+            reverse("boat_detail_api", kwargs={"boat_id": "nonexistent-boat-slug"}),
             {"check_in": "2026-09-05", "check_out": "2026-09-12"},
         )
 

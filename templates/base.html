@@ -35,7 +35,7 @@
                             <li><a href="{% url 'offers_list' %}"><i class="fas fa-file-invoice mr-2"></i>{% trans "Мои офферы" %}</a></li>
                         {% endif %}
                         <li><a href="{% url 'my_bookings' %}"><i class="fas fa-calendar-check mr-2"></i>{% trans "Мои бронирования" %}</a></li>
-                        {% if user.profile.role == 'captain' or user.profile.role == 'manager' or user.profile.role == 'superadmin' %}
+                        {% if user.profile.role == 'captain' or user.profile.role == 'assistant' or user.profile.role == 'manager' or user.profile.role == 'admin' or user.profile.role == 'superadmin' %}
                             <li><a href="{% url 'contracts_list' %}"><i class="fas fa-file-contract mr-2"></i>{% trans "Договоры" %}</a></li>
                             <li><a href="{% url 'clients_list' %}"><i class="fas fa-users mr-2"></i>{% trans "Клиенты" %}</a></li>
                         {% endif %}

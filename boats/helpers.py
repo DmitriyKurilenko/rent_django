@@ -4,29 +4,8 @@ Helper функции для работы с кэшированием ParsedBoat
 from django.utils import timezone
 from datetime import timedelta
 
-# Константы для расчёта цены туристического оффера
-INSURANCE_RATE = 0.10
-INSURANCE_MIN = 400
-TURKEY_BASE_PRICE = 4400
-SEYCHELLES_BASE_PRICE = 4500
-DEFAULT_BASE_PRICE = 4500
-PRASLIN_EXTRA = 400
-LENGTH_EXTRA = 200
-COOK_PRICE = 1400
-TURKEY_DISH_BASE = 150
-SEYCHELLES_DISH_BASE = 210
-DEFAULT_DISH_BASE = 210
-MAX_DOUBLE_CABINS_FREE = 4
-DOUBLE_CABIN_EXTRA = 200
-CATAMARAN_LENGTH_EXTRA = 500
-SAILING_LENGTH_EXTRA = 300
-
 # Slugs услуг, скрытых из выдачи
-HIDDEN_SERVICE_SLUGS = {'flexible-cancellation'}
-
-# Названия стран для проверок
-TURKEY_NAMES = ('turkey', 'турция')
-SEYCHELLES_NAMES = ('seychelles', 'сейшелы')
+HIDDEN_SERVICE_SLUGS = {'flexible-cancellation', 'flexible_cancellation'}
 
 
 def apply_charter_commission(price, charter):
@@ -88,7 +67,8 @@ def calculate_final_price_with_discounts(base_price, discount_without_extra, add
         from boats.models import PriceSettings
         extra_discount_max = float(PriceSettings.get_settings().extra_discount_max)
     except Exception:
-        extra_discount_max = 5
+        # Fail-closed: если настройки недоступны, не применяем скрытую доп. скидку.
+        extra_discount_max = 0.0
 
     if additional_discount_val < commission:
         extra_discount = min(extra_discount_max, commission)
@@ -339,27 +319,6 @@ def get_offer_boat_data(slug):
     
     boat_data = BoataroundAPI.get_boat_combined_data(slug)
     return boat_data or {}
-
-
-# Ценовые константы для расчёта
-INSURANCE_MIN = 400
-INSURANCE_RATE = 0.10
-COOK_PRICE = 1400
-TURKEY_BASE_PRICE = 4400
-SEYCHELLES_BASE_PRICE = 4500
-DEFAULT_BASE_PRICE = 4500
-TURKEY_DISH_BASE = 150
-SEYCHELLES_DISH_BASE = 210
-DEFAULT_DISH_BASE = 210
-PRASLIN_EXTRA = 400
-LENGTH_EXTRA = 200
-CATAMARAN_LENGTH_EXTRA = 500
-SAILING_LENGTH_EXTRA = 300
-DOUBLE_CABIN_EXTRA = 180
-MAX_DOUBLE_CABINS_FREE = 4
-
-TURKEY_NAMES = ['turkey', 'турция']
-SEYCHELLES_NAMES = ['seychelles', 'сейшелы']
 
 
 def _resolve_country_config(cfg, country, location='', marina=''):
