@@ -2,6 +2,22 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-06
+- Change:
+  - `load_parsed_boats`: added directory support — loads all `.json` files in sorted order. Previously crashed with `IsADirectoryError` on directory path.
+  - `load_parsed_boats._reset_sequences`: replaced f-string SQL with parameterized queries + `connection.ops.quote_name()`.
+  - `dump_parsed_boats`: simplified load hint (one `docker cp` + `load_parsed_boats dir/` instead of per-file commands), `docker-compose` → `docker compose`.
+  - `how_to.md`: replaced stale `loaddata` with current dump/load commands.
+- Files:
+  - `boats/management/commands/load_parsed_boats.py` — `_load_multiple()`, `_reset_sequences()`, docstring, `glob` import
+  - `boats/management/commands/dump_parsed_boats.py` — output hints
+  - `boats/fixtures/how_to.md` — rewritten
+- Validation:
+  - `docker compose run --rm web python manage.py check` — 0 issues
+  - Both commands `--help` — OK
+- Risks:
+  - None. No behavioral changes to existing single-file loading path.
+
 ## 2026-04-04 (session 2)
 - Change:
   - Hide "Гибкая отмена" (slug `flexible-cancellation`) from all UI. Added `HIDDEN_SERVICE_SLUGS` constant in `helpers.py`, filter in 3 view functions (`boat_detail_api`, `_build_boat_data_from_db`, `offer_view`), template guards in `detail.html` and `offer_captain.html`.

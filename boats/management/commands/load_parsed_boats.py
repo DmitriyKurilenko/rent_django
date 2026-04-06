@@ -6,12 +6,14 @@
 - При ошибке батча — пересохраняет поштучно (fallback)
 - Пауза между батчами чтобы не перегружать БД
 - Retry при потере соединения с БД
+- Поддерживает загрузку директории (все .json файлы в отсортированном порядке)
 
 Использование:
-    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json
-    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --batch-size 200
-    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --skip-existing
-    python manage.py load_parsed_boats boats/fixtures/boats_full_02.json --dry-run
+    python manage.py load_parsed_boats boats/fixtures/parsed_boats.json
+    python manage.py load_parsed_boats boats/fixtures/split/
+    python manage.py load_parsed_boats boats/fixtures/split/ --batch-size 200
+    python manage.py load_parsed_boats boats/fixtures/split/ --skip-existing
+    python manage.py load_parsed_boats boats/fixtures/split/ --dry-run
 """
 
 import json
@@ -19,6 +21,7 @@ import logging
 import os
 import sys
 import time
+from glob import glob
 
 from django.core.management.base import BaseCommand, CommandError
 from django.core.serializers import deserialize
@@ -37,7 +40,7 @@ class Command(BaseCommand):
         parser.add_argument(
             'fixture',
             type=str,
-            help='Путь к JSON-фикстуре',
+            help='Путь к JSON-фикстуре или директории с .json файлами',
         )
         parser.add_argument(
             '--batch-size',
@@ -63,7 +66,21 @@ class Command(BaseCommand):
         self.skip_existing = options['skip_existing']
 
         if not os.path.exists(fixture_path):
-            raise CommandError(f'Файл не найден: {fixture_path}')
+            raise CommandError(f'Путь не найден: {fixture_path}')
+
+        # Поддержка директории: загрузить все .json файлы в отсортированном порядке
+        if os.path.isdir(fixture_path):
+            files = sorted(glob(os.path.join(fixture_path, '*.json')))
+            if not files:
+                raise CommandError(f'Нет .json файлов в директории: {fixture_path}')
+            total_size = sum(os.path.getsize(f) for f in files) / (1024 * 1024)
+            self.stdout.write(self.style.SUCCESS(
+                f'📂 Директория: {fixture_path} ({len(files)} файлов, {total_size:.1f} MB)'
+            ))
+            for f in files:
+                self.stdout.write(f'  - {os.path.basename(f)}')
+            self.stdout.write('')
+            return self._load_multiple(files, batch_size, dry_run)
 
         file_size_mb = os.path.getsize(fixture_path) / (1024 * 1024)
         self.stdout.write(self.style.SUCCESS(
@@ -176,6 +193,128 @@ class Command(BaseCommand):
             f'  Обновлено:   {updated_total}\n'
             f'  Пропущено:   {skipped_total}\n'
             f'  Ошибок:      {errors_total}'
+        ))
+
+    def _load_multiple(self, files, batch_size, dry_run):
+        """Загрузка нескольких файлов последовательно."""
+        if self.skip_existing:
+            self.stdout.write('  Режим: пропуск существующих (--skip-existing)')
+        else:
+            self.stdout.write('  Режим: перезапись существующих')
+
+        if dry_run:
+            for filepath in files:
+                self.stdout.write(f'\n--- {os.path.basename(filepath)} ---')
+                self._dry_run(filepath)
+            return
+
+        grand_start = time.time()
+        grand_saved = 0
+        grand_updated = 0
+        grand_errors = 0
+        grand_skipped = 0
+        grand_read = 0
+
+        for i, filepath in enumerate(files, 1):
+            basename = os.path.basename(filepath)
+            file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
+            self.stdout.write(self.style.SUCCESS(
+                f'\n━━━ [{i}/{len(files)}] {basename} ({file_size_mb:.1f} MB) ━━━'
+            ))
+
+            start_time = time.time()
+            saved_total = 0
+            updated_total = 0
+            errors_total = 0
+            skipped_total = 0
+            current_model = None
+            current_batch = []
+            model_saved = 0
+            model_updated = 0
+            model_errors = 0
+            model_skipped = 0
+            model_count = 0
+            records_read = 0
+
+            for record in self._stream_records(filepath):
+                records_read += 1
+                model_name = record.get('model', '')
+
+                if model_name != current_model:
+                    if current_batch:
+                        s, u, e, sk = self._save_batch(current_batch)
+                        model_saved += s
+                        model_updated += u
+                        model_errors += e
+                        model_skipped += sk
+
+                    if current_model is not None:
+                        self._print_model_stats(
+                            model_saved, model_updated, model_skipped, model_errors, model_count
+                        )
+                        saved_total += model_saved
+                        updated_total += model_updated
+                        errors_total += model_errors
+                        skipped_total += model_skipped
+
+                    current_model = model_name
+                    current_batch = []
+                    model_saved = 0
+                    model_updated = 0
+                    model_errors = 0
+                    model_skipped = 0
+                    model_count = 0
+                    self.stdout.write(f'\n📦 {model_name}...')
+
+                current_batch.append(record)
+                model_count += 1
+
+                if len(current_batch) >= batch_size:
+                    s, u, e, sk = self._save_batch(current_batch)
+                    model_saved += s
+                    model_updated += u
+                    model_errors += e
+                    model_skipped += sk
+                    current_batch = []
+
+            if current_batch:
+                s, u, e, sk = self._save_batch(current_batch)
+                model_saved += s
+                model_updated += u
+                model_errors += e
+                model_skipped += sk
+
+            if current_model is not None:
+                self._print_model_stats(
+                    model_saved, model_updated, model_skipped, model_errors, model_count
+                )
+                saved_total += model_saved
+                updated_total += model_updated
+                errors_total += model_errors
+                skipped_total += model_skipped
+
+            elapsed = time.time() - start_time
+            self.stdout.write(
+                f'  ⏱  {basename}: {records_read} записей за {elapsed:.0f}s'
+            )
+
+            grand_saved += saved_total
+            grand_updated += updated_total
+            grand_errors += errors_total
+            grand_skipped += skipped_total
+            grand_read += records_read
+
+        self._reset_sequences()
+
+        elapsed = time.time() - grand_start
+        self.stdout.write(self.style.SUCCESS(
+            f'\n🏁 Загрузка завершена за {elapsed:.0f}s\n'
+            f'  Файлов:      {len(files)}\n'
+            f'  Прочитано:   {grand_read}\n'
+            f'  Новых:       {grand_saved}\n'
+            f'  Обновлено:   {grand_updated}\n'
+            f'  Пропущено:   {grand_skipped}\n'
+            f'  Ошибок:      {grand_errors}'
         ))
 
     def _print_model_stats(self, saved, updated, skipped, errors, total):
@@ -340,10 +479,18 @@ class Command(BaseCommand):
                 tables = [row[0] for row in cursor.fetchall()]
                 reset_count = 0
                 for table in tables:
-                    cursor.execute(f"SELECT pg_get_serial_sequence('{table}', 'id')")
+                    cursor.execute(
+                        "SELECT pg_get_serial_sequence(%s, 'id')", [table]
+                    )
                     seq = cursor.fetchone()[0]
                     if seq:
-                        cursor.execute(f"SELECT setval('{seq}', COALESCE((SELECT MAX(id) FROM {table}), 1))")
+                        cursor.execute(
+                            "SELECT setval(pg_get_serial_sequence(%s, 'id'), "
+                            "COALESCE((SELECT MAX(id) FROM {} ), 1))".format(
+                                connection.ops.quote_name(table)
+                            ),
+                            [table],
+                        )
                         reset_count += 1
                 if reset_count:
                     self.stdout.write(f'🔧 Sequences сброшены для {reset_count} таблиц')

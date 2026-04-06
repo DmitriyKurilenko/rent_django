@@ -188,13 +188,12 @@ class Command(BaseCommand):
         self.stdout.write(f'  Файлов: {len(files_created)}')
         self.stdout.write(f'  Записей: {written_total}')
         self.stdout.write('')
-        self.stdout.write('💡 Копируй и выполняй на сервере:')
+        self.stdout.write('💡 Загрузка на сервере:')
         self.stdout.write('')
-        for filename, _, _ in files_created:
-            self.stdout.write(f'docker cp {output_dir}/{filename} rent_django-web-1:/app/{filename}')
-            self.stdout.write(f'docker-compose exec web python manage.py load_parsed_boats /app/{filename}')
-            self.stdout.write(f'docker-compose exec web rm /app/{filename}')
-            self.stdout.write('')
+        self.stdout.write(f'docker cp {output_dir}/ rent_django-web-1:/app/fixtures/')
+        self.stdout.write(f'docker compose exec web python manage.py load_parsed_boats /app/fixtures/')
+        self.stdout.write(f'docker compose exec web rm -rf /app/fixtures/')
+        self.stdout.write('')
 
     def _dump_single(self, model_querysets, output_path, total_count):
         """Дамп в один файл (оригинальный режим)."""
@@ -260,7 +259,9 @@ class Command(BaseCommand):
                     f'  Записей: {written_total}\n'
                     f'  Модели:\n{details_lines}\n\n'
                     f'💡 Для загрузки:\n'
-                    f'   python manage.py load_parsed_boats {output_path}'
+                    f'   python manage.py load_parsed_boats {output_path}\n'
+                    f'   # или через Docker:\n'
+                    f'   docker compose exec web python manage.py load_parsed_boats {output_path}'
                 )
             )
 

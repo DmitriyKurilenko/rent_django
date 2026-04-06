@@ -16,6 +16,7 @@
    - docs/TASK_STATE.md — статусы задач
    - docs/DEV_LOG.md — дата, файлы, валидация, риски
    - docs/KNOWN_ISSUES.md — если баг найден/закрыт
+   - docs/RELEASE_NOTES.md — если надо информировать пользователей
 
 4. Предложить commit message в формате conventional commits
 

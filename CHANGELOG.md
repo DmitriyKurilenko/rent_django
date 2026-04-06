@@ -2,6 +2,14 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.5.4-dev] - 2026-04-06
+
+### 🔧 Fixed — dump/load commands
+- **`load_parsed_boats` directory support**: принимает путь к директории — загружает все `.json` файлы в отсортированном порядке. Раньше падало с `IsADirectoryError`.
+- **SQL injection fix**: `_reset_sequences` использовал f-string для таблиц/sequences — заменён на параметризованные запросы + `quote_name()`.
+- **`dump_parsed_boats`**: упрощена подсказка загрузки (одна команда вместо per-file), `docker-compose` → `docker compose`.
+- **`how_to.md`**: обновлён с актуальными командами.
+
 ## [0.5.3-dev] - 2026-04-04
 
 ### 🔧 Fixed — Hide "Гибкая отмена" service from all UI
