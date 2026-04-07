@@ -2,6 +2,41 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.7.0-dev] - 2026-04-07
+
+### ✨ Added — Booking option status + in-app notifications
+- **Booking `option` status**: new `option` in `Booking.STATUS_CHOICES` + `option_until` DateField for option expiry date.
+- **Notification model**: `boats/models.py` — `Notification(recipient, booking, message, is_read, created_at)` with indexes on `(recipient, -created_at)` and `(recipient, is_read)`.
+- **Notification views**: `notifications_list`, `notification_mark_read`, `notifications_mark_all_read` — 3 new URL patterns in `boats/urls.py`.
+- **Context processor**: `boats/context_processors.py` — provides `unread_notifications_count` globally for bell badge.
+- **Bell icon**: navbar (desktop + mobile dropdown) + sidebar with unread count badge.
+- **`update_booking_status`**: rewritten — `role != 'manager'` → `can_confirm_booking()`. Option action with date validation. All actions dispatch in-app + Telegram notifications.
+- **Migration**: `0034_booking_option_until_alter_booking_status_and_more.py`.
+
+### ✨ Added — Telegram notifications
+- **`boats/telegram.py`** (NEW): raw Telegram Bot API via `requests.post`, fail-silent.
+- **Celery task `send_telegram_notification`**: `boats/tasks.py` — `max_retries=2`, `countdown=30`. Only retries on exceptions (not on `False` return).
+- **Settings**: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ASSISTANT_CHAT_ID` via decouple (reads `TELEGRAM_CHAT_ID` from `.env`).
+- **`boats/notifications.py`** (NEW): centralized `notify_new_booking()` and `notify_status_change()` — dispatches both in-app `Notification.objects.bulk_create()` and Telegram via Celery task.
+- Notifications sent from 3 booking creation points (`create_booking`, `book_offer`, `book_boat`) and 3 status change actions (confirm/option/cancel).
+
+### 🔧 Fixed — Contract signing download 404
+- **`LOGIN_URL`**: changed from `'/login/'` to `'login'` (named URL) — Django resolves with proper i18n prefix.
+- **`download_signed_contract`** (NEW view): token-based PDF download at `contracts/<uuid>/sign/<sign_token>/download/` — no auth required, validates `sign_token` + `status='signed'`.
+- **`contract_signed.html`**: link updated to use `download_signed_contract` instead of auth-protected `download_contract`.
+
+### 🔧 Fixed — PDF download crash
+- **`download_contract`**: replaced `FileResponse(contract.document_file.open('rb'))` with `HttpResponse(contract.document_file.read())` — atomic response instead of streaming that crashed browsers.
+
+### 🔧 Fixed — Permission-based access
+- **`assign_booking_manager`**: `role not in ('manager', 'superadmin')` → `can_see_all_bookings()`.
+- **`my_bookings.html`**: hardcoded role names → `can_access_admin_panel` / `can_see_all_bookings` checks.
+
+### 🧹 Changed
+- **Admin**: `NotificationAdmin` registered, `BookingAdmin` shows `option_until`.
+- **`check_data_status`**: added `option` status to bookings stats.
+- **Template updates**: `my_bookings.html` (option badges, Alpine.js date picker, stats grid), `base.html` (bell), `lk_sidebar.html` (notifications link), various lists (permission-based visibility).
+
 ## [0.6.0-dev] - 2026-04-06
 
 ### ✨ Added — Permission-based role system

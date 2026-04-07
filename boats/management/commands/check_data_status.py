@@ -353,7 +353,8 @@ class Command(BaseCommand):
 
         self.stdout.write('\n── БРОНИРОВАНИЯ ────────────────────────────')
         self.stdout.write(f'  Всего:                     {total}')
-        for status, label in [('pending', 'Ожидает'), ('confirmed', 'Подтверждено'),
+        for status, label in [('pending', 'Ожидает'), ('option', 'На опции'),
+                              ('confirmed', 'Подтверждено'),
                               ('cancelled', 'Отменено'), ('completed', 'Завершено')]:
             cnt = by_status.get(status, 0)
             if cnt:

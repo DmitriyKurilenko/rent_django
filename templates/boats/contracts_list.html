@@ -5,11 +5,11 @@
 
 {% block content %}
 <div class="container mx-auto px-4 py-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div class="flex flex-col md:flex-row gap-4">
         {% include 'includes/lk_sidebar.html' with active_page='contracts' %}
 
         <!-- Main Content -->
-        <div class="md:col-span-3">
+        <div class="flex-1 min-w-0">
             <div class="mb-6 flex items-center justify-between">
                 <div>
                     <h1 class="text-3xl font-bold">
@@ -85,13 +85,9 @@
                             </td>
                             <td class="text-right">
                                 <div class="flex items-center justify-end gap-1">
-                                    <a href="{% url 'contract_detail' contract.uuid %}" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Подробнее' %}">
-                                        <i class="fas fa-eye text-xs"></i>
-                                    </a>
+                                    <a href="{% url 'contract_detail' contract.uuid %}" class="btn btn-ghost btn-xs">{% trans "Подробнее" %}</a>
                                     {% if contract.document_file %}
-                                    <a href="{% url 'download_contract' contract.uuid %}" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Скачать PDF' %}">
-                                        <i class="fas fa-download text-xs"></i>
-                                    </a>
+                                    <a href="{% url 'download_contract' contract.uuid %}" class="btn btn-ghost btn-xs">{% trans "Скачать" %}</a>
                                     {% endif %}
                                 </div>
                             </td>

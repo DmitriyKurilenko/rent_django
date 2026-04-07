@@ -19,7 +19,7 @@
                 {% trans "Дата подписания" %}: {{ contract.signed_at|date:"d.m.Y H:i" }}
             </p>
             {% if contract.document_file %}
-            <a href="{% url 'download_contract' contract.uuid %}" class="btn btn-primary gap-2">
+            <a href="{% url 'download_signed_contract' contract.uuid contract.sign_token %}" class="btn btn-primary gap-2">
                 <i class="fas fa-download"></i> {% trans "Скачать PDF" %}
             </a>
             {% endif %}

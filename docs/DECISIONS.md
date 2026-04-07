@@ -170,6 +170,24 @@ Last updated: 2026-04-04 (Europe/Moscow)
 - Decision: Новые модели `Permission(codename, name)` + `Role(codename, name, permissions M2M, is_system)`. UserProfile.role_ref → FK на Role. Свойство `role` (property) возвращает `role_ref.codename`, обеспечивая полную обратную совместимость с `profile.role == 'captain'` в views/templates. Все `can_*()` делегируют в `has_perm(codename)` с кэшем `_perm_cache`.
 - Consequence: 6 системных ролей (tourist, captain, assistant, manager, admin, superadmin), 14 разрешений. Новые роли можно создавать через админку без изменения кода. Все 56+ прямых сравнений `role == 'string'` в views/templates продолжают работать.
 
+## DR-033: Contract signing token-based download
+- Date: 2026-04-07
+- Context: After OTP signing, signer is not authenticated. `download_contract` requires `@login_required`, so "Скачать PDF" caused 404 via broken `LOGIN_URL`. Also `LOGIN_URL = '/login/'` didn't match i18n routes.
+- Decision: (1) Fix `LOGIN_URL` to named URL `'login'` for i18n compatibility. (2) New `download_signed_contract` view — serves PDF by validating `sign_token` + `status='signed'` without auth. (3) `contract_signed.html` links to token-based endpoint.
+- Consequence: Signers can download PDF immediately after OTP signing. Existing auth-based `download_contract` for staff is unchanged.
+
+## DR-032: Centralized notification dispatch (boats/notifications.py)
+- Date: 2026-04-07
+- Context: Notification logic (in-app + Telegram) was inline in views.py with inline imports — PEP violation, mixed concerns.
+- Decision: Separate module `boats/notifications.py` with `notify_new_booking()` and `notify_status_change()`. Uses `bulk_create()`. Views call one-liner functions.
+- Consequence: Clean separation of concerns. Adding new notification channels (email, SMS) requires changes only in notifications.py.
+
+## DR-031: Booking option status + in-app notifications
+- Date: 2026-04-07
+- Context: Assistant needs to set bookings "на опцию" with an expiry date and notify the responsible person (booking creator) about status changes.
+- Decision: Add `option` status to Booking.STATUS_CHOICES + `option_until` DateField. New `Notification` model in `boats/models.py`. Context processor provides global unread count. Permission: `can_confirm_booking()`.
+- Consequence: Status changes create in-app notifications. Bell icon with badge in navbar. No email/SMS — in-app only for now.
+
 ## DR-030: extra_discount_max fallback is fail-closed (0.0)
 - Date: 2026-04-06
 - Context: `calculate_final_price_with_discounts` had `except: extra_discount_max = 5` — when PriceSettings was unavailable (e.g. in tests), a hidden 5% discount was silently applied, making test assertions unpredictable.

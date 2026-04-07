@@ -3,7 +3,7 @@
 {# active_page values: dashboard, profile, favorites, offers, bookings, contracts, clients, prices #}
 {# For profile.html pass is_profile_page=True to render Alpine.js tab buttons for dashboard/profile/prices #}
 
-<div class="hidden md:block md:col-span-1">
+<div class="hidden md:block w-40 flex-shrink-0">
     <div class="card bg-base-100 shadow-sm sticky top-24">
         <div class="card-body p-4">
             <h2 class="font-bold text-sm mb-4">{% trans "Меню" %}</h2>
@@ -65,11 +65,11 @@
                 {% if user.profile.can_manage_prices %}
                 {% if is_profile_page %}
                 <button type="button" class="btn btn-sm justify-start w-full" :class="activeTab === 'prices' ? 'btn-primary' : 'btn-ghost'" @click="activeTab = 'prices'">
-                    <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
+                    <i class="fas fa-tags"></i> {% trans "Цены" %}
                 </button>
                 {% else %}
                 <a href="{% url 'profile' %}?tab=prices" class="btn btn-sm {% if active_page == 'prices' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
-                    <i class="fas fa-tags"></i> {% trans "Настройки цен" %}
+                    <i class="fas fa-tags"></i> {% trans "Цены" %}
                 </a>
                 {% endif %}
                 {% endif %}
@@ -77,7 +77,7 @@
                 {# Комиссии чартеров #}
                 {% if user.profile.can_manage_charters %}
                 <a href="{% url 'charters_management' %}" class="btn btn-sm {% if active_page == 'charters' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
-                    <i class="fas fa-building"></i> {% trans "Комиссии чартеров" %}
+                    <i class="fas fa-building"></i> {% trans "Чартеры" %}
                 </a>
                 {% endif %}
             </div>

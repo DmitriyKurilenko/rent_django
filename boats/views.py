@@ -4,17 +4,18 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Avg
 from django.core.paginator import Paginator
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import get_language, gettext as _
 from django.utils import timezone
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, Contract, ContractTemplate, Client, ContractOTP, BoatTechnicalSpecs
+from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, Contract, ContractTemplate, Client, ContractOTP, BoatTechnicalSpecs, Notification
 from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm, ContractCreateForm, ContractSignForm, ClientForm
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
 from .pricing import resolve_live_or_fallback_price
+from .notifications import notify_new_booking, notify_status_change
 from django.views.decorators.cache import cache_page
 import logging
 
@@ -1190,7 +1191,7 @@ def create_booking(request, pk):
             booking.save()
             
             messages.success(request, 'Бронирование создано! Ожидайте подтверждения.')
-
+            notify_new_booking(booking, request.user)
             return redirect('boat_detail', pk=pk)
     else:
         form = BookingForm(boat=boat)
@@ -1274,6 +1275,7 @@ def my_bookings(request):
     # Статистика
     total_bookings = bookings_qs.count()
     pending_bookings = bookings_qs.filter(status='pending').count()
+    option_bookings = bookings_qs.filter(status='option').count()
     confirmed_bookings = bookings_qs.filter(status='confirmed').count()
 
     # Расшифровка цены для капитанов/менеджеров/админов
@@ -1297,6 +1299,7 @@ def my_bookings(request):
         'bookings': bookings,
         'total_bookings': total_bookings,
         'pending_bookings': pending_bookings,
+        'option_bookings': option_bookings,
         'confirmed_bookings': confirmed_bookings,
         'author_query': author_query,
         'only_mine': only_mine,
@@ -1308,8 +1311,8 @@ def my_bookings(request):
 
 @login_required
 def update_booking_status(request, booking_id):
-    """Подтверждение/отмена бронирования (только manager). Отмена деактивирует оффер, но не удаляет его."""
-    if request.user.profile.role != 'manager':
+    """Подтверждение/отмена/опция бронирования. Доступно ролям с confirm_booking."""
+    if not request.user.profile.can_confirm_booking():
         messages.error(request, 'У вас нет прав для изменения статуса бронирования')
         return redirect('my_bookings')
 
@@ -1320,17 +1323,50 @@ def update_booking_status(request, booking_id):
     action = request.POST.get('action', '').strip()
     next_url = request.POST.get('next', '')
 
+    # Определяем ответственного — создатель бронирования (offer.created_by или booking.user)
+    responsible_user = None
+    if booking.offer and booking.offer.created_by and booking.offer.created_by != request.user:
+        responsible_user = booking.offer.created_by
+    elif booking.user != request.user:
+        responsible_user = booking.user
+
     if action == 'confirm':
         booking.status = 'confirmed'
-        booking.save(update_fields=['status', 'updated_at'])
+        booking.option_until = None
+        booking.save(update_fields=['status', 'option_until', 'updated_at'])
         messages.success(request, 'Бронирование подтверждено')
+        notify_status_change(booking, request.user, responsible_user, 'confirmed')
+    elif action == 'option':
+        option_until_str = request.POST.get('option_until', '').strip()
+        if not option_until_str:
+            messages.error(request, 'Укажите дату окончания опции')
+        else:
+            from datetime import datetime as _dt
+            try:
+                option_date = _dt.strptime(option_until_str, '%Y-%m-%d').date()
+            except ValueError:
+                messages.error(request, 'Некорректная дата')
+                if next_url:
+                    return redirect(next_url)
+                return redirect('my_bookings')
+
+            booking.status = 'option'
+            booking.option_until = option_date
+            booking.save(update_fields=['status', 'option_until', 'updated_at'])
+            messages.success(request, f'Бронирование поставлено на опцию до {option_date.strftime("%d.%m.%Y")}')
+            notify_status_change(
+                booking, request.user, responsible_user, 'option',
+                extra=f'поставлено на опцию до {option_date.strftime("%d.%m.%Y")}',
+            )
     elif action == 'cancel':
         booking.status = 'cancelled'
-        booking.save(update_fields=['status', 'updated_at'])
+        booking.option_until = None
+        booking.save(update_fields=['status', 'option_until', 'updated_at'])
         if booking.offer:
             booking.offer.is_active = False
             booking.offer.save(update_fields=['is_active'])
         messages.success(request, 'Бронирование отменено. Оффер деактивирован (история сохранена).')
+        notify_status_change(booking, request.user, responsible_user, 'cancelled')
     else:
         messages.error(request, 'Некорректное действие')
 
@@ -1342,9 +1378,7 @@ def update_booking_status(request, booking_id):
 @login_required
 def assign_booking_manager(request, booking_id):
     """Назначение ответственного менеджера на бронирование."""
-    role = request.user.profile.role
-
-    if role not in ('manager', 'superadmin'):
+    if not request.user.profile.can_see_all_bookings():
         messages.error(request, 'У вас нет прав для назначения менеджера')
         return redirect('my_bookings')
 
@@ -1354,6 +1388,7 @@ def assign_booking_manager(request, booking_id):
     booking = get_object_or_404(Booking, id=booking_id)
     action = request.POST.get('action', '').strip()
     next_url = request.POST.get('next', '')
+    role = request.user.profile.role
 
     if action == 'unassign':
         booking.assigned_manager = None
@@ -2585,6 +2620,7 @@ def book_offer(request, uuid):
         )
         
         logger.info(f'[Booking] Created booking {booking.id} for user {request.user.username} - offer {offer.uuid}')
+        notify_new_booking(booking, request.user)
         messages.success(request, '✅ Бронирование создано! Ожидайте подтверждения от менеджера.')
         return redirect('my_bookings')
     
@@ -2673,6 +2709,7 @@ def book_boat(request, boat_slug):
     )
     
     logger.info(f'[Booking] Created direct booking {booking.id} for user {request.user.username} - boat {boat_slug}')
+    notify_new_booking(booking, request.user)
     messages.success(request, '✅ Бронирование создано! Ожидайте подтверждения от менеджера.')
     return redirect('my_bookings')
 
@@ -2981,9 +3018,25 @@ def download_contract(request, uuid):
         messages.error(request, 'PDF документ ещё не сгенерирован')
         return redirect('contract_detail', uuid=contract.uuid)
 
-    from django.http import FileResponse
-    response = FileResponse(
-        contract.document_file.open('rb'),
+    response = HttpResponse(
+        contract.document_file.read(),
+        content_type='application/pdf',
+    )
+    response['Content-Disposition'] = f'attachment; filename="contract_{contract.contract_number}.pdf"'
+    return response
+
+
+def download_signed_contract(request, uuid, sign_token):
+    """Скачать PDF подписанного договора по токену (без авторизации)."""
+    contract = get_object_or_404(
+        Contract, uuid=uuid, sign_token=sign_token, status='signed',
+    )
+
+    if not contract.document_file:
+        return HttpResponse('PDF документ ещё не сгенерирован', status=404)
+
+    response = HttpResponse(
+        contract.document_file.read(),
         content_type='application/pdf',
     )
     response['Content-Disposition'] = f'attachment; filename="contract_{contract.contract_number}.pdf"'
@@ -3152,6 +3205,44 @@ def client_search_api(request):
         })
 
     return JsonResponse({'results': results})
+
+
+# ────────────────────────────────────────────
+#  Уведомления
+# ────────────────────────────────────────────
+
+@login_required
+def notifications_list(request):
+    """Список уведомлений текущего пользователя."""
+    qs = Notification.objects.filter(recipient=request.user).select_related('booking')
+    notifications = qs[:50]
+    return render(request, 'boats/notifications.html', {
+        'notifications': notifications,
+    })
+
+
+@login_required
+def notification_mark_read(request, pk):
+    """Отметить одно уведомление как прочитанное."""
+    if request.method != 'POST':
+        return redirect('notifications_list')
+    Notification.objects.filter(pk=pk, recipient=request.user).update(is_read=True)
+    next_url = request.POST.get('next', '')
+    if next_url:
+        return redirect(next_url)
+    return redirect('notifications_list')
+
+
+@login_required
+def notifications_mark_all_read(request):
+    """Отметить все уведомления как прочитанные."""
+    if request.method != 'POST':
+        return redirect('notifications_list')
+    Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+    next_url = request.POST.get('next', '')
+    if next_url:
+        return redirect(next_url)
+    return redirect('notifications_list')
 
 
 def terms(request):

@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from .models import (
     Boat, Favorite, Booking, Review, Offer, ParsedBoat, Charter,
     BoatTechnicalSpecs, BoatDescription, BoatPrice, BoatGallery, BoatDetails,
-    ContractTemplate, Contract, Client, ContractOTP, ParseJob,
+    ContractTemplate, Contract, Client, ContractOTP, ParseJob, Notification,
 )
 
 
@@ -59,10 +59,18 @@ class FavoriteAdmin(admin.ModelAdmin):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ['boat', 'user', 'start_date', 'end_date', 'guests', 'status', 'total_price', 'created_at']
+    list_display = ['boat', 'user', 'start_date', 'end_date', 'guests', 'status', 'option_until', 'total_price', 'created_at']
     list_filter = ['status', 'created_at', 'start_date']
     search_fields = ['boat__name', 'user__username']
     list_editable = ['status']
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['recipient', 'booking', 'is_read', 'created_at']
+    list_filter = ['is_read', 'created_at']
+    search_fields = ['recipient__username', 'message']
+    readonly_fields = ['created_at']
 
 
 @admin.register(Review)

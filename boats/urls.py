@@ -37,6 +37,7 @@ urlpatterns = [
     path('contracts/<uuid:uuid>/', views.contract_detail, name='contract_detail'),
     path('contracts/<uuid:uuid>/download/', views.download_contract, name='download_contract'),
     path('contracts/<uuid:uuid>/sign/<uuid:sign_token>/', views.sign_contract, name='sign_contract'),
+    path('contracts/<uuid:uuid>/sign/<uuid:sign_token>/download/', views.download_signed_contract, name='download_signed_contract'),
     path('contracts/<uuid:uuid>/sign/<uuid:sign_token>/send-otp/', views.send_contract_otp, name='send_contract_otp'),
 
     # Клиенты
@@ -45,6 +46,11 @@ urlpatterns = [
     path('clients/<int:pk>/', views.client_detail, name='client_detail'),
     path('clients/<int:pk>/edit/', views.client_edit, name='client_edit'),
     path('api/clients/search/', views.client_search_api, name='client_search_api'),
+
+    # Уведомления
+    path('notifications/', views.notifications_list, name='notifications_list'),
+    path('notifications/<int:pk>/read/', views.notification_mark_read, name='notification_mark_read'),
+    path('notifications/read-all/', views.notifications_mark_all_read, name='notifications_mark_all_read'),
 
     # Информационные страницы
     path('terms/', views.terms, name='terms'),

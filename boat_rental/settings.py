@@ -50,6 +50,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.media',
                 'django.template.context_processors.i18n',  # ⭐ i18n context
+                'boats.context_processors.notifications',
             ],
         },
     },
@@ -140,7 +141,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Login/Logout
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
-LOGIN_URL = '/login/'
+LOGIN_URL = 'login'
 
 # Security (production)
 SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
@@ -196,6 +197,12 @@ CELERY_BEAT_SCHEDULE = {}
 # SMS.RU (OTP)
 # =============================================================================
 SMSRU_API_ID = config('SMSRU_API_ID', default='')
+
+# =============================================================================
+# Telegram notifications
+# =============================================================================
+TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN', default='')
+TELEGRAM_ASSISTANT_CHAT_ID = config('TELEGRAM_CHAT_ID', default='')
 
 # =============================================================================
 # CACHE (Redis, та же инстанция что и Celery, но БД /1)

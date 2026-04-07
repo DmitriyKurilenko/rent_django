@@ -2,6 +2,71 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-07 — Contract signing download 404 fix
+- Problem: After OTP signing, "Скачать PDF" linked to `download_contract` which requires `@login_required`. Signer is not authenticated (accessed via `sign_token`). Also `LOGIN_URL = '/login/'` didn't match any i18n route (actual: `/ru/accounts/login/`).
+- Fix 1: Changed `LOGIN_URL` from `'/login/'` to `'login'` (named URL) in `boat_rental/settings.py` — Django resolves it with proper i18n prefix.
+- Fix 2: New view `download_signed_contract(request, uuid, sign_token)` — serves PDF without auth, validates `sign_token` + `status='signed'`. URL: `contracts/<uuid>/sign/<sign_token>/download/`.
+- Fix 3: Updated `contract_signed.html` to link to `download_signed_contract` instead of `download_contract`.
+- Files: `boat_rental/settings.py`, `boats/views.py`, `boats/urls.py`, `templates/boats/contract_signed.html`
+- Validation: `docker compose run --rm web python manage.py check` — 0 issues.
+- Risks: Token-based download only works for signed contracts (`status='signed'`). Existing `download_contract` (auth-based) unchanged.
+
+## 2026-04-07 — PDF download crash fix
+- Problem: `download_contract` used `FileResponse(contract.document_file.open('rb'))` — streaming from FieldFile caused browser crash/close on download.
+- Fix: Replaced with `HttpResponse(contract.document_file.read())` — atomic response delivery.
+- Files: `boats/views.py`
+- Validation: `docker compose run --rm web python manage.py check` — 0 issues.
+
+## 2026-04-07 — Notifications refactored to separate module
+- Problem: Notification logic (in-app + Telegram) was inline in `boats/views.py` with inline imports — PEP violation, mixed concerns.
+- Fix: Created `boats/notifications.py` with `notify_new_booking()` and `notify_status_change()`. Uses `bulk_create()` for efficiency. Clean top-level imports. Views call one-liner functions.
+- Files: `boats/notifications.py` (NEW), `boats/views.py` (cleaned)
+
+## 2026-04-07 — assign_booking_manager permission fix
+- Problem: `assign_booking_manager` had `role not in ('manager', 'superadmin')` — assistant couldn't take bookings.
+- Fix: Changed to `can_see_all_bookings()` permission check. Template `my_bookings.html` updated to use `can_access_admin_panel`.
+- Files: `boats/views.py`, `templates/boats/my_bookings.html`
+
+## 2026-04-07 — Telegram notifications for assistant
+- Change: Added Telegram notification on new booking creation (3 entry points: `create_booking`, `book_offer`, `book_boat`) and booking status changes (confirm/option/cancel in `update_booking_status`).
+- Implementation: `boats/telegram.py` — raw Telegram Bot API via `requests.post`, fail-silent. Celery task `send_telegram_notification` in `boats/tasks.py` (2 retries, 30s backoff). Settings: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ASSISTANT_CHAT_ID` via decouple.
+- Files: `boats/telegram.py` (NEW), `boats/tasks.py`, `boats/views.py`, `boat_rental/settings.py`, `.env.example`
+- No new pip dependencies (uses existing `requests`).
+- Validation: `docker compose run --rm web python manage.py check` — 0 issues.
+- Risks: If Telegram API is down, Celery retries silently and gives up after 2 attempts. No user-facing impact.
+
+## 2026-04-07 — Booking option status + in-app notifications
+- Change:
+  - **Booking option status**: Added `option` to Booking.STATUS_CHOICES, added `option_until` DateField for option expiry date.
+  - **Notification model**: New model `Notification` (recipient FK→User, booking FK→Booking, message TextField, is_read, created_at) with indexes.
+  - **`update_booking_status` view**: Rewritten — `role != 'manager'` → `can_confirm_booking()` permission check. Added `option` action with date validation. All actions (confirm/option/cancel) create Notification for responsible user.
+  - **Notification views**: `notifications_list`, `notification_mark_read`, `notifications_mark_all_read` — with 3 new URLs.
+  - **Context processor**: `boats/context_processors.py` provides `unread_notifications_count` globally.
+  - **my_bookings template**: Alpine.js date picker for "На опцию" action. Option status badges (desktop + mobile). Stats grid expanded to 4 columns with option count.
+  - **Notification bell**: Added to base.html navbar (desktop + mobile dropdown) + lk_sidebar with unread badge.
+  - **Admin**: `Notification` registered, `BookingAdmin` shows `option_until`.
+  - **check_data_status**: Added `option` status to bookings stats.
+- Files:
+  - `boats/models.py` — Booking.STATUS_CHOICES + option_until + Notification model
+  - `boats/views.py` — update_booking_status rewrite + 3 notification views + my_bookings context
+  - `boats/urls.py` — 3 notification URLs
+  - `boats/context_processors.py` — NEW
+  - `boat_rental/settings.py` — context processor registered
+  - `boats/admin.py` — NotificationAdmin + BookingAdmin option_until
+  - `boats/management/commands/check_data_status.py` — option status
+  - `templates/base.html` — bell icon (navbar + mobile dropdown)
+  - `templates/includes/lk_sidebar.html` — notifications link
+  - `templates/boats/my_bookings.html` — option badges, Alpine.js date picker, stats
+  - `templates/boats/notifications.html` — NEW
+  - `boats/migrations/0034_booking_option_until_alter_booking_status_and_more.py` — NEW
+- Validation:
+  - `docker compose down && docker compose up -d --build` — OK
+  - `docker compose run --rm web python manage.py check` — 0 issues
+  - 120/120 tests pass
+- Risks:
+  - No existing tests for update_booking_status view — may need integration tests.
+  - Notification volume could grow; consider periodic cleanup or auto-read on booking view.
+
 ## 2026-04-06 (session 4)
 - Change:
   - **ORM FieldError fixes**: 2 locations in `boats/views.py` used `profile__role='manager'` → `profile__role_ref__codename='manager'` (my_bookings manager list, assign_booking_manager).

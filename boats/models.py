@@ -203,6 +203,7 @@ class Booking(models.Model):
     
     STATUS_CHOICES = [
         ('pending', 'Ожидает'),
+        ('option', 'На опции'),
         ('confirmed', 'Подтверждено'),
         ('cancelled', 'Отменено'),
         ('completed', 'Завершено'),
@@ -227,6 +228,7 @@ class Booking(models.Model):
     
     # Статус
     status = models.CharField('Статус', max_length=20, choices=STATUS_CHOICES, default='pending')
+    option_until = models.DateField('Опция действует до', null=True, blank=True)
     
     # Цена
     total_price = models.DecimalField('Итого', max_digits=10, decimal_places=2)
@@ -362,6 +364,37 @@ class Booking(models.Model):
             return self.offer.boat_data.get('boat_info', {}).get('location', '')
         
         return ''
+
+
+class Notification(models.Model):
+    """Уведомление пользователя о событии в системе."""
+
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='Получатель',
+    )
+    booking = models.ForeignKey(
+        'Booking', on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='notifications',
+        verbose_name='Бронирование',
+    )
+    message = models.TextField('Текст уведомления')
+    is_read = models.BooleanField('Прочитано', default=False)
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Уведомление'
+        verbose_name_plural = 'Уведомления'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', '-created_at']),
+            models.Index(fields=['recipient', 'is_read']),
+        ]
+
+    def __str__(self):
+        return f"[{self.recipient.username}] {self.message[:60]}"
 
 
 class Review(models.Model):

@@ -35,6 +35,12 @@
                             <li><a href="{% url 'offers_list' %}"><i class="fas fa-file-invoice mr-2"></i>{% trans "Мои офферы" %}</a></li>
                         {% endif %}
                         <li><a href="{% url 'my_bookings' %}"><i class="fas fa-calendar-check mr-2"></i>{% trans "Мои бронирования" %}</a></li>
+                        <li>
+                            <a href="{% url 'notifications_list' %}">
+                                <i class="fas fa-bell mr-2"></i>{% trans "Уведомления" %}
+                                {% if unread_notifications_count %}<span class="badge badge-xs badge-error">{{ unread_notifications_count }}</span>{% endif %}
+                            </a>
+                        </li>
                         {% if user.profile.role == 'captain' or user.profile.role == 'assistant' or user.profile.role == 'manager' or user.profile.role == 'admin' or user.profile.role == 'superadmin' %}
                             <li><a href="{% url 'contracts_list' %}"><i class="fas fa-file-contract mr-2"></i>{% trans "Договоры" %}</a></li>
                             <li><a href="{% url 'clients_list' %}"><i class="fas fa-users mr-2"></i>{% trans "Клиенты" %}</a></li>
@@ -76,6 +82,14 @@
                     <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt mr-2"></i>{% trans "Войти" %}</a></li>
                 {% endif %}
             </ul>
+            {% if user.is_authenticated %}
+            <a href="{% url 'notifications_list' %}" class="btn btn-ghost btn-sm relative" title="{% trans 'Уведомления' %}">
+                <i class="fas fa-bell"></i>
+                {% if unread_notifications_count %}
+                <span class="badge badge-xs badge-error absolute -top-1 -right-1">{{ unread_notifications_count }}</span>
+                {% endif %}
+            </a>
+            {% endif %}
             <!-- Language Selector -->
             <div class="dropdown dropdown-end">
                 <label tabindex="0" class="btn btn-ghost btn-sm">

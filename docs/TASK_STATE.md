@@ -1,6 +1,6 @@
 # TASK STATE
 
-Last updated: 2026-04-06 (Europe/Moscow)
+Last updated: 2026-04-07 (Europe/Moscow)
 
 ## Current priorities
 
@@ -13,6 +13,36 @@ Last updated: 2026-04-06 (Europe/Moscow)
 - ORM compatibility fixes: `profile__role` → `profile__role_ref__codename`, `check_data_status` values_list, `additional_services` guard.
 - All 120 tests pass.
 - Assistant role fully functional: offers, bookings, contracts, clients, navigation.
+
+### P1.5: Booking option status + notifications for assistant
+- Status: **DONE (2026-04-06)**
+- Booking model: added `option` status + `option_until` DateField.
+- Assistant can set bookings to "На опции" (with expiry date), confirm, or cancel.
+- Notification model: sends notifications to booking creator on status changes.
+- Bell icon in navbar + sidebar with unread count badge.
+- Notifications page with mark-read/mark-all-read.
+- All 120 tests pass.
+
+### P1.6: Telegram notifications for assistant
+- Status: **DONE**
+- Sends Telegram messages to assistant on new booking creation (3 entry points) and status changes (confirm/option/cancel).
+- Uses raw Telegram Bot API via `requests` (no new dependencies).
+- Async via Celery task `send_telegram_notification` (2 retries, 30s backoff).
+- Config: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ASSISTANT_CHAT_ID` env vars. Fails silently when not configured.
+
+### P1.7: Contract signing download 404
+- Status: **DONE (2026-04-07)**
+- `LOGIN_URL` was `/login/` — didn't match i18n routes. Fixed to named URL `'login'`.
+- Added `download_signed_contract` — token-based PDF download for signers (no auth required).
+- Template `contract_signed.html` updated to use token-based URL.
+
+### P1.8: PDF download crash
+- Status: **DONE (2026-04-07)**
+- `FileResponse` with streaming from FieldFile crashed browsers. Replaced with `HttpResponse` + `.read()`.
+
+### P1.9: Notifications refactored to boats/notifications.py
+- Status: **DONE (2026-04-07)**
+- Centralized `notify_new_booking()` and `notify_status_change()`. Views call one-liner functions.
 - Goal: one pricing pipeline and predictable user-visible price per request context.
 - Scope:
   - search cards,

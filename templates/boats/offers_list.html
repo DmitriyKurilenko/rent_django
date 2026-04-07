@@ -5,11 +5,11 @@
 
 {% block content %}
 <div class="container mx-auto px-4 py-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div class="flex flex-col md:flex-row gap-4">
         {% include 'includes/lk_sidebar.html' with active_page='offers' %}
 
         <!-- Main Content -->
-        <div class="md:col-span-3">
+        <div class="flex-1 min-w-0">
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
                 <div>
@@ -144,7 +144,7 @@
                                         <span class="badge badge-sm badge-error">{% trans "Неактивен" %}</span>
                                     {% endif %}
                                     {% if offer.show_countdown %}
-                                        <i class="fas fa-clock text-warning text-xs" title="{% trans 'Обратный отсчёт' %}"></i>
+                                        <span class="text-warning text-xs"><i class="fas fa-clock"></i> {% trans "Отсчёт" %}</span>
                                     {% endif %}
                                     <span class="text-xs text-base-content/50 flex items-center gap-1">
                                         <i class="fas fa-eye"></i> {{ offer.views_count }}
@@ -161,15 +161,9 @@
                             </td>
                             <td>
                                 <div class="flex items-center justify-end gap-1" x-data="offerActions('{% url 'offer_view' offer.uuid %}', '{{ offer.uuid }}')">
-                                    <button @click="copy($el)" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Копировать ссылку' %}">
-                                        <i class="fas fa-link text-xs"></i>
-                                    </button>
-                                    <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Открыть' %}">
-                                        <i class="fas fa-external-link-alt text-xs"></i>
-                                    </a>
-                                    <button @click="remove()" class="btn btn-ghost btn-xs btn-square text-error" title="{% trans 'Удалить' %}">
-                                        <i class="fas fa-trash text-xs"></i>
-                                    </button>
+                                    <button @click="copy($el)" class="btn btn-ghost btn-xs">{% trans "Ссылка" %}</button>
+                                    <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs">{% trans "Открыть" %}</a>
+                                    <button @click="remove()" class="btn btn-ghost btn-xs text-error">{% trans "Удалить" %}</button>
                                 </div>
                             </td>
                         </tr>
@@ -216,15 +210,9 @@
                                 <i class="fas fa-eye"></i> {{ offer.views_count }}
                             </span>
                             <div class="flex items-center gap-1">
-                                <button @click="copy($el)" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Копировать' %}">
-                                    <i class="fas fa-link text-xs"></i>
-                                </button>
-                                <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs btn-square" title="{% trans 'Открыть' %}">
-                                    <i class="fas fa-external-link-alt text-xs"></i>
-                                </a>
-                                <button @click="remove()" class="btn btn-ghost btn-xs btn-square text-error" title="{% trans 'Удалить' %}">
-                                    <i class="fas fa-trash text-xs"></i>
-                                </button>
+                                <button @click="copy($el)" class="btn btn-ghost btn-xs">{% trans "Ссылка" %}</button>
+                                <a href="{% url 'offer_detail' offer.uuid %}" class="btn btn-ghost btn-xs">{% trans "Открыть" %}</a>
+                                <button @click="remove()" class="btn btn-ghost btn-xs text-error">{% trans "Удалить" %}</button>
                             </div>
                         </div>
                     </div>

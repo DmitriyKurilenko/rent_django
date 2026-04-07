@@ -19,6 +19,24 @@ def dummy_task():
     return "Celery работает!"
 
 
+@shared_task(bind=True, max_retries=2)
+def send_telegram_notification(self, text):
+    """Отправка уведомления в Telegram (async через Celery)."""
+    from boats.telegram import send_telegram_message
+    try:
+        ok = send_telegram_message(text)
+        if not ok:
+            logger.warning('[Telegram task] send_telegram_message returned False')
+        return {'status': 'sent' if ok else 'skipped'}
+    except Exception as exc:
+        logger.exception('[Telegram task] Error')
+        try:
+            raise self.retry(exc=exc, countdown=30)
+        except self.MaxRetriesExceededError:
+            logger.warning('[Telegram task] Max retries exceeded')
+            return {'status': 'failed'}
+
+
 @shared_task(bind=True, max_retries=3)
 def parse_boat_detail(self, boat_slug):
     """

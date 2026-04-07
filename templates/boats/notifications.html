@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Уведомления" %}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex flex-col md:flex-row gap-4">
+        {% include 'includes/lk_sidebar.html' with active_page='notifications' %}
+
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="text-3xl font-bold">
+                    <i class="fas fa-bell"></i> {% trans "Уведомления" %}
+                </h1>
+                {% if notifications %}
+                <form method="POST" action="{% url 'notifications_mark_all_read' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn btn-ghost btn-sm">
+                        <i class="fas fa-check-double"></i> {% trans "Прочитать все" %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+
+            {% if notifications %}
+            <div class="flex flex-col gap-2">
+                {% for n in notifications %}
+                <div class="card bg-base-100 shadow-sm {% if not n.is_read %}border-l-4 border-primary{% endif %}">
+                    <div class="card-body py-3 px-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="min-w-0">
+                                <p class="text-sm {% if not n.is_read %}font-semibold{% endif %}">{{ n.message }}</p>
+                                <p class="text-xs text-base-content/50 mt-1">{{ n.created_at|date:"d.m.Y H:i" }}</p>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                {% if n.booking %}
+                                <a href="{% url 'my_bookings' %}" class="btn btn-ghost btn-xs">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                                {% endif %}
+                                {% if not n.is_read %}
+                                <form method="POST" action="{% url 'notification_mark_read' n.pk %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit" class="btn btn-ghost btn-xs" title="{% trans 'Прочитано' %}">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12 text-base-content/50">
+                <i class="fas fa-bell-slash text-4xl mb-3"></i>
+                <p>{% trans "Нет уведомлений" %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
