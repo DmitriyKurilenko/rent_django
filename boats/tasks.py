@@ -1,9 +1,7 @@
 """
 Celery tasks для асинхронного парсинга лодок
 """
-import json
 import logging
-import sys
 import time
 from celery import shared_task, chord, group
 from boats.parser import parse_boataround_url, download_and_save_image
@@ -41,19 +39,19 @@ def send_telegram_notification(self, text):
 def parse_boat_detail(self, boat_slug):
     """
     Парсит детали одной лодки и сохраняет в БД
-    
+
     Args:
         boat_slug: Slug лодки (например, 'excess-11-ad-astra')
-    
+
     Returns:
         dict: Результат парсинга
     """
     try:
         logger.info(f"[Celery] Парсю лодку: {boat_slug}")
-        
+
         url = f'https://www.boataround.com/ru/yachta/{boat_slug}/'
         result = parse_boataround_url(url, save_to_db=True)
-        
+
         if result:
             logger.info(f"[Celery] ✅ Успешно спарсена: {boat_slug}")
             return {
@@ -68,10 +66,10 @@ def parse_boat_detail(self, boat_slug):
                 'slug': boat_slug,
                 'reason': 'Parser returned None'
             }
-            
+
     except Exception as exc:
         logger.error(f"[Celery] ❌ Ошибка парсинга {boat_slug}: {exc}")
-        
+
         # Retry с exponential backoff
         try:
             raise self.retry(exc=exc, countdown=60)
@@ -88,44 +86,44 @@ def parse_boat_detail(self, boat_slug):
 def parse_boats_batch(self, boat_slugs):
     """
     Парсит батч лодок (группа из ~50 лодок)
-    
+
     Args:
         boat_slugs: List[str] - список slug'ов лодок
-        
+
     Returns:
         dict: Статистика парсинга
     """
     total = len(boat_slugs)
     success = 0
     failed = 0
-    
+
     logger.info(f"[Celery] 📦 Начинаю парсинг батча из {total} лодок")
-    
+
     for idx, slug in enumerate(boat_slugs, 1):
         try:
             result = parse_boat_detail(slug)
-            
+
             if result['status'] == 'success':
                 success += 1
             else:
                 failed += 1
-            
+
             # Логируем прогресс каждые 10 лодок
             if idx % 10 == 0:
                 logger.info(
                     f"[Celery] 🔄 Батч прогресс: {idx}/{total} "
                     f"(успешно: {success}, ошибок: {failed})"
                 )
-                
+
         except Exception as e:
             failed += 1
             logger.error(f"[Celery] Ошибка в батче при парсинге {slug}: {e}")
-    
+
     logger.info(
-        f"[Celery] ✅ Батч завершен! "
+        "[Celery] ✅ Батч завершен! "
         f"Успешно: {success}, Ошибок: {failed}, Всего: {total}"
     )
-    
+
     return {
         'status': 'completed',
         'total': total,
@@ -242,20 +240,20 @@ def update_parsed_boats():
     from boats.models import ParsedBoat
     from django.utils import timezone
     from datetime import timedelta
-    
+
     # Обновляем лодки которые парсили более 7 дней назад
     cutoff_date = timezone.now() - timedelta(days=7)
     old_boats = ParsedBoat.objects.filter(last_parsed__lt=cutoff_date)[:1000]
-    
+
     logger.info(f"[Celery] 🔄 Обновляю {old_boats.count()} старых лодок")
-    
+
     task_ids = []
     for boat in old_boats:
         task = parse_boat_detail.delay(boat.slug)
         task_ids.append(task.id)
-    
+
     logger.info(f"[Celery] 📤 Отправлено {len(task_ids)} задач на обновление")
-    
+
     return {
         'status': 'queued',
         'count': len(task_ids),
@@ -296,7 +294,7 @@ def send_contract_notification(contract_id):
     logger.info(
         f'[Celery] 📧 Уведомление о договоре {contract.contract_number} '
         f'для {contract.contract_data.get("signer_email", "n/a")} — '
-        f'EMAIL не настроен, пропускаю отправку'
+        'EMAIL не настроен, пропускаю отправку'
     )
     return {'status': 'skipped', 'reason': 'email not configured'}
 
@@ -323,7 +321,11 @@ def _job_log(job_id, message):
         logger.warning(f'[parse_job] Не удалось записать лог для job {job_id}')
 
 
-CACHE_DIR = __import__('pathlib').Path(__import__('django.conf', fromlist=['settings']).settings.BASE_DIR) / '.parse_cache'
+CACHE_DIR = (
+    __import__('pathlib').Path(
+        __import__('django.conf', fromlist=['settings']).settings.BASE_DIR
+    ) / '.parse_cache'
+)
 
 
 def _cache_path(destination, max_pages):
@@ -478,7 +480,7 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
             )
             return api_lang, (r or {}).get('boats', [])
 
-        other_langs = [l for l in SUPPORTED_API_LANGS if l != 'en_EN']
+        other_langs = [lang for lang in SUPPORTED_API_LANGS if lang != 'en_EN']
         boats_by_lang = {'en_EN': results.get('boats', [])}
 
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -498,7 +500,11 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
                     continue
                 api_meta_by_lang.setdefault(api_lang, {})[lang_slug] = {
                     'title': boat_lang.get('title', ''),
-                    'location': boat_lang.get('location', '') or boat_lang.get('region', '') or boat_lang.get('country', ''),
+                    'location': (
+                        boat_lang.get('location', '')
+                        or boat_lang.get('region', '')
+                        or boat_lang.get('country', '')
+                    ),
                     'marina': boat_lang.get('marina', ''),
                     'country': boat_lang.get('country', ''),
                     'region': boat_lang.get('region', ''),
@@ -617,7 +623,7 @@ def process_api_batch(self, job_id_hex, batch_slugs, api_meta_subset, api_meta_b
 @shared_task(bind=True, max_retries=1)
 def process_html_batch(self, job_id_hex, batch_slugs, thumb_map_subset):
     """Парсит батч лодок через HTML. Обновляет ParseJob атомарно."""
-    from boats.models import ParseJob, ParsedBoat
+    from boats.models import ParseJob
     from django.db.models import F
 
     job_id_hex = str(job_id_hex)
@@ -725,18 +731,18 @@ def finalize_parse_job(self, results, job_id_hex):
     summary_lines = [
         f'Задание: {job.get_mode_display()}',
         f'Направление: {job.destination or "все"}',
-        f'---',
-        f'Slug\'ов: {job.total_slugs}',
+        '---',
+        'Slug\'ов: {job.total_slugs}',
         f'Обработано: {job.processed}',
         f'Успешно: {job.success}',
         f'Ошибок: {job.failed}',
         f'Пропущено: {job.skipped}',
-        f'---',
+        '---',
         f'Батчей: {job.batches_done}/{job.total_batches}',
         f'Время: {int(duration)}с ({duration / 60:.1f} мин)',
         f'Скорость: {rate:.1f}/с',
-        f'---',
-        f'БД итого:',
+        '---',
+        'БД итого:',
         f'  ParsedBoat: {db_stats["parsed_boats"]}',
         f'  Фото: {db_stats["photos"]}',
         f'  Описания: {db_stats["descriptions"]}',
@@ -744,7 +750,7 @@ def finalize_parse_job(self, results, job_id_hex):
         f'  Тех. спеки: {db_stats["specs"]}',
     ]
     if errors_count > 0:
-        summary_lines.append(f'---')
+        summary_lines.append('---')
         summary_lines.append(f'Первые ошибки ({min(errors_count, 10)} из {errors_count}):')
         for err in job.errors[:10]:
             if isinstance(err, dict):
@@ -773,7 +779,6 @@ def run_parse_job(self, job_id_hex, no_cache=False):
     """Оркестратор: собирает slug'и, разбивает на батчи, запускает Celery chord."""
     from boats.models import ParseJob, ParsedBoat
     from django.utils import timezone
-    from django.db.models import F
 
     job_id_hex = str(job_id_hex)
 
@@ -787,7 +792,7 @@ def run_parse_job(self, job_id_hex, no_cache=False):
     job.started_at = timezone.now()
     job.celery_task_id = self.request.id or ''
     job.save(update_fields=['status', 'started_at', 'celery_task_id'])
-    _job_log(job_id_hex, f'Начат сбор slug\'ов (mode={job.mode}, dest={job.destination or "все"})')
+    _job_log(job_id_hex, 'Начат сбор slug\'ов (mode={job.mode}, dest={job.destination or "все"})')
 
     # Глушим спам парсера в Celery-воркере
     logging.getLogger('boats.parser').setLevel(logging.WARNING)
@@ -801,12 +806,12 @@ def run_parse_job(self, job_id_hex, no_cache=False):
             job_id=job_id_hex,
             no_cache=no_cache,
         )
-    except Exception as exc:
+    except Exception:
         job.status = 'failed'
         job.finished_at = timezone.now()
-        job.summary = f'Ошибка сбора slug\'ов: {exc}'
+        job.summary = 'Ошибка сбора slug\'ов'
         job.save(update_fields=['status', 'finished_at', 'summary'])
-        _job_log(job_id_hex, f'FAIL: сбор slug\'ов — {exc}')
+        _job_log(job_id_hex, 'FAIL: сбор slug\'ов')
         return
 
     # Проверяем отмену после сбора

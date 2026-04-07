@@ -2,11 +2,8 @@
 Генерация PDF договоров из HTML-шаблонов через WeasyPrint.
 """
 import hashlib
-import io
 import logging
-import os
 
-from django.conf import settings
 from django.core.files.base import ContentFile
 from django.template import Template, Context
 from django.utils import timezone
@@ -35,7 +32,8 @@ DEFAULT_AGENT_RENTAL_TEMPLATE = """
     .signature-line { border-bottom: 1px solid #333; width: 200px; display: inline-block; margin-top: 30px; }
     .section { margin: 15px 0; }
     .highlight { background-color: #f9f9f9; padding: 10px; border-left: 3px solid #2196F3; margin: 10px 0; }
-    .footer { text-align: center; font-size: 9px; color: #999; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; }
+    .footer { text-align: center; font-size: 9px; color: #999;
+             margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; }
 </style>
 </head>
 <body>
@@ -75,7 +73,10 @@ DEFAULT_AGENT_RENTAL_TEMPLATE = """
 <table>
 <tr><th>Яхта</th><td>{{ boat_title }}</td></tr>
 <tr><th>Локация</th><td>{{ boat_location }}</td></tr>
-{% if boat_manufacturer %}<tr><th>Производитель / Модель</th><td>{{ boat_manufacturer }} {{ boat_model }}</td></tr>{% endif %}
+{% if boat_manufacturer %}
+<tr><th>Производитель / Модель</th>
+<td>{{ boat_manufacturer }} {{ boat_model }}</td></tr>
+{% endif %}
 {% if boat_year %}<tr><th>Год выпуска</th><td>{{ boat_year }}</td></tr>{% endif %}
 <tr><th>Период аренды</th><td>{{ check_in }} — {{ check_out }} ({{ rental_days }} дн.)</td></tr>
 <tr><th>Стоимость аренды</th><td>{{ total_price }} {{ currency }}</td></tr>

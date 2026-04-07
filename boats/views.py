@@ -10,13 +10,19 @@ from django.utils.translation import get_language, gettext as _
 from django.utils import timezone
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from .models import Boat, Favorite, Booking, Review, Offer, ParsedBoat, BoatDescription, BoatDetails, Contract, ContractTemplate, Client, ContractOTP, BoatTechnicalSpecs, Notification
-from .forms import SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm, ContractCreateForm, ContractSignForm, ClientForm
+from .models import (
+    Boat, Favorite, Booking, Review, Offer, ParsedBoat,
+    Contract, ContractTemplate, Client, ContractOTP,
+    BoatTechnicalSpecs, Notification,
+)
+from .forms import (
+    SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm,
+    ContractCreateForm, ContractSignForm, ClientForm,
+)
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
 from .pricing import resolve_live_or_fallback_price
 from .notifications import notify_new_booking, notify_status_change
-from django.views.decorators.cache import cache_page
 import logging
 
 logger = logging.getLogger(__name__)
@@ -79,7 +85,7 @@ def home(request):
     """Главная страница"""
     form = SearchForm(request.GET or None)
     featured_boats = Boat.objects.filter(available=True)[:6]
-    
+
     destinations = [
         {'name': 'Греция', 'emoji': '🇬🇷', 'count': 3451},
         {'name': 'Хорватия', 'emoji': '🇭🇷', 'count': 2847},
@@ -88,7 +94,7 @@ def home(request):
         {'name': 'Испания', 'emoji': '🇪🇸', 'count': 1654},
         {'name': 'Италия', 'emoji': '🇮🇹', 'count': 1842},
     ]
-    
+
     context = {
         'form': form,
         'featured_boats': featured_boats,
@@ -102,23 +108,23 @@ def boat_search(request):
     from boats.boataround_api import BoataroundAPI, format_boat_data
     from django.core.cache import cache
     import logging
-    
+
     logger = logging.getLogger(__name__)
-    
+
     # Получаем параметры поиска
     destination = request.GET.get('destination', request.GET.get('location', '')).strip()
     destination_display = _localized_destination_display(destination)
     category = request.GET.get('category', request.GET.get('boat_type', '')).strip()
     check_in = request.GET.get('check_in', request.GET.get('checkIn', '')).strip()
     check_out = request.GET.get('check_out', request.GET.get('checkOut', '')).strip()
-    
+
     # Новые фильтры
     cabins = request.GET.get('cabins', '').strip()
     year_from = request.GET.get('year_from', '').strip()
     year_to = request.GET.get('year_to', '').strip()
     price_from = request.GET.get('price_from', '').strip()
     price_to = request.GET.get('price_to', '').strip()
-    
+
     try:
         page = int(request.GET.get('page', 1))
     except (ValueError, TypeError):
@@ -136,8 +142,8 @@ def boat_search(request):
     else:
         saved_sort = request.session.get(sort_session_key, 'rank')
         sort = saved_sort if saved_sort in allowed_sorts else 'rank'
-    
-    logger.info(f"[Search View] ============== NEW SEARCH ==============")
+
+    logger.info("[Search View] ============== NEW SEARCH ==============")
     logger.info(f"[Search View] destination='{destination}'")
     logger.info(f"[Search View] category='{category}'")
     logger.info(f"[Search View] check_in='{check_in}'")
@@ -146,10 +152,10 @@ def boat_search(request):
     logger.info(f"[Search View] year={year_from}-{year_to}")
     logger.info(f"[Search View] price={price_from}-{price_to}")
     logger.info(f"[Search View] page={page}")
-    
+
     # Пустой контекст если нет локации
     if not destination:
-        logger.warning(f"[Search View] No destination provided!")
+        logger.warning("[Search View] No destination provided!")
         context = {
             'boats': [],
             'total_results': 0,
@@ -170,11 +176,11 @@ def boat_search(request):
             'search_query_str': '',
         }
         return render(request, 'boats/search.html', context)
-    
+
     try:
         # Запрос к API boataround
-        logger.info(f"[Search View] Calling BoataroundAPI.search...")
-        
+        logger.info("[Search View] Calling BoataroundAPI.search...")
+
         # Формируем year параметр для API
         year_param = None
         if year_from and year_to:
@@ -183,7 +189,7 @@ def boat_search(request):
             year_param = f"{year_from}-"
         elif year_to:
             year_param = f"-{year_to}"
-        
+
         # Формируем price параметр для API
         price_param = None
         if price_from and price_to:
@@ -192,7 +198,7 @@ def boat_search(request):
             price_param = f"{price_from}-"
         elif price_to:
             price_param = f"-{price_to}"
-        
+
         # Формат cabins для API: "4-" означает "4 или больше"
         cabins_param = None
         if cabins:
@@ -200,7 +206,7 @@ def boat_search(request):
                 cabins_param = "5-"  # 5+ кают
             else:
                 cabins_param = f"{cabins}-"  # N или больше кают
-        
+
         search_results = BoataroundAPI.search(
             destination=destination,
             category=category if category else None,
@@ -214,9 +220,14 @@ def boat_search(request):
             sort=sort,
             lang=_request_api_lang(request),
         )
-        
-        logger.info(f"[Search View] API returned: boats={len(search_results.get('boats', []))}, total={search_results.get('total', 0)}, pages={search_results.get('totalPages', 0)}")
-        
+
+        logger.info(
+            f"[Search View] API returned: "
+            f"boats={len(search_results.get('boats', []))}, "
+            f"total={search_results.get('total', 0)}, "
+            f"pages={search_results.get('totalPages', 0)}"
+        )
+
         # Форматируем данные лодок
         from boats.models import Favorite, ParsedBoat
 
@@ -294,7 +305,10 @@ def boat_search(request):
                 )
 
                 if slug and check_in and check_out:
-                    key = f"search_price_consensus:{slug}:{check_in}:{check_out}:{formatted_boat.get('currency', 'EUR')}"
+                    key = (
+                        f"search_price_consensus:{slug}:{check_in}:"
+                        f"{check_out}:{formatted_boat.get('currency', 'EUR')}"
+                    )
                     state = cache.get(key) or {}
                     current = _snapshot_from_boat(formatted_boat)
                     confirmed = state.get('confirmed')
@@ -343,10 +357,18 @@ def boat_search(request):
                     cache.set(key, state, 60 * 60 * 6)
 
                     formatted_boat['price'] = display.get('price', formatted_boat.get('price', 0))
-                    formatted_boat['old_price'] = display.get('old_price', formatted_boat.get('old_price', 0))
-                    formatted_boat['discount_percent'] = display.get('discount_percent', formatted_boat.get('discount_percent', 0))
-                    formatted_boat['price_per_day'] = display.get('price_per_day', formatted_boat.get('price_per_day', 0))
-                    formatted_boat['currency'] = display.get('currency', formatted_boat.get('currency', 'EUR'))
+                    formatted_boat['old_price'] = display.get(
+                        'old_price', formatted_boat.get('old_price', 0))
+                    formatted_boat['discount_percent'] = display.get(
+                        'discount_percent',
+                        formatted_boat.get('discount_percent', 0),
+                    )
+                    formatted_boat['price_per_day'] = display.get(
+                        'price_per_day',
+                        formatted_boat.get('price_per_day', 0),
+                    )
+                    formatted_boat['currency'] = display.get(
+                        'currency', formatted_boat.get('currency', 'EUR'))
                     if display.get('price_breakdown'):
                         formatted_boat['price_breakdown'] = display['price_breakdown']
 
@@ -357,24 +379,24 @@ def boat_search(request):
                 # Добавляем информацию об избранном
                 formatted_boat['is_favorite'] = formatted_boat.get('slug') in favorite_slugs
                 boats.append(formatted_boat)
-                
+
                 # (Кэш лодок в поиске отключён для ускорения)
-                    
+
             except Exception as e:
                 logger.warning(f"[Search View] Failed to format boat: {e}")
                 continue
-        
+
         logger.info(f"[Search View] Successfully formatted {len(boats)} boats")
-        
+
         # Подготавливаем контекст для шаблона
         total_pages = search_results.get('totalPages', 0)
         total_results = search_results.get('total', 0)
-        
+
         # Безопасность: проверяем что page не больше total_pages
         if total_pages > 0 and page > total_pages:
             page = total_pages
             logger.warning(f"[Search View] Page {page} exceeded total pages {total_pages}, adjusting")
-        
+
         # Строка параметров для пагинации
         query_params = {}
         if destination:
@@ -398,7 +420,7 @@ def boat_search(request):
         if sort:
             query_params['sort'] = sort
         search_query_str = "&" + urlencode(query_params) if query_params else ""
-        
+
         # ⭐ Расчет количества дней аренды
         rental_days = None
         if check_in and check_out:
@@ -411,7 +433,7 @@ def boat_search(request):
                     rental_days = None
             except (ValueError, TypeError):
                 rental_days = None
-        
+
         # Вычисляем номера страниц для пагинации (все как int)
         previous_page = int(page - 1)
         next_page = int(page + 1)
@@ -419,7 +441,7 @@ def boat_search(request):
         page_minus_1 = int(page - 1)
         page_plus_1 = int(page + 1)
         page_plus_2 = int(page + 2)
-        
+
         context = {
             'boats': boats,
             'total_results': total_results,
@@ -444,21 +466,25 @@ def boat_search(request):
             'search_query_str': search_query_str,
             **_price_visibility_flags(request.user),
         }
-        
-        logger.info(f"[Search View] Final context: boats={len(boats)}, total_pages={total_pages}, page={page}, has_next={context['has_next']}")
-        
+
+        logger.info(
+            f"[Search View] Final context: boats={len(boats)}, "
+            f"total_pages={total_pages}, page={page}, "
+            f"has_next={context['has_next']}"
+        )
+
         response = render(request, 'boats/search.html', context)
         # Отключаем кеширование для динамических результатов поиска
         response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response['Pragma'] = 'no-cache'
         response['Expires'] = '0'
         return response
-        
+
     except Exception as e:
         logger.error(f"[Search View] Error during search: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        
+
         context = {
             'boats': [],
             'total_results': 0,
@@ -480,7 +506,6 @@ def boat_search(request):
             **_price_visibility_flags(request.user),
         }
         return render(request, 'boats/search.html', context)
-
 
 
 def autocomplete_api(request):
@@ -687,21 +712,21 @@ def boat_detail(request, pk):
     boat = get_object_or_404(Boat, pk=pk)
     is_favorite = False
     user_review = None
-    
+
     if request.user.is_authenticated:
         is_favorite = Favorite.objects.filter(user=request.user, boat=boat).exists()
         user_review = Review.objects.filter(boat=boat, user=request.user).first()
-    
+
     # Средний рейтинг
     avg_rating = boat.reviews.aggregate(Avg('rating'))['rating__avg']
     reviews = boat.reviews.all()[:5]
-    
+
     # Похожие лодки
     similar_boats = Boat.objects.filter(
         boat_type=boat.boat_type,
         available=True
     ).exclude(pk=pk)[:3]
-    
+
     context = {
         'boat': boat,
         'is_favorite': is_favorite,
@@ -738,7 +763,10 @@ def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU', force_refr
         boat_id = raw_boat.get('_id') or raw_boat.get('id', '')
         parsed_boat, _ = ParsedBoat.objects.get_or_create(
             slug=boat_slug,
-            defaults={'boat_id': boat_id or boat_slug, 'source_url': f'https://www.boataround.com/ru/yachta/{boat_slug}/'}
+            defaults={
+                'boat_id': boat_id or boat_slug,
+                'source_url': f'https://www.boataround.com/ru/yachta/{boat_slug}/',
+            }
         )
         _ensure_api_metadata_for_boat(parsed_boat, raw_boat)
 
@@ -835,7 +863,10 @@ def boat_detail_api(request, boat_id):
             except (ValueError, TypeError):
                 rental_days = None
 
-        logger.info(f"[Boat Detail] check_in={check_in}, check_out={check_out}, days={rental_days}, has_url_dates={has_url_dates}")
+        logger.info(
+            f"[Boat Detail] check_in={check_in}, check_out={check_out}, "
+            f"days={rental_days}, has_url_dates={has_url_dates}"
+        )
 
         # Получаем текущий язык
         current_lang = get_language()
@@ -887,7 +918,11 @@ def boat_detail_api(request, boat_id):
                         parsed_boat.save(update_fields=['charter'])
                         # Инвалидируем кэш, чтобы _charter_commission обновилась
                         cache.delete(f'boat_data:{boat_id}:{db_lang}')
-                        logger.info(f"[Boat Detail] Auto-linked charter for {parsed_boat.slug}: {charter_obj.name} ({charter_obj.commission}%)")
+                        logger.info(
+                            f"[Boat Detail] Auto-linked charter for "
+                            f"{parsed_boat.slug}: {charter_obj.name} "
+                            f"({charter_obj.commission}%)"
+                        )
             except Exception as charter_err:
                 logger.warning(f"[Boat Detail] Failed to auto-link charter for {parsed_boat.slug}: {charter_err}")
 
@@ -956,7 +991,10 @@ def boat_detail_api(request, boat_id):
                 'gallery': [g.cdn_url for g in gallery],
 
                 'extras': details.extras if details else [],
-                'additional_services': [s for s in (details.additional_services or []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS] if details else [],
+                'additional_services': [
+                    s for s in (details.additional_services or [])
+                    if s.get('slug') not in HIDDEN_SERVICE_SLUGS
+                ] if details else [],
                 'delivery_extras': details.delivery_extras if details else [],
                 'not_included': details.not_included if details else [],
                 'cockpit': details.cockpit if details else [],
@@ -1062,12 +1100,12 @@ def boat_detail_api(request, boat_id):
 
         logger.info(f"[Boat Detail] Rendering: {boat_dict.get('name', 'Unknown')}")
         return render(request, 'boats/detail.html', context)
-        
+
     except Exception as e:
         logger.error(f"[Boat Detail] Error loading boat {boat_id}: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        
+
         return render(request, 'boats/detail.html', {
             'boat': None,
             'error': f'Ошибка: {str(e)}',
@@ -1079,18 +1117,18 @@ def toggle_favorite(request, boat_slug):
     """Добавление/удаление из избранного (JSON API для Alpine.js)"""
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
-    
+
     # Get or create ParsedBoat
     parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
-    
+
     if not parsed_boat:
         return JsonResponse({'error': 'Лодка не найдена'}, status=404)
-    
+
     boat_id = parsed_boat.boat_id
-    
+
     # Try to find existing favorite
     favorite = Favorite.objects.filter(user=request.user, boat_slug=boat_slug).first()
-    
+
     if favorite:
         # Remove from favorites
         favorite.delete()
@@ -1104,7 +1142,7 @@ def toggle_favorite(request, boat_slug):
             boat_id=boat_id
         )
         is_favorite = True
-    
+
     return JsonResponse({
         'success': True,
         'is_favorite': is_favorite,
@@ -1119,40 +1157,44 @@ def favorites_list(request):
         'parsed_boat',
         'parsed_boat__technical_specs',
     ).prefetch_related('parsed_boat__descriptions', 'parsed_boat__gallery').order_by('-created_at')
-    
+
     # Prepare favorites data for template
     favorites_data = []
     for fav in favorites:
         if not fav.parsed_boat:
             continue
-            
+
         pb = fav.parsed_boat
         boat_info = {}
         image_url = None
-        
+
         # Try to get data from boat_data first
         if pb.boat_data:
             boat_info = pb.boat_data.get('boat_info', {})
             images = pb.boat_data.get('images', [])
             image_url = images[0].get('thumb') if images else None
-        
+
         # Get description (multilingual)
         lang = get_language().replace('-', '_')
         description = pb.descriptions.filter(language=lang).first()
         if not description:
             description = pb.descriptions.first()
-        
+
         # Get specs
         specs = pb.technical_specs if hasattr(pb, 'technical_specs') else None
-        
+
         # Get gallery image if no image from boat_data
         if not image_url:
             gallery_img = pb.gallery.first()
             image_url = gallery_img.cdn_url if gallery_img else None
-        
+
         # Build title
-        title = boat_info.get('title') or (description.title if description else None) or f"{pb.manufacturer} {pb.model}".strip()
-        
+        title = (
+            boat_info.get('title')
+            or (description.title if description else None)
+            or f"{pb.manufacturer} {pb.model}".strip()
+        )
+
         favorites_data.append({
             'favorite': fav,
             'slug': fav.boat_slug,
@@ -1167,7 +1209,7 @@ def favorites_list(request):
             'image_url': image_url,
             'created_at': fav.created_at,
         })
-    
+
     context = {
         'favorites': favorites,
         'favorites_data': favorites_data,
@@ -1179,26 +1221,26 @@ def favorites_list(request):
 def create_booking(request, pk):
     """Создание бронирования"""
     boat = get_object_or_404(Boat, pk=pk)
-    
+
     if request.method == 'POST':
         form = BookingForm(request.POST, boat=boat)
         if form.is_valid():
             booking = form.save(commit=False)
             booking.boat = boat
             booking.user = request.user
-            
+
             # Расчет цены
             days = (booking.end_date - booking.start_date).days
             booking.total_price = boat.price_per_day * days
-            
+
             booking.save()
-            
+
             messages.success(request, 'Бронирование создано! Ожидайте подтверждения.')
             notify_new_booking(booking, request.user)
             return redirect('boat_detail', pk=pk)
     else:
         form = BookingForm(boat=boat)
-    
+
     context = {
         'form': form,
         'boat': boat,
@@ -1402,8 +1444,8 @@ def assign_booking_manager(request, booking_id):
     elif action == 'assign' and request.user.profile.can_assign_managers():
         manager_id = request.POST.get('manager_id')
         if manager_id:
-            from accounts.models import UserProfile
-            manager = get_object_or_404(User, id=manager_id, profile__role_ref__codename='manager')
+            from django.contrib.auth.models import User as AuthUser
+            manager = get_object_or_404(AuthUser, id=manager_id, profile__role_ref__codename='manager')
             booking.assigned_manager = manager
             booking.save(update_fields=['assigned_manager', 'updated_at'])
             messages.success(request, f'Менеджер {manager.get_full_name() or manager.username} назначен')
@@ -1469,16 +1511,16 @@ def delete_booking(request, booking_id):
     if not request.user.profile.can_delete_bookings():
         messages.error(request, 'У вас нет прав для удаления бронирований')
         return redirect('my_bookings')
-    
+
     booking = get_object_or_404(Booking, id=booking_id)
-    
+
     if request.method == 'POST':
         boat_title = booking.boat_title
         user_name = booking.user.username
         booking.delete()
         messages.success(request, f'Бронирование "{boat_title}" пользователя {user_name} удалено')
         return redirect('my_bookings')
-    
+
     return redirect('my_bookings')
 
 
@@ -1488,12 +1530,12 @@ def manage_boats(request):
     if not request.user.profile.can_manage_boats():
         messages.error(request, 'У вас нет прав для доступа к этой странице')
         return redirect('home')
-    
+
     if request.user.profile.is_admin_role:
         boats = Boat.objects.all()
     else:
         boats = Boat.objects.filter(owner=request.user)
-    
+
     context = {
         'boats': boats,
     }
@@ -1506,7 +1548,7 @@ def create_boat(request):
     if not request.user.profile.can_manage_boats():
         messages.error(request, 'У вас нет прав для создания лодок')
         return redirect('home')
-    
+
     if request.method == 'POST':
         form = BoatForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1517,7 +1559,7 @@ def create_boat(request):
             return redirect('manage_boats')
     else:
         form = BoatForm()
-    
+
     context = {
         'form': form,
     }
@@ -1528,18 +1570,18 @@ def create_boat(request):
 def add_review(request, pk):
     """Добавление отзыва"""
     boat = get_object_or_404(Boat, pk=pk)
-    
+
     # Проверка, что пользователь бронировал эту лодку
     has_booking = Booking.objects.filter(
         boat=boat,
         user=request.user,
         status='completed'
     ).exists()
-    
+
     if not has_booking:
         messages.error(request, 'Вы можете оставить отзыв только после завершенного бронирования')
         return redirect('boat_detail', pk=pk)
-    
+
     if request.method == 'POST':
         form = ReviewForm(request.POST)
         if form.is_valid():
@@ -1556,7 +1598,7 @@ def add_review(request, pk):
             return redirect('boat_detail', pk=pk)
     else:
         form = ReviewForm()
-    
+
     context = {
         'form': form,
         'boat': boat,
@@ -1572,22 +1614,22 @@ def add_review(request, pk):
 def offers_stats_api(request):
     """API endpoint для получения актуальной статистики офферов"""
     from django.http import JsonResponse
-    
+
     if not request.user.profile.can_create_offers():
         return JsonResponse({'error': 'Forbidden'}, status=403)
-    
+
     if request.user.profile.can_see_all_bookings():
         offers = Offer.objects.all()
     else:
         offers = Offer.objects.filter(created_by=request.user)
-    
+
     offers_data = []
     for offer in offers:
         offers_data.append({
             'uuid': str(offer.uuid),
             'views_count': offer.views_count,
         })
-    
+
     return JsonResponse({
         'offers': offers_data
     })
@@ -1597,43 +1639,43 @@ def offers_stats_api(request):
 def offers_list_api(request):
     """API endpoint для получения списка офферов"""
     from django.http import JsonResponse
-    
+
     if not request.user.profile.can_create_offers():
         return JsonResponse({'error': 'Forbidden'}, status=403)
-    
+
     if request.user.profile.can_see_all_bookings():
         offers = Offer.objects.all()
     else:
         offers = Offer.objects.filter(created_by=request.user)
-    
+
     # Prepare offers data for Alpine.js
     from boats.helpers import get_offer_boat_data
     from urllib.parse import urlparse
-    
+
     offers_data = []
     for offer in offers:
         # Извлекаем slug из URL
         parsed_url = urlparse(offer.source_url)
         url_parts = parsed_url.path.strip('/').split('/')
         slug = url_parts[-1] if url_parts else None
-        
+
         # Получаем данные лодки из новой структуры или старого boat_data
         if slug:
             boat_data = get_offer_boat_data(slug)
         else:
             boat_data = offer.boat_data or {}
-        
+
         # Get first image from CDN
         pictures = boat_data.get('pictures', [])
         first_image = None
         if pictures:
             first_image = pictures[0]
-        
+
         title = offer.title or boat_data.get('title') or boat_data.get('boat_info', {}).get('title', 'Без названия')
-        
+
         # Получаем количество гостей из max_sleeps лодки
         guests = boat_data.get('max_sleeps', boat_data.get('berths', 0))
-        
+
         offers_data.append({
             'uuid': str(offer.uuid),
             'title': title,
@@ -1650,7 +1692,7 @@ def offers_list_api(request):
             'created_at': offer.created_at.isoformat(),
             'image': first_image,
         })
-    
+
     return JsonResponse({'offers': offers_data})
 
 
@@ -1774,7 +1816,10 @@ def _build_boat_data_from_db(parsed_boat):
         'images': list(parsed_boat.gallery.values_list('cdn_url', flat=True)),
         # Детали (extras, equipment и т.д.)
         'extras': details.extras if details else [],
-        'additional_services': [s for s in (details.additional_services or []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS],
+        'additional_services': [
+            s for s in (details.additional_services or [])
+            if s.get('slug') not in HIDDEN_SERVICE_SLUGS
+        ],
         'delivery_extras': details.delivery_extras if details else [],
         'not_included': details.not_included if details else [],
         'cockpit': details.cockpit if details else [],
@@ -1852,10 +1897,10 @@ def create_offer(request):
         if form is not None:
             return render(request, 'boats/create_offer.html', {'form': form})
         return redirect('home')
-    
+
     if not request.user.profile.can_create_offers():
         return ajax_error('У вас нет прав для создания офферов', status=403)
-    
+
     if request.method == 'POST':
         form = OfferForm(request.POST, user=request.user)
         if form.is_valid():
@@ -1867,17 +1912,17 @@ def create_offer(request):
 
             if offer_type == 'captain' and not request.user.profile.can_create_captain_offers():
                 return ajax_error('У вас нет прав для создания агентского оффера', form=form)
-            
+
             # Извлекаем slug из URL используя регулярное выражение
             # Поддерживает URLs вида: /ru/yachta/{slug}/ с query параметрами
             import re
             slug_pattern = re.compile(r'/(?:boat|yachta)/([^/?#]+)')
             slug_match = slug_pattern.search(source_url)
             slug = slug_match.group(1) if slug_match else None
-            
+
             if not slug:
                 return ajax_error('Не удалось извлечь информацию о лодке из URL. Проверьте формат URL.', form=form)
-            
+
             force_refresh = request.POST.get('force_refresh') == 'true'
             parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(slug, 'ru_RU', force_refresh=force_refresh)
             if parse_error:
@@ -1886,12 +1931,12 @@ def create_offer(request):
 
             boat_data = _build_boat_data_from_db(parsed_boat)
             logger.info(f'[Create Offer] Boat data from DB for {slug}')
-            
+
             # Извлекаем даты из source_url или формы
             import re
             check_in_match = re.search(r'checkIn=(\d{4}-\d{2}-\d{2})', source_url, re.IGNORECASE)
             check_out_match = re.search(r'checkOut=(\d{4}-\d{2}-\d{2})', source_url, re.IGNORECASE)
-            
+
             if check_in_match and check_out_match:
                 check_in = check_in_match.group(1)
                 check_out = check_out_match.group(1)
@@ -1904,13 +1949,16 @@ def create_offer(request):
                     check_out = check_out_date.strftime('%Y-%m-%d')
                 else:
                     return ajax_error('Укажите даты заезда и выезда', form=form)
-            
+
             charter = parsed_boat.charter if parsed_boat else None
 
             rental_days = None
             try:
                 rental_days = max(
-                    (datetime.strptime(check_out, '%Y-%m-%d').date() - datetime.strptime(check_in, '%Y-%m-%d').date()).days,
+                    (
+                        datetime.strptime(check_out, '%Y-%m-%d').date()
+                        - datetime.strptime(check_in, '%Y-%m-%d').date()
+                    ).days,
                     1
                 )
             except (ValueError, TypeError):
@@ -1938,12 +1986,12 @@ def create_offer(request):
                 f"[Create Offer] Unified price quote source={quote.get('source')} slug={slug} "
                 f"base={api_price} discount={api_discount}% total={api_total_price}"
             )
-            
+
             # Сохраняем в boat_data для шаблона
             boat_data['price'] = api_price
             boat_data['discount'] = api_discount
             boat_data['totalPrice'] = api_total_price
-            
+
             # Создаем оффер
             offer = form.save(commit=False)
             offer.created_by = request.user
@@ -1956,9 +2004,10 @@ def create_offer(request):
             if requested_branding_mode == 'custom_branding' and not request.user.profile.can_use_custom_branding():
                 requested_branding_mode = 'default'
             offer.branding_mode = requested_branding_mode
-            
+
             # Конвертируем Decimal в float для JSON сохранения
             from decimal import Decimal
+
             def convert_decimals(obj):
                 """Конвертирует Decimal в float рекурсивно"""
                 if isinstance(obj, dict):
@@ -1968,14 +2017,14 @@ def create_offer(request):
                 elif isinstance(obj, Decimal):
                     return float(obj)
                 return obj
-            
+
             boat_data_json = convert_decimals(boat_data)
-            
+
             # Убеждаемся что boat_data_json это словарь
             if not isinstance(boat_data_json, dict):
                 logger.error(f"boat_data_json is not a dict: {type(boat_data_json)}")
                 return ajax_error('Ошибка: неправильный формат данных лодки', form=form)
-            
+
             # Нормализуем структуру для консистентности
             # Убедимся что есть поле 'images' для шаблона
             if 'images' not in boat_data_json and 'pictures' in boat_data_json:
@@ -1984,7 +2033,7 @@ def create_offer(request):
                 boat_data_json['images'] = boat_data_json['gallery']
             if 'images' not in boat_data_json:
                 boat_data_json['images'] = []
-            
+
             if boat_data_json.get('description'):
                 boat_data_json['description'] = _strip_last_sentence(boat_data_json['description'])
             offer.boat_data = boat_data_json
@@ -1993,15 +2042,15 @@ def create_offer(request):
             # Проверяем что они установлены
             if not offer.check_in or not offer.check_out:
                 return ajax_error('Пожалуйста укажите даты заезда и выезда', form=form)
-            
+
             # Цены из boat_data с расчётом по логике
             from boats.helpers import calculate_tourist_price
-            
+
             # Расчитываем цену из API (не из базы!)
             if offer_type == 'tourist':
                 # Берём значение has_meal из формы
                 has_meal = form.cleaned_data.get('has_meal', False)
-                
+
                 price_info = calculate_tourist_price(
                     boat_data=boat_data,
                     check_in=offer.check_in,
@@ -2025,25 +2074,31 @@ def create_offer(request):
                 offer.original_price = None
                 offer.discount = api_discount
                 offer.has_meal = False
-            
+
             # Корректировка цены (наценка или скидка)
-            from decimal import Decimal
             price_adjustment = form.cleaned_data.get('price_adjustment') or Decimal('0')
             if price_adjustment:
                 offer.price_adjustment = price_adjustment
                 offer.total_price = Decimal(str(offer.total_price)) + Decimal(str(price_adjustment))
-                logger.info(f'[Create Offer] Price adjustment: {price_adjustment}, adjusted total: {offer.total_price}')
+                logger.info(
+                    f'[Create Offer] Price adjustment: {price_adjustment}, '
+                    f'adjusted total: {offer.total_price}'
+                )
 
-            logger.info(f'[Create Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}')
+            logger.info(
+                f'[Create Offer] Final offer prices - '
+                f'total_price: {offer.total_price}, '
+                f'discount: {offer.discount}'
+            )
 
             offer.currency = boat_data.get('currency', 'EUR')
-            
+
             # Заголовок — производитель + модель (например "Bali 4.2")
             if not offer.title:
                 manufacturer = boat_data.get('manufacturer', '')
                 model = boat_data.get('model', '')
                 offer.title = ' '.join(filter(None, [manufacturer, model])) or boat_data.get('title', 'Аренда яхты')
-            
+
             # Сохраняем оффер
             # Привязка клиента
             client_id = request.POST.get('client_id')
@@ -2053,10 +2108,10 @@ def create_offer(request):
                 except (Client.DoesNotExist, ValueError):
                     pass
             offer.save()
-            
+
             offer_type_label = 'капитанский' if offer.is_captain_offer() else 'туристический'
             messages.success(request, f'✓ {offer_type_label.capitalize()} оффер успешно создан! UUID: {offer.uuid}')
-            
+
             # Если это AJAX запрос - возвращаем JSON с UUID
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 from django.urls import reverse
@@ -2082,9 +2137,9 @@ def create_offer(request):
         prefill = request.session.pop('prefill_offer', None)
         if prefill:
             initial_data = prefill
-        
+
         form = OfferForm(user=request.user, initial=initial_data)
-    
+
     context = {
         'form': form,
     }
@@ -2097,10 +2152,10 @@ def offer_detail(request, uuid):
     data_error = _hydrate_offer_boat_data_if_needed(offer)
     if data_error:
         logger.error(f"[Offer Detail] {data_error} offer={offer.uuid}")
-    
+
     # Увеличиваем счетчик просмотров
     offer.increment_views()
-    
+
     # Вычисляем отображаемую скидку от исходной цены в boat_data
     display_old_price = 0
     display_discount_percent = 0
@@ -2305,7 +2360,7 @@ def _build_price_debug(offer):
         # шаги
         'api_total': api_total,
         'insurance': insurance,
-        'insurance_formula': f'max({api_total} × {round(insurance_rate*100,1)}%, {insurance_min})',
+        'insurance_formula': f'max({api_total} × {round(insurance_rate * 100, 1)}%, {insurance_min})',
         'extra_cabins': extra_cabins,
         'extra_cabins_formula': f'{extra_cabins_count} × {double_cabin_extra}' if extra_cabins else '—',
         'price_captain': price_captain,
@@ -2334,10 +2389,10 @@ def _build_price_debug(offer):
 def offer_view(request, uuid):
     """Просмотр оффера клиентом (требуется регистрация)"""
     offer = get_object_or_404(Offer, uuid=uuid, is_active=True)
-    
+
     # Увеличиваем счетчик просмотров
     offer.increment_views()
-    
+
     # Подготавливаем данные для шаблона
     from boats.helpers import HIDDEN_SERVICE_SLUGS
     boat_data = offer.boat_data
@@ -2345,13 +2400,16 @@ def offer_view(request, uuid):
     prices = boat_data.get('prices', {})
     pictures = boat_data.get('pictures', [])
     extras = boat_data.get('extras', [])
-    additional_services = [s for s in boat_data.get('additional_services', []) if s.get('slug') not in HIDDEN_SERVICE_SLUGS]
+    additional_services = [
+        s for s in boat_data.get('additional_services', [])
+        if s.get('slug') not in HIDDEN_SERVICE_SLUGS
+    ]
     not_included = boat_data.get('not_included', [])
     delivery_extras = boat_data.get('delivery_extras', [])
-    
+
     # Формируем полные URL для картинок
     full_images = [get_full_image_url(pic) for pic in pictures]
-    
+
     context = {
         'offer': offer,
         'boat_info': boat_info,
@@ -2375,10 +2433,10 @@ def offer_view(request, uuid):
         'can_view_internal_notes': request.user == offer.created_by,
         'can_book_from_offer': request.user == offer.created_by or request.user.profile.can_see_all_bookings(),
     }
-    
+
     # Выбираем шаблон в зависимости от типа оффера
     template_name = offer.get_template_name()
-    
+
     return render(request, template_name, context)
 
 
@@ -2386,27 +2444,27 @@ def offer_view(request, uuid):
 def delete_offer(request, uuid):
     """Удаление оффера"""
     from django.http import JsonResponse
-    
+
     offer = get_object_or_404(Offer, uuid=uuid)
-    
+
     # Проверка прав
     if not (request.user == offer.created_by or request.user.profile.can_delete_offers()):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'error': 'У вас нет прав для удаления этого оффера'}, status=403)
         messages.error(request, 'У вас нет прав для удаления этого оффера')
         return redirect('offers_list')
-    
+
     if request.method == 'POST':
         offer.delete()
-        
+
         # Если это AJAX запрос, вернуть JSON
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'success': True, 'message': 'Оффер удален'})
-        
+
         # Иначе перенаправить
         messages.success(request, 'Оффер удален')
         return redirect('offers_list')
-    
+
     return render(request, 'boats/offer_confirm_delete.html', {'offer': offer})
 
 
@@ -2415,14 +2473,14 @@ def quick_create_offer(request, boat_slug):
     """Создание оффера напрямую по slug и датам"""
     import logging
     logger = logging.getLogger(__name__)
-    
+
     if request.method != 'POST':
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     if not request.user.profile.can_create_offers():
         messages.error(request, 'Нет прав')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     check_in = request.GET.get('check_in', '')
     check_out = request.GET.get('check_out', '')
     offer_type = request.POST.get('offer_type', 'captain')
@@ -2438,14 +2496,17 @@ def quick_create_offer(request, boat_slug):
     if offer_type not in ['captain', 'tourist']:
         messages.error(request, 'Некорректный тип оффера')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     if not check_in or not check_out:
         messages.error(request, 'Укажите даты')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     try:
         # Формируем source_url
-        source_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/?checkIn={check_in}&checkOut={check_out}&currency=EUR'
+        source_url = (
+            f'https://www.boataround.com/ru/yachta/{boat_slug}/'
+            f'?checkIn={check_in}&checkOut={check_out}&currency=EUR'
+        )
 
         parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(boat_slug, 'ru_RU')
         if parse_error:
@@ -2454,7 +2515,7 @@ def quick_create_offer(request, boat_slug):
             return redirect('boat_detail_api', boat_id=boat_slug)
         boat_data = _build_boat_data_from_db(parsed_boat)
         logger.info(f'[Quick Offer] Boat data from DB for {boat_slug}')
-        
+
         rental_days = None
         try:
             rental_days = max(
@@ -2485,12 +2546,12 @@ def quick_create_offer(request, boat_slug):
             f"[Quick Offer] Unified price quote source={quote.get('source')} slug={boat_slug} "
             f"base={api_price} discount={api_discount}% total={api_total_price}"
         )
-        
+
         # Сохраняем в boat_data для шаблона
         boat_data['price'] = api_price
         boat_data['discount'] = api_discount
         boat_data['totalPrice'] = api_total_price
-        
+
         # Создаем оффер
         offer = Offer()
         offer.created_by = request.user
@@ -2504,9 +2565,10 @@ def quick_create_offer(request, boat_slug):
         offer.branding_mode = requested_branding_mode
         offer.check_in = datetime.strptime(check_in, '%Y-%m-%d').date()
         offer.check_out = datetime.strptime(check_out, '%Y-%m-%d').date()
-        
+
         # Конвертируем Decimal в float
         from decimal import Decimal
+
         def convert_decimals(obj):
             if isinstance(obj, dict):
                 return {k: convert_decimals(v) for k, v in obj.items()}
@@ -2515,9 +2577,9 @@ def quick_create_offer(request, boat_slug):
             elif isinstance(obj, Decimal):
                 return float(obj)
             return obj
-        
+
         boat_data_json = convert_decimals(boat_data)
-        
+
         if 'images' not in boat_data_json and 'pictures' in boat_data_json:
             boat_data_json['images'] = boat_data_json['pictures']
         if 'images' not in boat_data_json and 'gallery' in boat_data_json:
@@ -2531,7 +2593,7 @@ def quick_create_offer(request, boat_slug):
 
         # Рассчитываем цену из API (не из базы!)
         from boats.helpers import calculate_tourist_price
-        
+
         if offer_type == 'tourist':
             has_meal = request.POST.get('has_meal', '') == 'on'
             price_info = calculate_tourist_price(
@@ -2556,33 +2618,40 @@ def quick_create_offer(request, boat_slug):
             offer.original_price = None
             offer.discount = api_discount
             offer.has_meal = False
-        
+
         # Корректировка цены
-        from decimal import Decimal
         price_adjustment = Decimal(str(request.POST.get('price_adjustment', 0) or 0))
         if price_adjustment:
             offer.price_adjustment = price_adjustment
             offer.total_price = Decimal(str(offer.total_price)) + price_adjustment
 
-        logger.info(f'[Quick Offer] Final offer prices - total_price: {offer.total_price}, discount: {offer.discount}, adjustment: {price_adjustment}')
+        logger.info(
+            f'[Quick Offer] Final offer prices - '
+            f'total_price: {offer.total_price}, '
+            f'discount: {offer.discount}, '
+            f'adjustment: {price_adjustment}'
+        )
 
         offer.currency = boat_data.get('currency', 'EUR')
         manufacturer = boat_data.get('manufacturer', '')
         model = boat_data.get('model', '')
-        offer.title = ' '.join(filter(None, [manufacturer, model])) or boat_data.get('title', f'Аренда яхты {boat_slug}')
-        
+        offer.title = (
+            ' '.join(filter(None, [manufacturer, model]))
+            or boat_data.get('title', f'Аренда яхты {boat_slug}')
+        )
+
         client_id = request.POST.get('client_id')
         if client_id:
             try:
                 offer.client = Client.objects.get(pk=int(client_id), created_by=request.user)
             except (Client.DoesNotExist, ValueError, TypeError):
                 pass
-        
+
         offer.save()
-        
-        messages.success(request, f'✅ Оффер создан!')
+
+        messages.success(request, '✅ Оффер создан!')
         return redirect('offer_detail', uuid=offer.uuid)
-        
+
     except Exception as e:
         logger.error(f"Ошибка создания оффера: {e}", exc_info=True)
         messages.error(request, f'Ошибка: {str(e)}')
@@ -2593,18 +2662,18 @@ def quick_create_offer(request, boat_slug):
 def book_offer(request, uuid):
     """Создание бронирования из оффера (только автор оффера или менеджер)"""
     offer = get_object_or_404(Offer, uuid=uuid)
-    
+
     # Только автор оффера или менеджер могут создать бронирование из оффера
     if not (request.user == offer.created_by or request.user.profile.can_see_all_bookings()):
         messages.error(request, 'Бронирование из оффера доступно только автору оффера или менеджеру')
         return redirect('offer_detail', uuid=uuid)
-    
+
     # Проверяем, что бронирование еще не создано этим пользователем
     existing_booking = Booking.objects.filter(offer=offer, user=request.user).first()
     if existing_booking:
         messages.info(request, 'Вы уже забронировали эту лодку')
         return redirect('my_bookings')
-    
+
     if request.method == 'POST':
         # Создаем бронирование
         booking = Booking.objects.create(
@@ -2619,12 +2688,12 @@ def book_offer(request, uuid):
             message=request.POST.get('message', ''),
             client=offer.client,
         )
-        
+
         logger.info(f'[Booking] Created booking {booking.id} for user {request.user.username} - offer {offer.uuid}')
         notify_new_booking(booking, request.user)
         messages.success(request, '✅ Бронирование создано! Ожидайте подтверждения от менеджера.')
         return redirect('my_bookings')
-    
+
     # GET - показываем форму подтверждения
     context = {
         'offer': offer,
@@ -2635,24 +2704,24 @@ def book_offer(request, uuid):
 @login_required
 def book_boat(request, boat_slug):
     """Создание бронирования напрямую из страницы лодки (для туристов)"""
-    
+
     # Проверяем, что пользователь может бронировать
     if not request.user.profile.can_book_boats():
         messages.error(request, 'У вас нет прав для создания бронирования')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     if request.method != 'POST':
         messages.error(request, 'Неверный метод запроса')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     # Получаем даты из GET параметров
     check_in_str = request.GET.get('check_in')
     check_out_str = request.GET.get('check_out')
-    
+
     if not check_in_str or not check_out_str:
         messages.error(request, 'Пожалуйста, укажите даты')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     try:
         from datetime import datetime
         check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
@@ -2660,10 +2729,10 @@ def book_boat(request, boat_slug):
     except ValueError:
         messages.error(request, 'Неверный формат даты')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     # Получаем данные лодки из кэша
     parsed_boat = get_object_or_404(ParsedBoat, slug=boat_slug)
-    
+
     # Единый расчет цены (API -> fallback DB), как в detail/offers.
     current_lang = get_language()
     lang_map = {
@@ -2695,7 +2764,7 @@ def book_boat(request, boat_slug):
         )
         messages.error(request, 'Не удалось рассчитать стоимость бронирования. Попробуйте позже.')
         return redirect('boat_detail_api', boat_id=boat_slug)
-    
+
     # Создаем бронирование БЕЗ копирования данных - используем связь
     booking = Booking.objects.create(
         offer=None,
@@ -2708,7 +2777,7 @@ def book_boat(request, boat_slug):
         status='pending',
         message=''
     )
-    
+
     logger.info(f'[Booking] Created direct booking {booking.id} for user {request.user.username} - boat {boat_slug}')
     notify_new_booking(booking, request.user)
     messages.success(request, '✅ Бронирование создано! Ожидайте подтверждения от менеджера.')
@@ -2805,7 +2874,10 @@ def create_contract(request, booking_id):
         initial = {
             'signer_full_name': (client.full_name if client else None) or user.get_full_name() or user.username,
             'signer_email': (client.email if client else None) or user.email,
-            'signer_phone': (client.phone if client else None) or (getattr(user, 'profile', None) and user.profile.phone or ''),
+            'signer_phone': (
+                (client.phone if client else None)
+                or (getattr(user, 'profile', None) and user.profile.phone or '')
+            ),
             'signer_passport': (client.passport_number if client else '') or '',
             'signer_address': (client.address if client else '') or '',
             'agent_full_name': request.user.get_full_name() or request.user.username,
@@ -2989,7 +3061,11 @@ def sign_contract(request, uuid, sign_token):
     from django.template import Template, Context
     from .contract_generator import DEFAULT_AGENT_RENTAL_TEMPLATE
 
-    template_str = contract.template.template_content if contract.template and contract.template.template_content else DEFAULT_AGENT_RENTAL_TEMPLATE
+    template_str = (
+        contract.template.template_content
+        if contract.template and contract.template.template_content
+        else DEFAULT_AGENT_RENTAL_TEMPLATE
+    )
     ctx = build_contract_context(contract)
     contract_html = Template(template_str).render(Context(ctx))
 

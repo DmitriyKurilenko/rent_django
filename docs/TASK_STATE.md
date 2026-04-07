@@ -4,6 +4,14 @@ Last updated: 2026-04-07 (Europe/Moscow)
 
 ## Current priorities
 
+### P0.3: PEP 8 compliance
+- Status: **DONE (2026-04-07)**
+- Full flake8 audit: 835 violations found across 18 core `.py` files (max-line-length=120).
+- Phase 1: auto whitespace cleanup (646 fixes via autopep8).
+- Phase 2: manual fixes — unused imports (21), empty f-strings (33), bare except (12), undefined names (1), redefined imports (3), unused vars (2), ambiguous names (1), indentation (3), spacing (1).
+- Phase 3: long line wrapping (67 E501 fixes).
+- Result: **0 violations** across all 18 files. `manage.py check` — 0 issues.
+
 ### P0.1: Price breakdown visibility leak to captain
 - Status: **DONE (2026-04-07)**
 - `show_price_debug` in `my_bookings` had `'captain'` in role list — captains saw full breakdown.

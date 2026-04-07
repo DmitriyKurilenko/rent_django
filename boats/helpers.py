@@ -11,25 +11,25 @@ HIDDEN_SERVICE_SLUGS = {'flexible-cancellation', 'flexible_cancellation'}
 def apply_charter_commission(price, charter):
     """
     Применить комиссию чартерной компании к цене
-    
+
     Args:
         price: Базовая цена (float или int)
         charter: Charter instance или None
-        
+
     Returns:
         float: Цена с учетом комиссии
     """
     if not charter or not price:
         return float(price) if price else 0
-    
+
     commission_rate = float(charter.commission) if charter.commission else 0
-    
+
     if commission_rate == 0:
         return float(price)
-    
+
     # Добавляем комиссию к цене: price * (1 + commission/100)
     final_price = float(price) * (1 + commission_rate / 100)
-    
+
     return final_price
 
 
@@ -42,23 +42,23 @@ def calculate_final_price_with_discounts(base_price, discount_without_extra, add
     final_price = base_price * (1 - total_discount / 100)
 
     extra_discount применяется если additional_discount < commission чартера.
-    
+
     Args:
         base_price: Базовая цена (float)
         discount_without_extra: Скидка без дополнительных бонусов (%)
         additional_discount: Дополнительная скидка (%)
         charter: Charter instance или None
-        
+
     Returns:
         float: Финальная цена
     """
     if not base_price:
         return 0
-    
+
     price = float(base_price)
-    
+
     total_discount = float(discount_without_extra or 0) + float(additional_discount or 0)
-    
+
     # Условная дополнительная скидка
     commission = float(charter.commission) if charter and charter.commission else 0
     additional_discount_val = float(additional_discount) if additional_discount else 0
@@ -73,22 +73,22 @@ def calculate_final_price_with_discounts(base_price, discount_without_extra, add
     if additional_discount_val < commission:
         extra_discount = min(extra_discount_max, commission)
         total_discount += extra_discount
-    
+
     if total_discount:
         price = price * (1 - total_discount / 100)
-    
+
     return price
 
 
 def get_boat_from_cache(boat_id=None, slug=None):
     """
     Получить лодку из кэша по boat_id или slug
-    
+
     Returns:
         ParsedBoat или None
     """
     from boats.models import ParsedBoat
-    
+
     try:
         if boat_id:
             return ParsedBoat.objects.get(boat_id=boat_id)
@@ -96,24 +96,24 @@ def get_boat_from_cache(boat_id=None, slug=None):
             return ParsedBoat.objects.get(slug=slug)
     except ParsedBoat.DoesNotExist:
         return None
-    
+
     return None
 
 
 def get_or_create_charter(charter_name, charter_id=None, charter_logo=None):
     """
     Получить или создать чартерную компанию
-    
+
     Args:
         charter_name: Название чартера
         charter_id: ID чартера (опционально)
         charter_logo: Путь к логотипу (опционально)
-        
+
     Returns:
         Charter instance или None
     """
     from boats.models import Charter
-    
+
     # Поддерживаем разные форматы из API: строка или объект
     if isinstance(charter_name, dict):
         charter_data = charter_name
@@ -138,13 +138,13 @@ def get_or_create_charter(charter_name, charter_id=None, charter_logo=None):
     charter_name = str(charter_name).strip()
     if not charter_name:
         return None
-    
+
     # Используем charter_name как charter_id если ID не указан
     if not charter_id:
         charter_id = charter_name.lower().replace(' ', '-')
     else:
         charter_id = str(charter_id).strip()
-    
+
     charter, created = Charter.objects.get_or_create(
         charter_id=charter_id,
         defaults={
@@ -153,29 +153,29 @@ def get_or_create_charter(charter_name, charter_id=None, charter_logo=None):
             'commission': 20,  # По умолчанию 20%
         }
     )
-    
+
     # Обновляем логотип если он изменился
     if not created and charter_logo and charter.logo != charter_logo:
         charter.logo = charter_logo
         charter.save(update_fields=['logo'])
-    
+
     return charter
 
 
 def is_cache_fresh(parsed_boat, max_age_hours=24):
     """
     Проверить, свежий ли кэш
-    
+
     Args:
         parsed_boat: ParsedBoat instance
         max_age_hours: Максимальный возраст кэша в часах
-        
+
     Returns:
         bool: True если кэш свежий
     """
     if not parsed_boat:
         return False
-    
+
     age = timezone.now() - parsed_boat.last_parsed
     return age < timedelta(hours=max_age_hours)
 
@@ -183,20 +183,20 @@ def is_cache_fresh(parsed_boat, max_age_hours=24):
 def save_to_cache(boat_data, boat_id, slug):
     """
     Сохранить данные лодки в кэш
-    
+
     Args:
         boat_data: dict с данными лодки
         boat_id: ID лодки
         slug: slug лодки
-        
+
     Returns:
         ParsedBoat instance
     """
     from boats.models import ParsedBoat
-    
+
     # Извлекаем базовую информацию для быстрого поиска
     boat_info = boat_data.get('boat_info', {})
-    
+
     # Извлекаем информацию о чартере
     charter_name = boat_data.get('charter') or boat_info.get('charter')
     charter_logo = boat_data.get('charter_logo') or boat_info.get('charter_logo')
@@ -219,12 +219,12 @@ def save_to_cache(boat_data, boat_id, slug):
             or ''
         )
         charter_id_raw = charter_id_raw or charter_data.get('_id') or charter_data.get('id')
-    
+
     # Создаем/получаем чартера если есть данные
     charter = None
     if charter_name:
         charter = get_or_create_charter(charter_name, charter_id_raw, charter_logo)
-    
+
     # Проверяем существующий parse_count
     existing = ParsedBoat.objects.filter(boat_id=boat_id).first()
     if not existing and slug:
@@ -234,7 +234,7 @@ def save_to_cache(boat_data, boat_id, slug):
     charter_to_save = charter or (existing.charter if existing else None)
 
     new_parse_count = (existing.parse_count + 1) if existing else 1
-    
+
     parsed_boat, created = ParsedBoat.objects.update_or_create(
         boat_id=boat_id,
         defaults={
@@ -250,26 +250,26 @@ def save_to_cache(boat_data, boat_id, slug):
             'last_parse_success': True,
         }
     )
-    
+
     return parsed_boat
 
 
 def get_boat_data_from_cache_or_parse(url, boat_id=None, slug=None, force_refresh=False, max_cache_age_hours=24):
     """
     Получить данные лодки из кэша или спарсить
-    
+
     Args:
         url: URL для парсинга
         boat_id: ID лодки (опционально)
         slug: slug лодки (опционально)
         force_refresh: bool - игнорировать кэш
         max_cache_age_hours: int - максимальный возраст кэша
-        
+
     Returns:
         dict: boat_data с флагом from_cache
     """
     from boats.parser import parse_boataround_url
-    
+
     # Попытка получить из кэша
     if not force_refresh:
         if boat_id:
@@ -278,15 +278,15 @@ def get_boat_data_from_cache_or_parse(url, boat_id=None, slug=None, force_refres
             cached = get_boat_from_cache(slug=slug)
         else:
             cached = None
-        
+
         if cached and is_cache_fresh(cached, max_cache_age_hours):
             boat_data = cached.boat_data.copy()
             boat_data['from_cache'] = True
             return boat_data
-    
+
     # Парсим заново
     boat_data = parse_boataround_url(url, save_to_db=False)
-    
+
     if boat_data:
         # Извлекаем boat_id и slug из URL
         if not boat_id or not slug:
@@ -297,26 +297,26 @@ def get_boat_data_from_cache_or_parse(url, boat_id=None, slug=None, force_refres
                 slug = parts[-1]
             if not boat_id:
                 boat_id = slug  # Используем slug как boat_id
-        
+
         # Сохраняем в кэш
         save_to_cache(boat_data, boat_id, slug)
         boat_data['from_cache'] = False
-    
+
     return boat_data
 
 
 def get_offer_boat_data(slug):
     """
     Получить данные о лодке для оффера из новой структуры.
-    
+
     Args:
         slug: Slug лодки
-        
+
     Returns:
         dict: Комбинированные данные о лодке для отображения
     """
     from boats.boataround_api import BoataroundAPI
-    
+
     boat_data = BoataroundAPI.get_boat_combined_data(slug)
     return boat_data or {}
 
@@ -346,7 +346,8 @@ def _resolve_country_config(cfg, country, location='', marina=''):
             # Direct match: needle exactly in alias list
             if needle in aliases:
                 return c
-            # Substring match: any alias appears inside the needle (e.g. "eden island marina" contains a potential alias)
+            # Substring match: any alias appears inside the needle
+            # (e.g. "eden island marina" contains a potential alias)
             for alias in aliases:
                 if alias in needle:
                     return c
@@ -358,14 +359,14 @@ def _resolve_country_config(cfg, country, location='', marina=''):
 def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False, discount=0):
     """
     Расчёт итоговой цены для туристического оффера (полная логика как в старом коде)
-    
+
     Args:
         boat_data: dict с данными лодки
         check_in: дата заезда (не используется в расчёте, только для информации)
         check_out: дата выезда (не используется в расчёте, только для информации)
         dish: bool - включено ли питание
         discount: float - дополнительная скидка/наценка
-        
+
     Returns:
         dict: {'total_price': float, 'original_price': float, 'discount': float, 'nights': int}
     """
@@ -464,7 +465,7 @@ def calculate_tourist_price(boat_data, check_in=None, check_out=None, dish=False
     # 8. Применение скидки/наценки
     if discount:
         total_price += discount
-    
+
     return {
         'total_price': round(total_price, 2),
         'original_price': round(full_price, 2),

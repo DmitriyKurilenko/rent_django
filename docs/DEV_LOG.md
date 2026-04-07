@@ -2,6 +2,14 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-07 — PEP 8 full compliance refactor (835 → 0 violations)
+- Problem: 835 flake8 violations across 18 core Python files (max-line-length=120). Mix of whitespace issues (646), unused imports (21), empty f-strings (33), bare except (12), long lines (67), and minor issues (F811, F821, F841, E741, E127/E128, E225).
+- Fix: 3-phase approach. Phase 1: autopep8 for auto-fixable whitespace (W291/W293/W391/E302/E303/E305/E306/E231/E226/E261). Phase 2: manual fixes for imports, f-strings, exception handling, variable naming, indentation. Phase 3: manual line-wrapping for all 67 E501 violations using idiomatic Python patterns.
+- Files (18): `boat_rental/settings.py`, `boat_rental/urls.py`, `boat_rental/celery.py`, `accounts/models.py`, `accounts/views.py`, `accounts/forms.py`, `boats/models.py`, `boats/views.py`, `boats/boataround_api.py`, `boats/parser.py`, `boats/tasks.py`, `boats/helpers.py`, `boats/forms.py`, `boats/admin.py`, `boats/pricing.py`, `boats/contract_generator.py`, `boats/sms.py`, `boats/notifications.py`
+- Validation: `flake8 --max-line-length=120` → 0 violations. `docker compose up -d --build` + `manage.py check` → 0 issues.
+- Key changes: bare `except:` replaced with `except (ValueError, TypeError):` for numeric conversions and `except Exception:` for ORM lookups in `boataround_api.py`; undefined `User` fixed with local `AuthUser` import in `views.py`; ambiguous `l` variable renamed to `lang` in `tasks.py`; redundant `Decimal`/`BoatDescription` re-imports removed; complex one-liner ternaries in `parser.py` refactored to if/elif blocks.
+- Risks: None. Pure code style changes, no behavior modification. All function signatures and return values unchanged.
+
 ## 2026-04-07 — Permission refactor Phase 2: eliminate all hardcoded role checks
 - Problem: 25+ hardcoded `profile.role == '...'` / `profile.role in (...)` checks in `boats/views.py` + 8 in templates. Some had bugs: `delete_booking` excluded superadmin, offers only visible to admin (not manager/superadmin), client views missed admin role.
 - Fix: Added 6 new permissions to `accounts/models.py`: `can_view_price_breakdown()`, `can_assign_managers()`, `can_delete_bookings()`, `can_delete_offers()`, `can_create_contracts()`, `can_view_all_clients()`. Migration `0008_add_granular_permissions.py` assigns to roles. Replaced all 25+ Python hardcodes and 8 template hardcodes with `can_*()` / `is_*` methods.

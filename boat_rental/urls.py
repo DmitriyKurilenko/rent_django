@@ -11,6 +11,7 @@ from boats.sitemaps import BoatSitemap, StaticSitemap
 def health_check(request):
     return JsonResponse({'status': 'ok'})
 
+
 # Sitemaps dictionary
 sitemaps = {
     'boats': BoatSitemap,
@@ -24,7 +25,7 @@ urlpatterns = [
     path('i18n/', include('django.conf.urls.i18n')),  # Language switcher
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
     path('robots.txt', lambda request: __import__('django.http').HttpResponse(
-        "User-agent: *\nDisallow: /admin/\nSitemap: /sitemap.xml\n", 
+        "User-agent: *\nDisallow: /admin/\nSitemap: /sitemap.xml\n",
         content_type="text/plain"
     )),
 ]
@@ -40,4 +41,3 @@ urlpatterns += i18n_patterns(
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-

@@ -8,7 +8,7 @@ from uuid import uuid4 as _uuid4
 
 class Charter(models.Model):
     """Чартерная компания"""
-    
+
     charter_id = models.CharField('ID чартера', max_length=100, unique=True, db_index=True)
     name = models.CharField('Название', max_length=200)
     logo = models.CharField('Логотип (путь)', max_length=500, blank=True)
@@ -17,7 +17,7 @@ class Charter(models.Model):
         default=20,
         help_text='Процент комиссии, добавляемый к итоговой цене'
     )
-    
+
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
 
@@ -26,7 +26,7 @@ class Charter(models.Model):
     rank_place = models.IntegerField('Место в рейтинге', null=True, blank=True)
     rank_out_of = models.IntegerField('Всего в рейтинге', null=True, blank=True)
     rank_reviews_count = models.IntegerField('Кол-во отзывов', null=True, blank=True)
-    
+
     class Meta:
         verbose_name = 'Чартерная компания'
         verbose_name_plural = 'Чартерные компании'
@@ -34,14 +34,14 @@ class Charter(models.Model):
         indexes = [
             models.Index(fields=['charter_id']),
         ]
-    
+
     def __str__(self):
         return f"{self.name} (комиссия: {self.commission}%)"
 
 
 class Boat(models.Model):
     """Модель лодки"""
-    
+
     BOAT_TYPES = [
         ('sailboat', 'Парусная яхта'),
         ('motorboat', 'Моторная лодка'),
@@ -49,10 +49,10 @@ class Boat(models.Model):
         ('yacht', 'Яхта'),
         ('speedboat', 'Катер'),
     ]
-    
+
     owner = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
+        User,
+        on_delete=models.CASCADE,
         related_name='boats',
         verbose_name='Владелец',
         null=True,
@@ -68,36 +68,39 @@ class Boat(models.Model):
     price_per_day = models.DecimalField('Цена/день (₽)', max_digits=10, decimal_places=2)
     image = models.ImageField('Фото', upload_to='boats/', blank=True, null=True)
     available = models.BooleanField('Доступна', default=True)
-    
+
     # Дополнительные характеристики
     cabins = models.IntegerField('Кают', default=0)
     bathrooms = models.IntegerField('Санузлов', default=0)
     has_skipper = models.BooleanField('Шкипер', default=False)
-    
+
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
-    
+
     class Meta:
         verbose_name = 'Лодка'
         verbose_name_plural = 'Лодки'
         ordering = ['-created_at']
-    
+
     def __str__(self):
         return f"{self.name} - {self.location}"
-    
+
     def get_absolute_url(self):
         return reverse('boat_detail', kwargs={'pk': self.pk})
 
 
 class Favorite(models.Model):
     """Избранные лодки"""
-    
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorites')
-    parsed_boat = models.ForeignKey('ParsedBoat', on_delete=models.CASCADE, related_name='favorited_by', null=True, blank=True)
+    parsed_boat = models.ForeignKey(
+        'ParsedBoat', on_delete=models.CASCADE,
+        related_name='favorited_by', null=True, blank=True,
+    )
     boat_slug = models.CharField('Slug лодки', max_length=255, db_index=True, default='unknown', blank=True)
     boat_id = models.CharField('ID лодки', max_length=100, db_index=True, default='', blank=True)
     created_at = models.DateTimeField('Добавлено', auto_now_add=True)
-    
+
     class Meta:
         verbose_name = 'Избранное'
         verbose_name_plural = 'Избранное'
@@ -109,17 +112,20 @@ class Favorite(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['user', 'boat_slug'], name='unique_user_boat_slug'),
         ]
-    
+
     def __str__(self):
-        boat_title = self.parsed_boat.boat_data.get('boat_info', {}).get('title', 'Unknown') if self.parsed_boat else self.boat_slug
+        boat_title = (
+            self.parsed_boat.boat_data.get('boat_info', {}).get('title', 'Unknown')
+            if self.parsed_boat else self.boat_slug
+        )
         return f"{self.user.username} - {boat_title}"
-    
+
     def get_boat_title(self):
         """Получить название лодки из boat_data"""
         if self.parsed_boat and self.parsed_boat.boat_data:
             return self.parsed_boat.boat_data.get('boat_info', {}).get('title', self.boat_slug)
         return self.boat_slug
-    
+
     def get_boat_image(self):
         """Получить первое изображение лодки"""
         if self.parsed_boat and self.parsed_boat.boat_data:
@@ -200,7 +206,7 @@ class Client(models.Model):
 
 class Booking(models.Model):
     """Бронирование лодки"""
-    
+
     STATUS_CHOICES = [
         ('pending', 'Ожидает'),
         ('option', 'На опции'),
@@ -208,38 +214,41 @@ class Booking(models.Model):
         ('cancelled', 'Отменено'),
         ('completed', 'Завершено'),
     ]
-    
+
     # Старая связь (опциональная, для обратной совместимости)
     boat = models.ForeignKey(Boat, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
-    
+
     # Новая связь с оффером (основная)
     offer = models.ForeignKey('Offer', on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
-    
+
     # Ссылка на ParsedBoat для прямых бронирований
-    parsed_boat = models.ForeignKey('ParsedBoat', on_delete=models.SET_NULL, related_name='bookings', null=True, blank=True)
-    
+    parsed_boat = models.ForeignKey(
+        'ParsedBoat', on_delete=models.SET_NULL,
+        related_name='bookings', null=True, blank=True,
+    )
+
     # Пользователь (турист)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bookings')
-    
+
     # Даты
     start_date = models.DateField('Дата начала')
     end_date = models.DateField('Дата окончания')
     guests = models.IntegerField('Гостей', default=1)
-    
+
     # Статус
     status = models.CharField('Статус', max_length=20, choices=STATUS_CHOICES, default='pending')
     option_until = models.DateField('Опция действует до', null=True, blank=True)
-    
+
     # Цена
     total_price = models.DecimalField('Итого', max_digits=10, decimal_places=2)
     currency = models.CharField('Валюта', max_length=3, default='EUR')
-    
+
     # boat_data deprecated - используем связанные таблицы
     boat_data = models.JSONField('Данные лодки', default=dict)
-    
+
     # Сообщение от туриста
     message = models.TextField('Сообщение', blank=True)
-    
+
     # Клиент (турист)
     client = models.ForeignKey(
         'Client', on_delete=models.SET_NULL,
@@ -270,10 +279,10 @@ class Booking(models.Model):
             models.Index(fields=['offer']),
             models.Index(fields=['client']),
         ]
-    
+
     def __str__(self):
         return f"{self.boat_title} - {self.user.username} ({self.start_date})"
-    
+
     def get_parsed_boat(self):
         """Получить ParsedBoat из offer или напрямую"""
         if self.parsed_boat:
@@ -286,7 +295,7 @@ class Booking(models.Model):
             except ParsedBoat.DoesNotExist:
                 return None
         return None
-    
+
     @property
     def boat_title(self):
         """Название лодки из связанных таблиц"""
@@ -296,26 +305,26 @@ class Booking(models.Model):
             from django.utils.translation import get_language
             lang_map = {'ru': 'ru_RU', 'en': 'en_EN', 'de': 'de_DE', 'es': 'es_ES', 'fr': 'fr_FR'}
             lang = lang_map.get(get_language()[:2], 'en_EN')
-            
+
             description = parsed_boat.descriptions.filter(language=lang).first()
             if description:
                 return description.title
-        
+
         # Fallback на boat_data если есть
         if self.boat_data:
             title = self.boat_data.get('boat_info', {}).get('title', '')
             if title:
                 return title
-        
+
         # Fallback на offer.boat_data
         if self.offer and self.offer.boat_data:
             return self.offer.boat_data.get('boat_info', {}).get('title', '')
-        
+
         if self.boat:
             return self.boat.name
-        
+
         return 'Без названия'
-    
+
     @property
     def boat_image(self):
         """CDN превью или None (шаблон покажет заглушку).
@@ -326,7 +335,7 @@ class Booking(models.Model):
         if parsed_boat and parsed_boat.preview_cdn_url:
             return parsed_boat.preview_cdn_url
         return None
-    
+
     @property
     def location(self):
         """Локация из связанных таблиц - город, регион, страна"""
@@ -336,7 +345,7 @@ class Booking(models.Model):
             from django.utils.translation import get_language
             lang_map = {'ru': 'ru_RU', 'en': 'en_EN', 'de': 'de_DE', 'es': 'es_ES', 'fr': 'fr_FR'}
             lang = lang_map.get(get_language()[:2], 'en_EN')
-            
+
             description = parsed_boat.descriptions.filter(language=lang).first()
             if description:
                 # Формируем полную локацию: Marina / City, Region, Country
@@ -349,20 +358,20 @@ class Booking(models.Model):
                     parts.append(description.region)
                 if description.country:
                     parts.append(description.country)
-                
+
                 if parts:
                     return ', '.join(parts)
-        
+
         # Fallback на boat_data
         if self.boat_data:
             location = self.boat_data.get('boat_info', {}).get('location', '')
             if location:
                 return location
-        
+
         # Fallback на offer.boat_data
         if self.offer and self.offer.boat_data:
             return self.offer.boat_data.get('boat_info', {}).get('location', '')
-        
+
         return ''
 
 
@@ -399,13 +408,13 @@ class Notification(models.Model):
 
 class Review(models.Model):
     """Отзыв о лодке"""
-    
+
     boat = models.ForeignKey(Boat, on_delete=models.CASCADE, related_name='reviews')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews')
     rating = models.IntegerField('Оценка', choices=[(i, i) for i in range(1, 6)])
     comment = models.TextField('Комментарий')
     created_at = models.DateTimeField('Создано', auto_now_add=True)
-    
+
     class Meta:
         verbose_name = 'Отзыв'
         verbose_name_plural = 'Отзывы'
@@ -413,14 +422,14 @@ class Review(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['boat', 'user'], name='unique_boat_user_review'),
         ]
-    
+
     def __str__(self):
         return f"{self.boat.name} - {self.user.username} ({self.rating}★)"
 
 
 class Offer(models.Model):
     """Коммерческое предложение для клиента"""
-    
+
     OFFER_TYPE_CHOICES = [
         ('tourist', 'Туристический'),    # Красивый, упрощенный
         ('captain', 'Капитанский'),      # Детальный, вся информация
@@ -431,11 +440,11 @@ class Offer(models.Model):
         ('no_branding', 'Без брендинга'),
         ('custom_branding', 'Кастомный брендинг (заглушка)'),
     ]
-    
+
     # Идентификация
     uuid = models.UUIDField('UUID', default=uuid.uuid4, editable=False, unique=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_offers', verbose_name='Создал')
-    
+
     # Тип оффера
     offer_type = models.CharField(
         'Тип оффера',
@@ -453,7 +462,7 @@ class Offer(models.Model):
         default='default',
         help_text='Стандартный, без брендинга, или кастомный брендинг (заглушка)'
     )
-    
+
     # Клиент
     client = models.ForeignKey(
         'Client', on_delete=models.SET_NULL,
@@ -463,15 +472,18 @@ class Offer(models.Model):
     )
 
     # URL источника (используем TextField вместо URLField чтобы поддерживать длинные URLs с параметрами)
-    source_url = models.TextField('URL источника', max_length=2000, help_text='URL лодки с boataround.com (включает параметры checkIn и checkOut)')
-    
+    source_url = models.TextField(
+        'URL источника', max_length=2000,
+        help_text='URL лодки с boataround.com (включает параметры checkIn и checkOut)',
+    )
+
     # Даты
     check_in = models.DateField('Дата заезда')
     check_out = models.DateField('Дата выезда')
-    
+
     # Информация о лодке (JSON)
     boat_data = models.JSONField('Данные лодки', default=dict)
-    
+
     # Цены
     total_price = models.DecimalField('Итоговая цена', max_digits=10, decimal_places=2)
     original_price = models.DecimalField('Оригинальная цена', max_digits=10, decimal_places=2, null=True, blank=True)
@@ -486,7 +498,7 @@ class Offer(models.Model):
     title = models.CharField('Заголовок', max_length=300, blank=True)
     description = models.TextField('Описание', blank=True)
     notes = models.TextField('Заметки', blank=True, help_text='Внутренние заметки, не видны клиенту')
-    
+
     # 5 составляющих базовой цены (для туристического оффера)
     price_captain = models.DecimalField('Капитан', max_digits=10, decimal_places=2, default=0)
     price_fuel = models.DecimalField('Топливо', max_digits=10, decimal_places=2, default=0)
@@ -496,20 +508,20 @@ class Offer(models.Model):
 
     # Дополнительные услуги (для туристического оффера)
     has_meal = models.BooleanField('Включено питание', default=False, help_text='Только для туристических офферов')
-    
+
     # Настройки отображения
     show_countdown = models.BooleanField('Показать таймер', default=True)
     notifications = models.JSONField('Уведомления', default=list, blank=True)
-    
+
     # Метаданные
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
     expires_at = models.DateTimeField('Действителен до', null=True, blank=True)
-    
+
     # Статистика
     views_count = models.IntegerField('Просмотров', default=0)
     is_active = models.BooleanField('Активен', default=True)
-    
+
     class Meta:
         verbose_name = 'Оффер'
         verbose_name_plural = 'Офферы'
@@ -519,33 +531,37 @@ class Offer(models.Model):
             models.Index(fields=['offer_type']),
             models.Index(fields=['-created_at']),
         ]
-    
+
     def __str__(self):
-        return f"[{self.get_offer_type_display()}] {self.uuid} - {self.title or self.boat_data.get('boat_info', {}).get('title', 'Без названия')}"
-    
+        title = (
+            self.title
+            or self.boat_data.get('boat_info', {}).get('title', 'Без названия')
+        )
+        return f"[{self.get_offer_type_display()}] {self.uuid} - {title}"
+
     def is_tourist_offer(self):
         """Туристический оффер"""
         return self.offer_type == 'tourist'
-    
+
     def is_captain_offer(self):
         """Капитанский оффер"""
         return self.offer_type == 'captain'
-    
+
     def get_template_name(self):
         """Возвращает имя шаблона в зависимости от типа"""
         if self.is_captain_offer():
             return 'boats/offer_captain.html'
         return 'boats/offer_tourist.html'
-    
+
     def get_absolute_url(self):
         return reverse('offer_view', kwargs={'uuid': self.uuid})
-    
+
     def get_short_url(self):
         """Возвращает короткую ссылку"""
         from django.contrib.sites.models import Site
         domain = Site.objects.get_current().domain
         return f"https://{domain}/offer/{self.uuid}/"
-    
+
     def increment_views(self):
         """Увеличивает счетчик просмотров"""
         self.views_count += 1
@@ -554,35 +570,35 @@ class Offer(models.Model):
 
 class ParsedBoat(models.Model):
     """Основная информация о лодке с boataround.com"""
-    
+
     # Идентификация
     boat_id = models.CharField('ID лодки', max_length=100, unique=True, db_index=True)
     slug = models.CharField('Slug', max_length=200, db_index=True, unique=True)
     source_url = models.URLField('URL источника', max_length=500, blank=True)
-    
+
     # Чартерная компания
     charter = models.ForeignKey(
-        Charter, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        Charter,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         related_name='boats',
         verbose_name='Чартерная компания'
     )
-    
+
     # Базовая информация
     manufacturer = models.CharField('Производитель', max_length=100, blank=True)
     model = models.CharField('Модель', max_length=100, blank=True)
     year = models.IntegerField('Год выпуска', null=True, blank=True)
-    
+
     # Кэшированные данные парсинга
     boat_data = models.JSONField('Кэшированные данные', default=dict, blank=True)
-    
+
     # Метаданные
     last_parsed = models.DateTimeField('Последний парсинг', auto_now=True)
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
-    
+
     # Превью на CDN (для быстрой загрузки в поиске)
     preview_cdn_url = models.URLField('Превью на CDN', max_length=500, blank=True, default='')
 
@@ -613,38 +629,38 @@ class ParsedBoat(models.Model):
             models.Index(fields=['last_parsed']),
             models.Index(fields=['category_slug']),
         ]
-    
+
     def __str__(self):
         return f"{self.manufacturer} {self.model} ({self.boat_id})"
 
 
 class BoatTechnicalSpecs(models.Model):
     """Технические параметры лодки (для фильтрации)"""
-    
+
     boat = models.OneToOneField(ParsedBoat, on_delete=models.CASCADE, related_name='technical_specs')
-    
+
     # Размеры и параметры (индексированы для быстрого поиска)
     length = models.FloatField('Длина (м)', null=True, blank=True, db_index=True)
     beam = models.FloatField('Ширина (м)', null=True, blank=True)
     draft = models.FloatField('Осадка (м)', null=True, blank=True)
-    
+
     # Вместимость (индексированы)
     cabins = models.IntegerField('Кабины', null=True, blank=True, db_index=True)
     berths = models.IntegerField('Спальных мест (max)', null=True, blank=True, db_index=True)
     toilets = models.IntegerField('Туалеты', null=True, blank=True, db_index=True)
-    
+
     # Емкости
     fuel_capacity = models.IntegerField('Топливо (л)', null=True, blank=True)
     water_capacity = models.IntegerField('Вода (л)', null=True, blank=True)
     waste_capacity = models.IntegerField('Сточные воды (л)', null=True, blank=True)
-    
+
     # Двигатель
     max_speed = models.FloatField('Макс скорость (узлы)', null=True, blank=True)
     engine_power = models.IntegerField('Мощность (л.с.)', null=True, blank=True)
     number_engines = models.IntegerField('Количество двигателей', null=True, blank=True)
     engine_type = models.CharField('Тип двигателя', max_length=50, blank=True)
     fuel_type = models.CharField('Тип топлива', max_length=50, blank=True)
-    
+
     # Другое
     renovated_year = models.IntegerField('Год ремонта', null=True, blank=True)
     sail_renovated_year = models.IntegerField('Год ремонта парусов', null=True, blank=True)
@@ -660,18 +676,18 @@ class BoatTechnicalSpecs(models.Model):
     crew_sleeps = models.IntegerField('Спальных мест экипажа', null=True, blank=True)
     total_engine_power = models.IntegerField('Суммарная мощность (л.с.)', null=True, blank=True)
     cruising_consumption = models.FloatField('Расход на крейс. скорости', null=True, blank=True)
-    
+
     class Meta:
         verbose_name = 'Технические параметры'
         verbose_name_plural = 'Технические параметры'
-    
+
     def __str__(self):
         return f"{self.boat} - {self.length}м, {self.cabins} кабин"
 
 
 class BoatDescription(models.Model):
     """Описание лодки на разных языках"""
-    
+
     LANGUAGE_CHOICES = [
         ('ru_RU', 'Русский'),
         ('en_EN', 'English'),
@@ -686,10 +702,10 @@ class BoatDescription(models.Model):
         ('pl_PL', 'Polski'),
         ('tr_TR', 'Türkçe'),
     ]
-    
+
     boat = models.ForeignKey(ParsedBoat, on_delete=models.CASCADE, related_name='descriptions')
     language = models.CharField('Язык', max_length=10, choices=LANGUAGE_CHOICES)
-    
+
     title = models.CharField('Название', max_length=300)
     description = models.TextField('Описание')
     location = models.CharField('Локация', max_length=200, blank=True)
@@ -697,7 +713,7 @@ class BoatDescription(models.Model):
     country = models.CharField('Страна', max_length=100, blank=True)
     region = models.CharField('Регион/Область', max_length=100, blank=True)
     city = models.CharField('Город', max_length=100, blank=True)
-    
+
     class Meta:
         verbose_name = 'Описание'
         verbose_name_plural = 'Описания'
@@ -707,14 +723,14 @@ class BoatDescription(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['boat', 'language'], name='unique_boat_description_language'),
         ]
-    
+
     def __str__(self):
         return f"{self.boat} - {self.get_language_display()}"
 
 
 class BoatPrice(models.Model):
     """Цены лодки в разных валютах"""
-    
+
     CURRENCY_CHOICES = [
         ('EUR', '€ EUR'),
         ('USD', '$ USD'),
@@ -727,15 +743,15 @@ class BoatPrice(models.Model):
         ('NOK', 'kr NOK'),
         ('DKK', 'kr DKK'),
     ]
-    
+
     boat = models.ForeignKey(ParsedBoat, on_delete=models.CASCADE, related_name='prices')
     currency = models.CharField('Валюта', max_length=3, choices=CURRENCY_CHOICES)
-    
+
     price_per_day = models.DecimalField('Цена/день', max_digits=12, decimal_places=2)
     price_per_week = models.DecimalField('Цена/неделя', max_digits=12, decimal_places=2, null=True, blank=True)
-    
+
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
-    
+
     class Meta:
         verbose_name = 'Цена'
         verbose_name_plural = 'Цены'
@@ -745,19 +761,19 @@ class BoatPrice(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['boat', 'currency'], name='unique_boat_price_currency'),
         ]
-    
+
     def __str__(self):
         return f"{self.boat} - {self.price_per_day} {self.currency}"
 
 
 class BoatGallery(models.Model):
     """Галерея фото лодки"""
-    
+
     boat = models.ForeignKey(ParsedBoat, on_delete=models.CASCADE, related_name='gallery')
-    
+
     cdn_url = models.URLField('URL фото на CDN', max_length=500)
     order = models.IntegerField('Порядок', default=0)
-    
+
     class Meta:
         verbose_name = 'Фото'
         verbose_name_plural = 'Фото'
@@ -765,14 +781,14 @@ class BoatGallery(models.Model):
         indexes = [
             models.Index(fields=['boat', 'order']),
         ]
-    
+
     def __str__(self):
         return f"{self.boat} - Photo #{self.order}"
 
 
 class BoatDetails(models.Model):
     """Доп. детали лодки (extras, adds, not_included) на разных языках"""
-    
+
     LANGUAGE_CHOICES = [
         ('ru_RU', 'Русский'),
         ('en_EN', 'English'),
@@ -787,21 +803,21 @@ class BoatDetails(models.Model):
         ('pl_PL', 'Polski'),
         ('tr_TR', 'Türkçe'),
     ]
-    
+
     boat = models.ForeignKey(ParsedBoat, on_delete=models.CASCADE, related_name='details')
     language = models.CharField('Язык', max_length=10, choices=LANGUAGE_CHOICES)
-    
+
     # JSON поля с деталями
     extras = models.JSONField('Опции (extras)', default=list)
     additional_services = models.JSONField('Доп. услуги', default=list)
     delivery_extras = models.JSONField('Опции доставки', default=list)
     not_included = models.JSONField('Не включено в цену', default=list)
-    
+
     # Оборудование из API filter (multi-language support)
     cockpit = models.JSONField('Оборудование кокпита', default=list)
     entertainment = models.JSONField('Развлечения', default=list)
     equipment = models.JSONField('Оборудование', default=list)
-    
+
     class Meta:
         verbose_name = 'Доп. детали'
         verbose_name_plural = 'Доп. детали'
@@ -811,7 +827,7 @@ class BoatDetails(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['boat', 'language'], name='unique_boat_details_language'),
         ]
-    
+
     def __str__(self):
         return f"{self.boat} - {self.get_language_display()} (details)"
 
@@ -1062,18 +1078,51 @@ class CountryPriceConfig(models.Model):
     captain = models.DecimalField('Капитан (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
     fuel = models.DecimalField('Топливо (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
     moorings = models.DecimalField('Стоянки (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
-    transit_cleaning = models.DecimalField('Транзит лог и клининг (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
-    trips_markup = models.DecimalField('Наценка Трипс (EUR)', max_digits=8, decimal_places=2, default=Decimal('900.00'))
-    insurance_rate = models.DecimalField('Ставка страхования', max_digits=6, decimal_places=4, default=Decimal('0.1000'))
-    insurance_min = models.DecimalField('Мин. страховка (EUR)', max_digits=8, decimal_places=2, default=Decimal('400.00'))
-    dish_base = models.DecimalField('Питание EUR/чел', max_digits=8, decimal_places=2, default=Decimal('210.00'))
-    cook_price = models.DecimalField('Повар (EUR)', max_digits=8, decimal_places=2, default=Decimal('1400.00'))
-    length_extra = models.DecimalField('Длина >14.2 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('200.00'))
-    catamaran_length_extra = models.DecimalField('Катамаран >13.8 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('500.00'))
-    sailing_length_extra = models.DecimalField('Парусная >13.8 м (EUR)', max_digits=8, decimal_places=2, default=Decimal('300.00'))
-    double_cabin_extra = models.DecimalField('Доп. двойная каюта (EUR)', max_digits=8, decimal_places=2, default=Decimal('180.00'))
+    transit_cleaning = models.DecimalField(
+        'Транзит лог и клининг (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('900.00'),
+    )
+    trips_markup = models.DecimalField(
+        'Наценка Трипс (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('900.00'),
+    )
+    insurance_rate = models.DecimalField(
+        'Ставка страхования', max_digits=6,
+        decimal_places=4, default=Decimal('0.1000'),
+    )
+    insurance_min = models.DecimalField(
+        'Мин. страховка (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('400.00'),
+    )
+    dish_base = models.DecimalField(
+        'Питание EUR/чел', max_digits=8,
+        decimal_places=2, default=Decimal('210.00'),
+    )
+    cook_price = models.DecimalField(
+        'Повар (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('1400.00'),
+    )
+    length_extra = models.DecimalField(
+        'Длина >14.2 м (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('200.00'),
+    )
+    catamaran_length_extra = models.DecimalField(
+        'Катамаран >13.8 м (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('500.00'),
+    )
+    sailing_length_extra = models.DecimalField(
+        'Парусная >13.8 м (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('300.00'),
+    )
+    double_cabin_extra = models.DecimalField(
+        'Доп. двойная каюта (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('180.00'),
+    )
     max_double_cabins_free = models.IntegerField('Бесплатных двойных кают', default=4)
-    praslin_extra = models.DecimalField('Марина Praslin (EUR)', max_digits=8, decimal_places=2, default=Decimal('0.00'))
+    praslin_extra = models.DecimalField(
+        'Марина Praslin (EUR)', max_digits=8,
+        decimal_places=2, default=Decimal('0.00'),
+    )
 
     class Meta:
         verbose_name = 'Ценовой профиль страны'
@@ -1137,13 +1186,31 @@ class Contract(models.Model):
     contract_number = models.CharField('Номер договора', max_length=50, unique=True)
 
     # Связи
-    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='contracts', verbose_name='Бронирование')
-    offer = models.ForeignKey(Offer, on_delete=models.SET_NULL, null=True, blank=True, related_name='contracts', verbose_name='Оффер')
-    template = models.ForeignKey(ContractTemplate, on_delete=models.PROTECT, verbose_name='Шаблон')
+    booking = models.ForeignKey(
+        Booking, on_delete=models.CASCADE,
+        related_name='contracts', verbose_name='Бронирование',
+    )
+    offer = models.ForeignKey(
+        Offer, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='contracts', verbose_name='Оффер',
+    )
+    template = models.ForeignKey(
+        ContractTemplate, on_delete=models.PROTECT,
+        verbose_name='Шаблон',
+    )
 
     # Стороны договора
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contracts', verbose_name='Создатель (агент)')
-    signer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contracts_to_sign', verbose_name='Подписант (клиент)')
+    created_by = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='created_contracts',
+        verbose_name='Создатель (агент)',
+    )
+    signer = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='contracts_to_sign',
+        verbose_name='Подписант (клиент)',
+    )
     client = models.ForeignKey(
         'Client', on_delete=models.SET_NULL,
         null=True, blank=True,
@@ -1370,8 +1437,6 @@ class ParseJob(models.Model):
 
     def append_error(self, slug: str, error: str):
         """Добавляет ошибку в JSON-список errors атомарно."""
-        from django.db.models import F
-        from django.db.models.functions import JSONObject
         # Для PostgreSQL используем raw update, чтобы не перезаписать конкурентные ошибки.
         from django.db import connection
         with connection.cursor() as cur:

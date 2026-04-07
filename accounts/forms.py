@@ -13,11 +13,11 @@ class RegisterForm(DaisyUIMixin, UserCreationForm):
         label='Подписка'
     )
     phone = forms.CharField(max_length=20, required=False, label='Телефон')
-    
+
     class Meta:
         model = User
         fields = ['username', 'email', 'password1', 'password2', 'subscription_plan', 'phone']
-    
+
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data['email']

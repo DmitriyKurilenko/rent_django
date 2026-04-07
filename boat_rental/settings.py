@@ -1,13 +1,15 @@
-import os
 from pathlib import Path
-from decouple import config, Csv
+from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key')
 DEBUG = config('DEBUG', default=True, cast=bool)
 _allowed_raw = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
-ALLOWED_HOSTS = [h.strip().replace('https://', '').replace('http://', '').rstrip('/') for h in _allowed_raw if h.strip()]
+ALLOWED_HOSTS = [
+    h.strip().replace('https://', '').replace('http://', '').rstrip('/')
+    for h in _allowed_raw if h.strip()
+]
 
 # Application definition
 INSTALLED_APPS = [

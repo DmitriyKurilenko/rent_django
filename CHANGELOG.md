@@ -2,6 +2,23 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.8.1-dev] - 2026-04-07
+
+### 🔧 Refactor — PEP 8 compliance (835 → 0 violations)
+- **Phase 1 — Auto whitespace cleanup (646 fixes)**: W291 trailing whitespace, W293 whitespace in blank lines, W391 blank line at EOF, E302/E303/E305/E306 expected blank lines, E231/E226/E261 spacing. All 18 core `.py` files.
+- **Phase 2 — Manual fixes (122 fixes)**:
+  - **F401** (21): removed unused imports across 7 files (`settings.py`, `contract_generator.py`, `forms.py`, `views.py`, `tasks.py`, `boataround_api.py`, `models.py`).
+  - **F541** (33): replaced empty f-strings with plain strings across 6 files + management commands.
+  - **E722** (12): replaced bare `except:` with specific `except (ValueError, TypeError):` or `except Exception:` in `boataround_api.py`.
+  - **F821** (1): undefined `User` in `views.py` → added local `AuthUser` import.
+  - **F811** (3): removed redundant re-imports of `Decimal` and `BoatDescription`.
+  - **F841** (2): removed unused `as e` / `as exc` captures.
+  - **E741** (1): renamed ambiguous `l` → `lang` in list comprehension.
+  - **E127/E128** (3): fixed continuation line indentation.
+  - **E225** (1): added missing whitespace around operator.
+- **Phase 3 — Long lines E501 (67 fixes)**: line-wrapped all lines >120 chars using idiomatic Python patterns (implicit line continuation, parenthesized expressions, multi-line string concatenation). Files: `settings.py`, `admin.py`, `boataround_api.py`, `contract_generator.py`, `forms.py`, `helpers.py`, `models.py`, `parser.py`, `tasks.py`, `views.py`.
+- **Validation**: `flake8 --max-line-length=120` reports **0 violations** across all 18 files. `manage.py check` — 0 issues. Full Docker rebuild successful.
+
 ## [0.8.0-dev] - 2026-04-07
 
 ### ✨ Added — Granular permission methods (Phase 2)

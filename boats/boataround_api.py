@@ -12,41 +12,45 @@ logger = logging.getLogger(__name__)
 def normalize_image_url(image_url: str) -> str:
     """
     Преобразование относительного пути изображения в полный URL
-    
+
     Args:
         image_url: URL или путь к изображению
-        
+
     Returns:
         str: Полный URL к изображению
     """
     if not image_url:
         return ''
-    
+
     image_url = str(image_url).strip()
-    
+
     # Если уже полный URL - возвращаем как есть
     if image_url.startswith('http://') or image_url.startswith('https://'):
         return image_url
-    
+
     # Если это путь начинающийся с / - добавляем домен
     if image_url.startswith('/'):
         return f"https://api.boataround.com{image_url}"
-    
+
     # Если это просто имя файла - предполагаем что он в boats
     if not image_url.startswith('boats/'):
         return f"https://api.boataround.com/boats/{image_url}"
-    
+
     return f"https://api.boataround.com/{image_url}"
 
 
 class BoataroundAPI:
     """Класс для работы с API boataround.com"""
-    
+
     BASE_URL = "https://api.boataround.com/v1"
-    
+
     # Реалистичные headers для обхода блокировок
     HEADERS = {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'User-Agent': (
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) '
+            'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 '
+            'Mobile/15E148 Safari/604.1'
+        ),
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br',
@@ -60,7 +64,7 @@ class BoataroundAPI:
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
     }
-    
+
     @staticmethod
     def autocomplete(
         query: str,
@@ -69,12 +73,12 @@ class BoataroundAPI:
     ) -> List[Dict]:
         """
         Автодополнение для поиска локаций
-        
+
         Args:
             query: Поисковый запрос
             language: Язык (en_EN, ru_RU, etc)
             limit: Лимит результатов (1-50)
-            
+
         Returns:
             List[Dict]: Список вариантов направлений
         """
@@ -85,24 +89,24 @@ class BoataroundAPI:
                 "lang": language,
                 "limit": limit
             }
-            
+
             logger.info(f"[Autocomplete] Request: {url} with query={query}, lang={language}")
-            
+
             response = requests.get(
-                url, 
-                params=params, 
+                url,
+                params=params,
                 headers=BoataroundAPI.HEADERS,
                 timeout=5
             )
-            
+
             logger.info(f"[Autocomplete] Status: {response.status_code}")
-            
+
             if response.status_code == 200:
                 data = response.json()
-                
+
                 logger.info(f"[Autocomplete] Raw data type: {type(data)}")
                 logger.info(f"[Autocomplete] Raw data: {str(data)[:500]}")
-                
+
                 # API может возвращать разные форматы
                 if isinstance(data, list):
                     results = data
@@ -112,19 +116,19 @@ class BoataroundAPI:
                     results = data.get('data', [])
                 else:
                     results = []
-                
+
                 logger.info(f"[Autocomplete] Found {len(results)} results")
                 if results and len(results) > 0:
                     logger.info(f"[Autocomplete] First result: {results[0]}")
                 return results
-            
+
             logger.warning(f"[Autocomplete] Non-200 status: {response.status_code}")
             return []
-            
+
         except Exception as e:
             logger.error(f"[Autocomplete] Error: {e}")
             return []
-    
+
     @staticmethod
     def search(
         check_in: Optional[str] = None,
@@ -142,7 +146,7 @@ class BoataroundAPI:
     ) -> Dict:
         """
         Поиск лодок через API boataround.com
-        
+
         Args:
             check_in: Дата заезда (YYYY-MM-DD)
             check_out: Дата выезда (YYYY-MM-DD)
@@ -156,7 +160,7 @@ class BoataroundAPI:
             sort: Сортировка (priceDown, priceUp, rank, etc)
             lang: Язык (en_EN, ru_RU, etc)
             **kwargs: Дополнительные параметры
-            
+
         Returns:
             Dict: {
                 'boats': List[Dict],
@@ -168,13 +172,13 @@ class BoataroundAPI:
         """
         try:
             url = f"{BoataroundAPI.BASE_URL}/search"  # БЕЗ слэша в конце!
-            
+
             # Базовые параметры - ОБЯЗАТЕЛЬНО limit!
             params = {
                 'limit': limit,
                 'page': page
             }
-            
+
             # Добавляем опциональные параметры
             if check_in:
                 params['checkIn'] = check_in
@@ -194,96 +198,96 @@ class BoataroundAPI:
                 params['price'] = price
             if sort:
                 params['sort'] = sort
-            
+
             # Язык (важно для фильтров и названий)
             if lang:
                 params['lang'] = lang
-            
+
             # Добавляем дополнительные параметры
             params.update(kwargs)
-            
+
             logger.info(f"[Search] Request: {url}")
             logger.info(f"[Search] Params: {params}")
-            
+
             # Формируем полный URL для отладки
             from urllib.parse import urlencode
             full_url = f"{url}?{urlencode(params)}"
             logger.info(f"[Search] Full URL: {full_url}")
-            
+
             # Retry logic for timeouts
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     response = requests.get(
-                        url, 
-                        params=params, 
+                        url,
+                        params=params,
                         headers=BoataroundAPI.HEADERS,
                         timeout=30  # Increased timeout for large responses
                     )
                     break  # Success, exit retry loop
-                except (requests.Timeout, requests.ConnectionError) as e:
+                except (requests.Timeout, requests.ConnectionError):
                     if attempt < max_retries - 1:
                         logger.warning(f"[Search] Timeout on attempt {attempt + 1}/{max_retries}, retrying...")
                         import time
                         time.sleep(2 ** attempt)  # Exponential backoff
                     else:
                         raise
-            
+
             logger.info(f"[Search] Status: {response.status_code}")
             logger.info(f"[Search] Response length: {len(response.text) if response.text else 0} bytes")
-            
+
             # Обработка 500 ошибки API (баг с фильтрами + сортировкой)
             if response.status_code == 500:
                 logger.error(f"[Search] API returned 500 error. Response: {response.text[:500]}")
                 # Если есть сортировка И фильтры, попробуем без сортировки
                 if sort and (cabins or year or price):
-                    logger.warning(f"[Search] Retrying without sort parameter due to API bug...")
+                    logger.warning("[Search] Retrying without sort parameter due to API bug...")
                     params.pop('sort', None)
                     response = requests.get(url, params=params, headers=BoataroundAPI.HEADERS, timeout=30)
                     logger.info(f"[Search] Retry status: {response.status_code}")
                 else:
                     return {'boats': [], 'total': 0, 'totalPages': 0, 'filters': {}}
-            
+
             if response.status_code == 200:
                 data = response.json()
-                
-                logger.info(f"[Search] ==================== API RESPONSE ====================")
+
+                logger.info("[Search] ==================== API RESPONSE ====================")
                 logger.info(f"[Search] Response type: {type(data)}")
                 logger.info(f"[Search] Response keys: {list(data.keys()) if isinstance(data, dict) else 'not dict'}")
-                
+
                 # Проверяем структуру ответа
                 if isinstance(data, dict):
-                    
+
                     # Если есть status и data - это обёртка
                     if 'status' in data and 'data' in data:
                         inner_data = data.get('data', [])
                         logger.info(f"[Search] Inner data type: {type(inner_data)}")
-                        
+
                         # data может быть массивом с одним объектом
                         if isinstance(inner_data, list) and len(inner_data) > 0:
                             actual_data = inner_data[0]
                             logger.info(f"[Search] Actual data keys: {list(actual_data.keys())}")
-                            
+
                             # Лодки внутри вложенного data
                             boats = actual_data.get('data', [])
-                            
+
                             # ВАЖНО: totalResults может быть на РАЗНЫХ уровнях!
                             total = actual_data.get('totalResults', 0)
                             total_boats = actual_data.get('totalBoats', 0)
-                            
+
                             logger.info(f"[Search] totalResults from actual_data: {total}")
                             logger.info(f"[Search] totalBoats from actual_data: {total_boats}")
-                            
+
                             # Используем максимальное значение
                             total = max(total, total_boats, len(boats))
-                            
+
                             # Вычисляем totalPages по реальному кол-ву лодок на странице
                             # API может игнорировать наш limit и отдавать свой (напр. 18)
                             actual_per_page = len(boats) if boats else limit
                             total_pages = (total + actual_per_page - 1) // actual_per_page if total > 0 else 1
-                            
+
                             logger.info(f"[Search] FINAL: boats={len(boats)}, total={total}, pages={total_pages}")
-                            
+
                             return {
                                 'boats': boats,
                                 'total': total,
@@ -291,7 +295,7 @@ class BoataroundAPI:
                                 'totalPages': total_pages,
                                 'filters': actual_data.get('filter', {})
                             }
-                
+
                 # Прямой массив лодок
                 if isinstance(data, list):
                     logger.info(f"[Search] Got {len(data)} boats (direct array)")
@@ -303,7 +307,7 @@ class BoataroundAPI:
                         'totalPages': 1,  # Прямой массив = одна страница
                         'filters': {}
                     }
-                
+
                 # Ищем лодки в разных местах (старая логика)
                 boats = []
                 if 'results' in data:
@@ -312,7 +316,7 @@ class BoataroundAPI:
                     boats = data['boats']
                 elif 'data' in data:
                     boats = data['data']
-                
+
                 # Ищем total в разных местах
                 total = 0
                 if 'totalResults' in data:
@@ -323,7 +327,7 @@ class BoataroundAPI:
                     total = data['total']
                 else:
                     total = len(boats)
-                
+
                 # Считаем totalPages по реальному кол-ву лодок на странице
                 # API может игнорировать наш limit и отдавать свой (напр. 18)
                 actual_per_page = len(boats) if boats else limit
@@ -332,10 +336,13 @@ class BoataroundAPI:
                 else:
                     total_pages = 1
 
-                logger.info(f"[Search] Parsed: boats={len(boats)}, total={total}, pages={total_pages}, actual_per_page={actual_per_page}")
+                logger.info(
+                    f"[Search] Parsed: boats={len(boats)}, total={total}, "
+                    f"pages={total_pages}, actual_per_page={actual_per_page}"
+                )
                 if boats and len(boats) > 0:
                     logger.info(f"[Search] First boat keys: {list(boats[0].keys())}")
-                
+
                 return {
                     'boats': boats,
                     'total': total,
@@ -343,7 +350,7 @@ class BoataroundAPI:
                     'totalPages': total_pages,
                     'filters': data.get('filters', {})
                 }
-            
+
             elif response.status_code == 204:
                 # No Content - возвращаем пустой результат
                 logger.info("[Search] No content (204)")
@@ -355,10 +362,10 @@ class BoataroundAPI:
                     'totalPages': 0,
                     'filters': data.get('filters', {})
                 }
-            
+
             logger.warning(f"[Search] Non-success status: {response.status_code}")
             logger.warning(f"[Search] Response text: {response.text[:500]}")
-            
+
             return {
                 'boats': [],
                 'total': 0,
@@ -366,7 +373,7 @@ class BoataroundAPI:
                 'totalPages': 0,
                 'filters': {}
             }
-            
+
         except Exception as e:
             logger.error(f"[Search] Error: {e}")
             import traceback
@@ -543,69 +550,66 @@ class BoataroundAPI:
         except Exception as e:
             logger.error(f"[Price] Error getting price for {slug}: {e}")
             return {}
-    
+
     @staticmethod
     @staticmethod
     def get_boat_combined_data(slug: str) -> Dict:
         """
         Получает комбинированные данные о лодке из новой структуры моделей.
-        
+
         Returns:
             Dict: Полные данные о лодке или {}
         """
         try:
             logger.info(f"[get_boat_combined_data] Getting data for: {slug}")
-            
+
             # Ищем в БД
-            from boats.models import (
-                ParsedBoat, BoatTechnicalSpecs, BoatDescription, 
-                BoatPrice, BoatGallery, BoatDetails
-            )
-            
+            from boats.models import ParsedBoat
+
             # Получаем лодку со всеми связанными данными
             parsed_boat = ParsedBoat.objects.select_related(
                 'technical_specs'
             ).prefetch_related(
                 'descriptions', 'prices', 'gallery', 'details'
             ).filter(slug=slug).first()
-            
+
             if not parsed_boat:
                 logger.warning(f"[get_boat_combined_data] No boat in DB for: {slug}")
                 return {}
-            
+
             logger.info(f"[get_boat_combined_data] ✅ Found in DB: {slug}")
-            
+
             # Получаем описание (предпочитаем русский)
             try:
                 desc = parsed_boat.descriptions.get(language='ru_RU')
-            except:
+            except Exception:
                 desc = parsed_boat.descriptions.first()
-            
+
             if not desc:
                 logger.warning(f"[get_boat_combined_data] No description found for: {slug}")
                 return {}
-            
+
             # Получаем технические параметры
             specs = parsed_boat.technical_specs
-            
+
             # Получаем цену (предпочитаем EUR)
             try:
                 price = parsed_boat.prices.get(currency='EUR')
-            except:
+            except Exception:
                 price = parsed_boat.prices.first()
-            
+
             # Получаем детали (extras, adds, not_included) на русском
             try:
                 details = parsed_boat.details.get(language='ru_RU')
-            except:
+            except Exception:
                 details = parsed_boat.details.first()
-            
+
             if not details:
                 details = None
-            
+
             # Получаем фото
             photos = list(parsed_boat.gallery.all().values_list('cdn_url', flat=True))
-            
+
             # Форматируем для отображения в шаблоне
             result = {
                 # Основная информация
@@ -613,7 +617,7 @@ class BoataroundAPI:
                 'name': desc.title,
                 'slug': slug,
                 'boat_id': parsed_boat.boat_id,
-                
+
                 # ⭐ ГЛАВНЫЕ ПОЛЯ (из BoatTechnicalSpecs)
                 'cabins': specs.cabins or '',
                 'toilets': specs.toilets or '',
@@ -628,7 +632,7 @@ class BoataroundAPI:
                 'max_sleeps': specs.berths or '',
                 'type': parsed_boat.manufacturer or '',
                 'category': parsed_boat.model or '',
-                
+
                 # Параметры (все технические данные)
                 'parameters': {
                     'cabins': specs.cabins or '',
@@ -645,7 +649,7 @@ class BoataroundAPI:
                     'engine_power': specs.engine_power or '',
                     'number_engines': specs.number_engines or '',
                 },
-                
+
                 # Географическая информация
                 'marina': desc.marina or '',
                 'location': desc.location or '',
@@ -655,13 +659,13 @@ class BoataroundAPI:
                 'description': desc.description or '',
                 'manufacturer': parsed_boat.manufacturer or '',
                 'model': parsed_boat.model or '',
-                
+
                 # ГЛАВНОЕ: Фото (используем CDN URLs)
                 'pictures': photos,
                 'gallery': photos,
                 'images': photos,
                 'image': photos[0] if photos else '',
-                
+
                 # ГЛАВНОЕ: Услуги
                 'extras': details.extras if details else [],
                 'additional_services': details.additional_services if details else [],
@@ -670,7 +674,7 @@ class BoataroundAPI:
                 'cockpit': details.cockpit if details and hasattr(details, 'cockpit') else [],
                 'entertainment': details.entertainment if details and hasattr(details, 'entertainment') else [],
                 'equipment': details.equipment if details and hasattr(details, 'equipment') else [],
-                
+
                 # Цены
                 'price': price.price_per_day if price else 0,
                 'currency': price.currency if price else 'EUR',
@@ -678,36 +682,37 @@ class BoataroundAPI:
                     'total_price': price.price_per_day if price else 0,
                     'currency': price.currency if price else 'EUR',
                 },
-                
+
                 # Метаданные
                 'parsed_at': str(parsed_boat.last_parsed) if parsed_boat.last_parsed else '',
             }
-            
-            logger.info(f"[get_boat_combined_data] ✅ Formatted data for: {result['title']}, "
-                       f"images={len(result['images'])}, extras={len(result['extras'])}")
+
+            logger.info(
+                f"[get_boat_combined_data] ✅ Formatted data for: {result['title']}, "
+                f"images={len(result['images'])}, extras={len(result['extras'])}")
             return result
-            
+
         except Exception as e:
             logger.error(f"[get_boat_combined_data] Error: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return {}
-    
+
     @staticmethod
     def search_by_slug(slug: str, raw: bool = False) -> Dict:
         """
         Поиск лодки по slug через API
-        
+
         Args:
             slug: Slug лодки
             raw: Если True — вернуть сырые данные из API (для _update_api_metadata)
-            
+
         Returns:
             Dict: Данные лодки или {}
         """
         try:
             logger.info(f"[search_by_slug] Searching for: {slug}")
-            
+
             url = f"{BoataroundAPI.BASE_URL}/search"
             params = {
                 'slug': slug,
@@ -715,17 +720,17 @@ class BoataroundAPI:
                 'limit': 50,
                 'lang': 'en_EN'
             }
-            
+
             response = requests.get(
                 url,
                 params=params,
                 headers=BoataroundAPI.HEADERS,
                 timeout=10
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
-                
+
                 if isinstance(data, dict) and 'status' in data:
                     # Структура ответа: {"status": "OK", "data": [{"data": [...]}]}
                     results = data.get('data', [])
@@ -743,63 +748,62 @@ class BoataroundAPI:
                                 if raw:
                                     return boat_data
                                 return format_boat_data(boat_data)
-            
+
             logger.warning(f"[search_by_slug] No exact slug match for {slug}")
             return {}
-            
+
         except Exception as e:
             logger.error(f"[search_by_slug] Error: {e}")
             return {}
-    
+
     def get_boat_detail(boat_id_or_slug: str) -> Dict:
         """
         Получение полной детальной информации о лодке.
         Использует парсер для получения фото, услуг и дополнительной информации.
-        
+
         Args:
             boat_id_or_slug: ID или slug лодки
-            
+
         Returns:
             Dict: Отформатированная полная информация о лодке
         """
         try:
             logger.info(f"[Boat Detail] Looking up boat: {boat_id_or_slug}")
-            
+
             # Используем парсер для получения полных данных
             boat_url = f"https://www.boataround.com/ru/yachta/{boat_id_or_slug}/"
             logger.info(f"[Boat Detail] Parser URL: {boat_url}")
-            
+
             from boats.parser import parse_boataround_url
             parsed_data = parse_boataround_url(boat_url, save_to_db=True)
-            
+
             if parsed_data:
                 logger.info(f"[Boat Detail] Successfully parsed boat: {parsed_data.get('slug')}")
                 return BoataroundAPI._format_parsed_result(parsed_data)
             else:
-                logger.warning(f"[Boat Detail] Failed to parse boat")
+                logger.warning("[Boat Detail] Failed to parse boat")
                 return {}
-            
+
         except Exception as e:
             logger.error(f"[Boat Detail] Error: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return {}
 
-    
     @staticmethod
     def _format_parsed_boat(parsed_boat) -> Dict:
         """
         Форматирует данные из ParsedBoat модели в словарь для шаблона
         Ожидает ПОЛНЫЕ ПАРСИРОВАННЫЕ данные (boat_info, pictures, prices)
-        
+
         Args:
             parsed_boat: Объект ParsedBoat из БД с полными парсированными данными
-            
+
         Returns:
             Dict: Отформатированные данные
         """
         from boats.parser import get_cdn_url
-        
+
         # Получаем данные из boat_data JSON поля
         boat_data_raw = parsed_boat.boat_data or {}
         boat_info = boat_data_raw.get('boat_info', {})
@@ -809,38 +813,38 @@ class BoataroundAPI:
         additional_services = boat_data_raw.get('additional_services', [])
         delivery_extras = boat_data_raw.get('delivery_extras', [])
         not_included = boat_data_raw.get('not_included', [])
-        
+
         # Получаем длину
         length = boat_info.get('length', 0)
         try:
             if isinstance(length, str):
                 length = float(length.replace('m', '').replace(',', '.').strip())
             length = round(float(length), 1) if length else 0
-        except:
+        except (ValueError, TypeError):
             length = 0
-        
+
         # Получаем цену
         price_val = prices.get('total', {}).get('amount') or prices.get('price_per_day', {}).get('amount') or 0
         try:
             price = int(float(price_val)) if price_val else 0
-        except:
+        except (ValueError, TypeError):
             price = 0
-        
+
         # Формируем массив изображений с CDN URL
         images = [get_cdn_url(pic) for pic in pictures] if pictures else []
-        
+
         # Получаем кабины и места
         cabins = 0
         berths = 0
         try:
             cabins = int(boat_info.get('cabins', 0)) if boat_info.get('cabins') else 0
-        except:
+        except (ValueError, TypeError):
             cabins = 0
         try:
             berths = int(boat_info.get('people', 0)) if boat_info.get('people') else 0
-        except:
+        except (ValueError, TypeError):
             berths = 0
-        
+
         # Извлекаем параметры
         boat_data = {
             'id': str(parsed_boat.boat_id),
@@ -893,24 +897,27 @@ class BoataroundAPI:
             'delivery_extras': delivery_extras,
             'not_included': not_included,
         }
-        
-        logger.info(f"[format_parsed_boat] {boat_data['name']} | price={price}, images={len(images)}, cabins={cabins}, berths={berths}")
-        
+
+        logger.info(
+            f"[format_parsed_boat] {boat_data['name']} | price={price}, "
+            f"images={len(images)}, cabins={cabins}, berths={berths}"
+        )
+
         return boat_data
-    
+
     @staticmethod
     def _format_parsed_result(parsed_data: dict) -> Dict:
         """
         Форматирует результат парсера в словарь для шаблона
-        
+
         Args:
             parsed_data: Результат из parse_boataround_url()
-            
+
         Returns:
             Dict: Отформатированные данные
         """
         from boats.parser import get_cdn_url
-        
+
         boat_info = parsed_data.get('boat_info', {})
         pictures = parsed_data.get('pictures', [])
         prices = parsed_data.get('prices', {})
@@ -918,31 +925,31 @@ class BoataroundAPI:
         additional_services = parsed_data.get('additional_services', [])
         delivery_extras = parsed_data.get('delivery_extras', [])
         not_included = parsed_data.get('not_included', [])
-        
+
         # DEBUG логирование
         logger.info(f"[format_parsed_result] boat_info: {boat_info}")
         logger.info(f"[format_parsed_result] prices: {prices}")
-        
+
         # Получаем длину
         length = boat_info.get('length', 0)
         try:
             if isinstance(length, str):
                 length = float(length.replace('m', '').replace(',', '.').strip())
             length = round(float(length), 1) if length else 0
-        except:
+        except (ValueError, TypeError):
             length = 0
-        
+
         # Получаем цену
         # Парсер возвращает: min_price, total_price, low_price
         price_val = prices.get('total_price') or prices.get('min_price') or prices.get('low_price') or 0
         try:
             price = int(float(price_val)) if price_val else 0
-        except:
+        except (ValueError, TypeError):
             price = 0
-        
+
         # Формируем массив изображений с CDN URL
         images = [get_cdn_url(pic) for pic in pictures] if pictures else []
-        
+
         boat_data = {
             'id': parsed_data.get('boat_id', ''),
             'slug': parsed_data.get('slug', ''),
@@ -971,25 +978,29 @@ class BoataroundAPI:
             'delivery_extras': delivery_extras,
             'not_included': not_included,
         }
-        
-        logger.info(f"[format_parsed_result] {boat_data['name']} | price={price}, images={len(images)}, extras={len(extras)}, adds={len(additional_services)}")
-        
+
+        logger.info(
+            f"[format_parsed_result] {boat_data['name']} | price={price}, "
+            f"images={len(images)}, extras={len(extras)}, "
+            f"adds={len(additional_services)}"
+        )
+
         return boat_data
-    
+
     @staticmethod
     def _get_boat_from_api(boat_id_or_slug: str) -> Dict:
         """
         Fallback метод: получает данные через API поиск по slug
-        
+
         Args:
             boat_id_or_slug: ID или slug лодки
-            
+
         Returns:
             Dict: Отформатированные данные или пусто
         """
         try:
             logger.info(f"[Boat Detail API Fallback] Trying API search: {boat_id_or_slug}")
-            
+
             url = f"{BoataroundAPI.BASE_URL}/search"
             params = {
                 'slug': boat_id_or_slug,
@@ -997,20 +1008,20 @@ class BoataroundAPI:
                 'limit': 50,
                 'lang': 'en_EN'
             }
-            
+
             response = requests.get(
                 url,
                 params=params,
                 headers=BoataroundAPI.HEADERS,
                 timeout=5
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
-                
+
                 if isinstance(data, dict) and 'status' in data and 'data' in data:
                     inner_data = data.get('data', [])
-                    
+
                     target_slug = str(boat_id_or_slug or '').strip('/').lower()
                     if isinstance(inner_data, list) and len(inner_data) > 0:
                         for actual_data in inner_data:
@@ -1024,17 +1035,17 @@ class BoataroundAPI:
                                 logger.info(f"[Boat Detail API Fallback] Found exact boat: {boat_data.get('title')}")
                                 return format_boat_data(boat_data)
                     logger.warning(f"[Boat Detail API Fallback] No exact slug match for {boat_id_or_slug}")
-        
+
         except Exception as e:
             logger.error(f"[Boat Detail API Fallback] Error: {e}")
-        
-        return {}
 
+        return {}
 
 
 _charter_cache = {}
 _charter_name_cache = {}
 _charter_cache_loaded = False
+
 
 def _normalize_charter_name(name: str) -> str:
     return " ".join(str(name or "").strip().lower().split())
@@ -1072,10 +1083,10 @@ def _get_charter(charter_id: str = "", charter_name: str = ""):
 def format_boat_data(boat: Dict, charter_override=None) -> Dict:
     """
     Форматирование данных лодки из API для отображения в шаблоне
-    
+
     Args:
         boat: Данные лодки от API boataround.com
-        
+
     Returns:
         Dict: Отформатированные данные с правильными типами
     """
@@ -1083,7 +1094,7 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
     logger.debug(f"[format_boat_data] Full boat object keys: {list(boat.keys())}")
     if boat.get('title'):
         logger.debug(f"[format_boat_data] Title from boat: {boat.get('title')}")
-    
+
     # Словарь переводов стран
     COUNTRY_TRANSLATIONS = {
         'Turkey': 'Турция',
@@ -1106,11 +1117,11 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
         'Indonesia': 'Индонезия',
         'Egypt': 'Египет',
     }
-    
+
     # ID и slug (основные идентификаторы)
     boat_id = boat.get('_id') or boat.get('id') or 'unknown'
     slug = boat.get('slug', '')
-    
+
     # Название лодки - ТУТ САМАЯ ВАЖНАЯ ЧАСТЬ!
     # Ищем название в разных полях, в порядке приоритета
     name = None
@@ -1119,14 +1130,14 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
             name = str(boat[field]).strip()
             logger.info(f"[format_boat_data] Found name in field '{field}': {name}")
             break
-    
+
     # Если название не найдено, используем параметры
     if not name:
         if 'parameters' in boat and isinstance(boat['parameters'], dict):
             name = boat['parameters'].get('displayName') or boat['parameters'].get('name')
             if name:
                 logger.info(f"[format_boat_data] Found name in parameters: {name}")
-    
+
     # Последняя попытка - формируем из других данных
     if not name or name.strip() == '':
         boat_type = boat.get('type', 'Boat')
@@ -1137,31 +1148,35 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
             logger.warning(f"[format_boat_data] Using generated name: {name}")
         else:
             name = 'Лодка'
-            logger.warning(f"[format_boat_data] No name found, using default")
-    
+            logger.warning("[format_boat_data] No name found, using default")
+
     # Локация: marina, country, region, city
     marina = boat.get('marina', '')
     country_en = boat.get('country', '')
     country = COUNTRY_TRANSLATIONS.get(country_en, country_en)
     region = boat.get('region', '')
     city = boat.get('city', '')
-    
+
     # Формируем полное название локации
     location_parts = [p for p in [marina, city, region] if p and p.strip()]
     location = ', '.join(location_parts) if location_parts else country
-    
+
     # === ИЗОБРАЖЕНИЯ ===
     # API может вернуть изображения в разных полях
     images = []
-    
+
     # DEBUG: логируем какие поля есть для изображений
-    img_fields = [k for k in boat.keys() if 'img' in k.lower() or 'image' in k.lower() or 'gallery' in k.lower() or 'photo' in k.lower()]
+    img_fields = [
+        k for k in boat.keys()
+        if 'img' in k.lower() or 'image' in k.lower()
+        or 'gallery' in k.lower() or 'photo' in k.lower()
+    ]
     logger.debug(f"[format_boat_data] Image-related fields: {img_fields}")
-    
+
     # Основное изображение - ПРИОРИТЕТ: thumb (уже готовый URL от imageresizer) > main_img (нужно нормализовать)
     thumb = boat.get('thumb')
     main_img = boat.get('main_img')
-    
+
     # Используем thumb если он есть - это уже отресайзированное изображение
     if thumb and thumb.strip():
         images.append(thumb)
@@ -1171,7 +1186,7 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
         normalized = normalize_image_url(main_img)
         images.append(normalized)
         logger.debug(f"[format_boat_data] Added main_img: {main_img[:80]}")
-    
+
     # Дополнительные изображения
     if 'images' in boat and isinstance(boat['images'], list):
         logger.debug(f"[format_boat_data] Found 'images' field with {len(boat['images'])} items")
@@ -1187,11 +1202,11 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
                 normalized = normalize_image_url(img)
                 if normalized not in images:
                     images.append(normalized)
-    
+
     # Если нет изображений, используем main_img
     if not images and main_img:
         images = [main_img]
-    
+
     # === ЦЕНА ===
     avg_price = boat.get('avg_price', 0)  # Средняя цена за сутки
 
@@ -1203,16 +1218,35 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
     if isinstance(charter_info, dict):
         charter_data = charter_info
         charter_id_raw = charter_id_raw or charter_data.get('_id') or charter_data.get('id', '')
-        charter_logo = charter_logo or charter_data.get('logo') or charter_data.get('logo_url') or charter_data.get('image', '')
-        charter_info = charter_data.get('name') or charter_data.get('title') or charter_data.get('company') or ''
+        charter_logo = (
+            charter_logo
+            or charter_data.get('logo')
+            or charter_data.get('logo_url')
+            or charter_data.get('image', '')
+        )
+        charter_info = (
+            charter_data.get('name')
+            or charter_data.get('title')
+            or charter_data.get('company')
+            or ''
+        )
 
     # Fallback: иногда данные чартера приходят внутри parameters
     params = boat.get('parameters', {})
     if not charter_info and isinstance(params, dict):
         params_charter = params.get('charter')
         if isinstance(params_charter, dict):
-            charter_id_raw = charter_id_raw or params_charter.get('_id') or params_charter.get('id', '')
-            charter_logo = charter_logo or params_charter.get('logo') or params_charter.get('logo_url') or params_charter.get('image', '')
+            charter_id_raw = (
+                charter_id_raw
+                or params_charter.get('_id')
+                or params_charter.get('id', '')
+            )
+            charter_logo = (
+                charter_logo
+                or params_charter.get('logo')
+                or params_charter.get('logo_url')
+                or params_charter.get('image', '')
+            )
             charter_info = params_charter.get('name') or params_charter.get('title') or ''
         elif isinstance(params_charter, str):
             charter_info = params_charter
@@ -1246,53 +1280,53 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
     price = round(breakdown['final_price']) if breakdown['final_price'] else 0
     old_price = round(breakdown['old_price']) if breakdown['old_price'] else 0
     discount_percent = int(breakdown['discount_percent']) if breakdown['discount_percent'] else 0
-    
+
     # Цена за сутки (avg_price из API или считаем сами)
     price_per_day = 0
     if avg_price:
         try:
             price_per_day = round(float(avg_price))
-        except:
+        except (ValueError, TypeError):
             price_per_day = 0
-    
+
     currency = breakdown['currency']
-    
+
     # === ХАРАКТЕРИСТИКИ ===
     # Получаем параметры из 'parameters' (это основное поле в API ответе)
     params = boat.get('parameters', {})
-    
+
     # Каюты из parameters
     cabins = params.get('cabins') or boat.get('cabins') or boat.get('cabin', 0)
     try:
         cabins = int(cabins) if cabins else 0
     except (ValueError, TypeError):
         cabins = 0
-    
+
     # Места из parameters (max_sleeps) или параметр berths
     berths = params.get('max_sleeps') or params.get('allowed_people') or boat.get('berths') or boat.get('berth', 0)
     try:
         berths = int(berths) if berths else 0
     except (ValueError, TypeError):
         berths = 0
-    
+
     # freeBerths может быть объектом
     if not berths and 'freeBerths' in boat:
         free_berths = boat.get('freeBerths')
         if isinstance(free_berths, dict):
             try:
                 berths = int(free_berths.get('value', 0)) or 0
-            except:
+            except (ValueError, TypeError):
                 berths = 0
         elif isinstance(free_berths, (int, float)):
             try:
                 berths = int(free_berths) or 0
-            except:
+            except (ValueError, TypeError):
                 berths = 0
-    
+
     # Длина лодки (всегда в parameters)
     parameters = boat.get('parameters', {})
     length = parameters.get('length', 0) if isinstance(parameters, dict) else 0
-    
+
     try:
         if isinstance(length, str):
             length = float(length.replace('m', '').replace(',', '.').strip())
@@ -1301,7 +1335,7 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
         length = round(length, 1)
     except (ValueError, TypeError):
         length = 0
-    
+
     # Год выпуска
     params = boat.get('parameters') or {}
     year = boat.get('year') or boat.get('buildYear') or params.get('year', '')
@@ -1310,35 +1344,35 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
             year = int(year)
         except (ValueError, TypeError):
             year = ''
-    
+
     # Рейтинг
     rating = boat.get('reviewsScore') or boat.get('rating', 0)
     try:
         rating = float(rating) if rating else 0
     except (ValueError, TypeError):
         rating = 0
-    
+
     # Категория
     category = boat.get('category', '')
     boat_type = boat.get('type', '')
-    
+
     # Дополнительная информация (уже извлечена выше для расчёта цены)
     coordinates = boat.get('coordinates', [])
-    
+
     # === ОБОРУДОВАНИЕ ===
     # Оборудование нельзя определить из поиска API (filter.count — глобальный для всех лодок).
     # Корректные данные берутся из HTML <amenities> компонента при полном парсинге лодки.
     cockpit = []
     entertainment = []
     equipment = []
-    
+
     # Лог для отладки
     logger.info(
         f"[format_boat_data] {name} | base={base_price}, discount_wo_extra={discount_without_extra}, "
         f"additional={additional_discount}, charter_commission={charter_obj.commission if charter_obj else 0}, "
         f"price={price}, images={len(images)}, cabins={cabins}, berths={berths}"
     )
-    
+
     return {
         'id': boat_id,
         'slug': slug,
@@ -1358,7 +1392,10 @@ def format_boat_data(boat: Dict, charter_override=None) -> Dict:
             'base_price': round(base_price, 2),
             'discount_without_extra': round(discount_without_extra, 2),
             'additional_discount': round(additional_discount, 2),
-            'charter_commission': round(float(charter_obj.commission) if charter_obj and charter_obj.commission else 0, 2),
+            'charter_commission': round(
+                float(charter_obj.commission)
+                if charter_obj and charter_obj.commission else 0, 2
+            ),
             'charter_commission_amount': round(breakdown.get('charter_commission_amount', 0), 2),
             'agent_commission': round(breakdown.get('agent_commission', 0), 2),
             'extra_discount_applied': round(breakdown.get('extra_discount_applied', 0), 2),

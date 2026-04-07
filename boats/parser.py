@@ -53,28 +53,28 @@ SLUG_FROM_URL_PATTERN = re.compile(r'/(?:boat|yachta)/([^/?#]+)')
 def add_currency_param(url: str, currency: str = 'EUR') -> str:
     """
     Добавляет параметр валюты к URL.
-    
+
     Примеры:
         https://www.boataround.com/ru/yachta/bavaria-cruiser-46
         -> https://www.boataround.com/ru/yachta/bavaria-cruiser-46?currency=EUR
-        
+
         https://www.boataround.com/ru/yachta/bavaria-cruiser-46?checkIn=2025-05-01
         -> https://www.boataround.com/ru/yachta/bavaria-cruiser-46?checkIn=2025-05-01&currency=EUR
     """
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-    
+
     parsed = urlparse(url)
     query_params = parse_qs(parsed.query, keep_blank_values=True)
-    
+
     # Убираем списки из parse_qs и устанавливаем валюту
     flat_params = {k: v[0] if isinstance(v, list) else v for k, v in query_params.items()}
     flat_params['currency'] = currency
-    
+
     # Собираем обратно URL
     new_query = urlencode(flat_params)
     new_parsed = parsed._replace(query=new_query)
     result_url = urlunparse(new_parsed)
-    
+
     logger.info(f"[URL] Добавлен параметр currency={currency}: {result_url}")
     return result_url
 
@@ -87,10 +87,10 @@ def download_and_save_image(image_path: str) -> Optional[str]:
     """
     Скачивает изображение с imageresizer.yachtsbt.com и сохраняет локально.
     Возвращает CDN URL для использования в шаблонах.
-    
+
     Args:
         image_path: Путь к изображению, например 'boats/62b96d157a9323583a5a4880/650d96fa43b7cac28800ead4.jpg'
-    
+
     Returns:
         str: CDN URL вроде 'https://cdn2.prvms.ru/yachts/{boat_id}/{filename}' или None
     """
@@ -109,20 +109,20 @@ def download_and_save_image(image_path: str) -> Optional[str]:
             return None
         boat_id = parts[1]
         filename = parts[-1]
-        
+
         # Создаем локальный путь
         local_path = Path(MEDIA_ROOT) / image_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # ⭐ ГЛАВНОЕ: CDN URL
         cdn_url = f"https://cdn2.prvms.ru/yachts/{boat_id}/{filename}"
         s3_key = f"{boat_id}/{filename}"
-        
+
         # ⭐ Если файл уже в S3, просто возвращаем CDN URL (экономим трафик)
         if check_s3_exists(s3_key):
             logger.info(f"Изображение уже в S3: {s3_key} - используем CDN URL")
             return cdn_url
-        
+
         # Если файл уже существует локально — требуем успешную загрузку в S3.
         if local_path.exists():
             logger.info(f"Изображение уже существует локально: {image_path}")
@@ -134,12 +134,12 @@ def download_and_save_image(image_path: str) -> Optional[str]:
                 logger.error(f"Ошибка загрузки локального файла в S3: {e}")
             logger.error(f"Критическая ошибка: изображение {image_path} не загружено в S3")
             return None
-        
+
         # Скачиваем
         logger.info(f"Скачивание изображения: {source_url}")
         response = requests.get(source_url, timeout=30, stream=True)
         response.raise_for_status()
-        
+
         # Сохраняем
         with open(local_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
@@ -159,7 +159,7 @@ def download_and_save_image(image_path: str) -> Optional[str]:
 
         logger.error(f"Критическая ошибка: CDN URL не получен для {image_path}")
         return None
-        
+
     except Exception as e:
         logger.error(f"Ошибка скачивания изображения {image_path}: {e}")
         return None
@@ -168,10 +168,10 @@ def download_and_save_image(image_path: str) -> Optional[str]:
 def get_cdn_url(image_path: str) -> str:
     """
     Формирует URL для CDN.
-    
+
     Args:
         image_path: Путь к изображению, например '{boat_id}/{filename}.jpg'
-    
+
     Returns:
         str: https://cdn2.prvms.ru/yachts/{boat_id}/{filename}.jpg
     """
@@ -179,7 +179,7 @@ def get_cdn_url(image_path: str) -> str:
     clean_path = image_path.lstrip('/')
     if clean_path.startswith('boats/'):
         clean_path = clean_path[len('boats/'):]
-    
+
     # Добавляем yachts/ префикс (имя бакета)
     return f"{CDN_URL}/yachts/{clean_path}"
 
@@ -187,25 +187,25 @@ def get_cdn_url(image_path: str) -> str:
 def check_s3_exists(s3_key: str) -> bool:
     """
     Проверяет, существует ли файл в S3.
-    
+
     Args:
         s3_key: S3 object key (например: '62b96d157a9323583a5a4880/650d96fa43b7cac28800ead4.jpg')
-    
+
     Returns:
         bool: True если файл уже в S3, False иначе
     """
     if boto3 is None:
         return False
-    
+
     bucket = os.environ.get('S3_BUCKET_NAME')
     access_key = os.environ.get('AWS_ACCESS_KEY_ID')
     secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
     endpoint = os.environ.get('S3_ENDPOINT_URL')
     region = os.environ.get('S3_REGION')
-    
+
     if not bucket or not access_key or not secret_key:
         return False
-    
+
     try:
         session = boto3.session.Session()
         client_kwargs = {
@@ -218,7 +218,7 @@ def check_s3_exists(s3_key: str) -> bool:
             s3 = session.client('s3', endpoint_url=endpoint, **client_kwargs)
         else:
             s3 = session.client('s3', **client_kwargs)
-        
+
         s3_key = s3_key.lstrip('/')
         s3.head_object(Bucket=bucket, Key=s3_key)
         logger.debug(f"[S3 Check] Файл уже существует: {s3_key}")
@@ -315,10 +315,14 @@ def fetch_page(url: str) -> Optional[str]:
     """Загружает страницу с обходом блокировок."""
     import time
     import random
-    
+
     # Максимально реалистичные headers
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': (
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/120.0.0.0 Safari/537.36'
+        ),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br',
@@ -334,22 +338,22 @@ def fetch_page(url: str) -> Optional[str]:
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
     }
-    
+
     # Retry логика
     max_retries = 3
     for attempt in range(max_retries):
         try:
             logger.info(f"[Requests] Попытка {attempt + 1}/{max_retries}: {url}")
-            
+
             # Случайная задержка для имитации человека
             if attempt > 0:
                 delay = random.uniform(2, 5)
                 logger.info(f"[Requests] Ожидание {delay:.1f} сек...")
                 time.sleep(delay)
-            
+
             # Создаем сессию для cookies
             session = requests.Session()
-            
+
             # Первый запрос для получения cookies
             response = session.get(
                 url,
@@ -358,7 +362,7 @@ def fetch_page(url: str) -> Optional[str]:
                 allow_redirects=True,
                 verify=True
             )
-            
+
             # Проверка статуса
             if response.status_code == 200:
                 logger.info(f"[Requests] Успешно загружено: {len(response.text)} байт")
@@ -372,13 +376,13 @@ def fetch_page(url: str) -> Optional[str]:
                 headers['Referer'] = 'https://www.boataround.com/'
                 continue
             elif response.status_code == 429:
-                logger.warning(f"[Requests] 429 Too Many Requests, ждем...")
+                logger.warning("[Requests] 429 Too Many Requests, ждем...")
                 time.sleep(10)
                 continue
             else:
                 logger.error(f"[Requests] Статус {response.status_code}")
                 response.raise_for_status()
-                
+
         except requests.exceptions.Timeout:
             logger.error(f"[Requests] Timeout на попытке {attempt + 1}")
             continue
@@ -391,7 +395,7 @@ def fetch_page(url: str) -> Optional[str]:
         except Exception as e:
             logger.error(f"[Requests] Неожиданная ошибка: {e}")
             continue
-    
+
     logger.error(f"[Requests] Не удалось загрузить после {max_retries} попыток")
     return None
 
@@ -483,7 +487,7 @@ def _extract_pictures_from_gallery_component(soup: BeautifulSoup) -> list:
                     _push(item)
 
     logger.info(f"Извлечено {len(pics)} фото из gallery-mobile")
-    
+
     return pics
 
 
@@ -511,7 +515,7 @@ def extract_pictures(html_content: str, soup: BeautifulSoup = None) -> list:
     """Извлекает все изображения яхты."""
     if soup is None:
         soup = BeautifulSoup(html_content, 'html.parser')
-    
+
     primary = _extract_pictures_from_gallery_component(soup)
     fallback = _extract_pictures_fallback(html_content)
 
@@ -535,12 +539,12 @@ def extract_pictures(html_content: str, soup: BeautifulSoup = None) -> list:
 def _extract_extras_from_component(soup: BeautifulSoup) -> list:
     """Извлекает услуги из компонента <extras-list :extras='[...]'>"""
     extras = []
-    
+
     extras_list = soup.find('extras-list')
     if not extras_list:
         logger.warning("Компонент extras-list не найден")
         return extras
-    
+
     extras_json = extras_list.get(':extras')
     if extras_json:
         try:
@@ -552,10 +556,26 @@ def _extract_extras_from_component(soup: BeautifulSoup) -> list:
                     'slug': item.get('slug', ''),
                     'additional_info': item.get('additional_info', ''),
                     'unit': item.get('unit', ''),
-                    'price': item.get('price', {}).get('amount', 0) if isinstance(item.get('price'), dict) else item.get('price', 0),
-                    'price_nice': item.get('price', {}).get('nice', '') if isinstance(item.get('price'), dict) else '',
-                    'currency': item.get('price', {}).get('currency', 'EUR') if isinstance(item.get('price'), dict) else 'EUR',
-                    'deposit': item.get('deposit', {}).get('amount', 0) if isinstance(item.get('deposit'), dict) else 0,
+                    'price': (
+                        item.get('price', {}).get('amount', 0)
+                        if isinstance(item.get('price'), dict)
+                        else item.get('price', 0)
+                    ),
+                    'price_nice': (
+                        item.get('price', {}).get('nice', '')
+                        if isinstance(item.get('price'), dict)
+                        else ''
+                    ),
+                    'currency': (
+                        item.get('price', {}).get('currency', 'EUR')
+                        if isinstance(item.get('price'), dict)
+                        else 'EUR'
+                    ),
+                    'deposit': (
+                        item.get('deposit', {}).get('amount', 0)
+                        if isinstance(item.get('deposit'), dict)
+                        else 0
+                    ),
                     'mandatory': item.get('mandatory', False),
                     'pay_when': item.get('pay_when', ''),
                     'insurance': item.get('insurance', False),
@@ -565,18 +585,18 @@ def _extract_extras_from_component(soup: BeautifulSoup) -> list:
             logger.info(f"Извлечено {len(extras)} услуг из :extras")
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка парсинга :extras JSON: {e}")
-    
+
     return extras
 
 
 def _extract_additional_services_from_component(soup: BeautifulSoup) -> list:
     """Извлекает дополнительные услуги из :additional-services"""
     services = []
-    
+
     extras_list = soup.find('extras-list')
     if not extras_list:
         return services
-    
+
     services_json = extras_list.get(':additional-services')
     if services_json:
         try:
@@ -596,18 +616,18 @@ def _extract_additional_services_from_component(soup: BeautifulSoup) -> list:
             logger.info(f"Извлечено {len(services)} дополнительных услуг")
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка парсинга :additional-services JSON: {e}")
-    
+
     return services
 
 
 def _extract_delivery_extras(soup: BeautifulSoup) -> list:
     """Извлекает услуги доставки из :extras-delivery"""
     delivery = []
-    
+
     extras_list = soup.find('extras-list')
     if not extras_list:
         return delivery
-    
+
     delivery_json = extras_list.get(':extras-delivery')
     if delivery_json:
         try:
@@ -617,13 +637,17 @@ def _extract_delivery_extras(soup: BeautifulSoup) -> list:
                     'name': item.get('name', ''),
                     'additional_info': item.get('additional_info', ''),
                     'unit': item.get('unit', ''),
-                    'price': item.get('price', {}).get('amount', 0) if isinstance(item.get('price'), dict) else item.get('price', 0),
+                    'price': (
+                        item.get('price', {}).get('amount', 0)
+                        if isinstance(item.get('price'), dict)
+                        else item.get('price', 0)
+                    ),
                 }
                 delivery.append(d)
             logger.info(f"Извлечено {len(delivery)} услуг доставки")
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка парсинга :extras-delivery JSON: {e}")
-    
+
     return delivery
 
 
@@ -634,31 +658,31 @@ def _extract_delivery_extras(soup: BeautifulSoup) -> list:
 def _extract_not_included(soup: BeautifulSoup) -> list:
     """Извлекает информацию из секции "Не включено в цену" """
     not_included = []
-    
+
     all_extras_lists = soup.find_all('div', class_='extras-list')
-    
+
     for block in all_extras_lists:
         classes = block.get('class', [])
-        
+
         if 'excluded' in classes:
             items = block.find_all('div', class_='extra-item')
-            
+
             for item in items:
                 heading = item.find('li', class_='extra-item__heading')
                 price_div = item.find('div', class_='extra-item__price')
                 type_span = item.find('span', class_=re.compile(r'extra-item__type--'))
                 desc = item.find('div', class_='extra-item__description')
-                
+
                 entry = {
                     'name': heading.get_text(strip=True) if heading else '',
                     'price': price_div.get_text(strip=True) if price_div else '',
                     'option': type_span.get_text(strip=True) if type_span else '',
                     'description': desc.get_text(strip=True) if desc else '',
                 }
-                
+
                 if entry['name']:
                     not_included.append(entry)
-    
+
     logger.info(f"Извлечено {len(not_included)} позиций 'Не включено в цену'")
     return not_included
 
@@ -675,11 +699,11 @@ def _extract_not_included(soup: BeautifulSoup) -> list:
 def get_boat_url_for_language(slug: str, lang: str) -> str:
     """
     Возвращает URL лодки для конкретного языка
-    
+
     Args:
         slug: Slug лодки
         lang: Код языка (ru_RU, en_EN, de_DE, fr_FR, es_ES)
-    
+
     Returns:
         str: URL типа https://www.boataround.com/{locale}/yacht-type/{slug}/
     """
@@ -691,10 +715,9 @@ def get_boat_url_for_language(slug: str, lang: str) -> str:
         'fr_FR': ('fr', 'bateau'),       # Французский
         'es_ES': ('es', 'bote'),         # Испанский
     }
-    
+
     locale, boat_type = LANGUAGE_MAPPING.get(lang, ('ru', 'yachta'))  # По умолчанию русский
     return f"https://www.boataround.com/{locale}/{boat_type}/{slug}/"
-
 
 
 # =============================================================================
@@ -821,15 +844,15 @@ def _fetch_all_languages_data(slug: str, languages: list) -> dict:
 def _extract_equipment_section(soup: BeautifulSoup, section_key: str) -> list:
     """Извлекает оборудование из vue компонента (cockpit, entertainment, equipment)"""
     items = []
-    
+
     extras_list = soup.find('extras-list')
     if not extras_list:
         return items
-    
+
     # Ищем атрибут :cockpit, :entertainment или :equipment
     attr_name = f':{section_key}'
     section_json = extras_list.get(attr_name)
-    
+
     if section_json:
         try:
             section_data = json.loads(section_json)
@@ -839,9 +862,21 @@ def _extract_equipment_section(soup: BeautifulSoup, section_key: str) -> list:
                     'slug': item.get('slug', ''),
                     'additional_info': item.get('additional_info', ''),
                     'unit': item.get('unit', ''),
-                    'price': item.get('price', {}).get('amount', 0) if isinstance(item.get('price'), dict) else item.get('price', 0),
-                    'price_nice': item.get('price', {}).get('nice', '') if isinstance(item.get('price'), dict) else '',
-                    'currency': item.get('price', {}).get('currency', 'EUR') if isinstance(item.get('price'), dict) else 'EUR',
+                    'price': (
+                        item.get('price', {}).get('amount', 0)
+                        if isinstance(item.get('price'), dict)
+                        else item.get('price', 0)
+                    ),
+                    'price_nice': (
+                        item.get('price', {}).get('nice', '')
+                        if isinstance(item.get('price'), dict)
+                        else ''
+                    ),
+                    'currency': (
+                        item.get('price', {}).get('currency', 'EUR')
+                        if isinstance(item.get('price'), dict)
+                        else 'EUR'
+                    ),
                     'mandatory': item.get('mandatory', False),
                     'pay_when': item.get('pay_when', ''),
                 }
@@ -852,7 +887,7 @@ def _extract_equipment_section(soup: BeautifulSoup, section_key: str) -> list:
             logger.error(f"Ошибка парсинга :{section_key} JSON: {e}")
     else:
         logger.debug(f"Атрибут :{section_key} не найден в extras-list")
-    
+
     return items
 
 
@@ -870,7 +905,7 @@ def _extract_prices(soup: BeautifulSoup, html_content: str) -> dict:
         'old_price': None,
         'discount': None,
     }
-    
+
     # Метод 1: Из компонента mobile-payment-box
     payment_box = soup.find('mobile-payment-box')
     if payment_box:
@@ -882,7 +917,7 @@ def _extract_prices(soup: BeautifulSoup, html_content: str) -> dict:
                 logger.info(f"Цена из :price: {prices['total_price']}")
             except (ValueError, TypeError):
                 pass
-        
+
         old_price_attr = payment_box.get(':old-price')
         if old_price_attr and old_price_attr != 'oldPrice':
             try:
@@ -890,7 +925,7 @@ def _extract_prices(soup: BeautifulSoup, html_content: str) -> dict:
                 logger.info(f"Старая цена из :old-price: {prices['old_price']}")
             except (ValueError, TypeError):
                 pass
-        
+
         discount_attr = payment_box.get(':discount')
         if discount_attr and discount_attr != 'discount':
             try:
@@ -898,7 +933,7 @@ def _extract_prices(soup: BeautifulSoup, html_content: str) -> dict:
                 logger.info(f"Скидка из :discount: {prices['discount']}")
             except (ValueError, TypeError):
                 pass
-    
+
     # Метод 2: Из текста HTML (regex)
     if not prices['total_price']:
         # Ищем цены вида "1 234 €" или "1234€"
@@ -908,7 +943,7 @@ def _extract_prices(soup: BeautifulSoup, html_content: str) -> dict:
             r'(\d[\d\s]{2,})\s*€',
             r'€\s*(\d[\d\s]{2,})',
         ]
-        
+
         for pattern in price_patterns:
             matches = re.findall(pattern, html_content)
             if matches:
@@ -923,7 +958,7 @@ def _extract_prices(soup: BeautifulSoup, html_content: str) -> dict:
                         break
                 except (ValueError, IndexError):
                     continue
-    
+
     # Метод 3: Из JSON в HTML
     if not prices['total_price']:
         # Ищем JSON-блоки с ценами
@@ -938,11 +973,11 @@ def _extract_prices(soup: BeautifulSoup, html_content: str) -> dict:
                     logger.info(f"Цена из JSON: {price}")
             except (ValueError, IndexError):
                 pass
-    
+
     # Если нет цены - ошибка
     if not prices['total_price']:
         logger.warning("⚠️ Цена не найдена!")
-    
+
     return prices
 
 
@@ -985,15 +1020,15 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
         'crew_sleeps': '',
         'electric_toilets': '',
     }
-    
+
     # Попробуем извлечь из JSON-LD (schema.org)
     script_tags = soup.find_all('script', {'type': 'application/ld+json'})
     logger.info(f"[parser] Found {len(script_tags)} JSON-LD scripts")
-    
+
     for script_idx, script in enumerate(script_tags):
         try:
             data = json.loads(script.string)
-            
+
             # Проверяем структуру данных
             if isinstance(data, list):
                 logger.info(f"[parser] Script {script_idx}: list with {len(data)} items")
@@ -1004,18 +1039,23 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
                         if item.get('@type') == 'Product':
                             info['title'] = item.get('name', info['title'])
                             info['description'] = item.get('description', info['description'])
-                            info['manufacturer'] = item.get('manufacturer', {}).get('name', info['manufacturer']) if isinstance(item.get('manufacturer'), dict) else item.get('brand', {}).get('name', info['manufacturer']) if isinstance(item.get('brand'), dict) else info['manufacturer']
+                            manufacturer = item.get('manufacturer')
+                            brand = item.get('brand')
+                            if isinstance(manufacturer, dict):
+                                info['manufacturer'] = manufacturer.get('name', info['manufacturer'])
+                            elif isinstance(brand, dict):
+                                info['manufacturer'] = brand.get('name', info['manufacturer'])
                             info['model'] = item.get('model', info['model'])
                             # Извлекаем технические параметры если есть
                             info['beam'] = item.get('beam', info['beam']) or ''
                             info['draft'] = item.get('draft', info['draft']) or ''
                             logger.info(f"[parser] ✅ Extracted from schema.org: title='{info['title']}'")
                             break
-                            
+
             elif isinstance(data, dict):
                 data_type = data.get('@type', 'unknown')
                 logger.info(f"[parser] Script {script_idx}: dict @type={data_type}")
-                
+
                 # Если это @graph, ищем Product внутри
                 if data.get('@context') == 'https://schema.org' or '@graph' in data:
                     items = data.get('@graph', [data])
@@ -1029,18 +1069,23 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
                             info['model'] = item.get('model', info['model'])
                             logger.info(f"[parser] ✅ Extracted from @graph Product: title='{info['title']}'")
                             break
-                
+
                 elif data.get('@type') == 'Product':
                     info['title'] = data.get('name', info['title'])
                     info['description'] = data.get('description', info['description'])
-                    info['manufacturer'] = data.get('manufacturer', {}).get('name', info['manufacturer']) if isinstance(data.get('manufacturer'), dict) else data.get('brand', {}).get('name', info['manufacturer']) if isinstance(data.get('brand'), dict) else info['manufacturer']
+                    manufacturer = data.get('manufacturer')
+                    brand = data.get('brand')
+                    if isinstance(manufacturer, dict):
+                        info['manufacturer'] = manufacturer.get('name', info['manufacturer'])
+                    elif isinstance(brand, dict):
+                        info['manufacturer'] = brand.get('name', info['manufacturer'])
                     info['model'] = data.get('model', info['model'])
                     logger.info(f"[parser] ✅ Extracted from schema.org: title='{info['title']}'")
-                    
+
         except (json.JSONDecodeError, TypeError, AttributeError) as e:
             logger.warning(f"[parser] Failed to parse JSON-LD script {script_idx}: {e}")
             continue
-    
+
     # Компоненты с данными о локации/параметрах яхты
     # mobile-payment-box — мобильная версия, reservation-box — десктопная
     payment_box = soup.find('mobile-payment-box') or soup.find('reservation-box')
@@ -1062,8 +1107,8 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
         info['maximum_speed'] = payment_box.get('boat-max-speed', '') or info['maximum_speed']
         info['toilets'] = payment_box.get('boat-toilets', '') or info['toilets']
     else:
-        logger.warning(f"[parser] payment_box не найден (ни mobile-payment-box, ни reservation-box)!")
-    
+        logger.warning("[parser] payment_box не найден (ни mobile-payment-box, ни reservation-box)!")
+
     # Из boat-info-list компонента (основной источник技ических параметров)
     boat_info_list = soup.find('boat-info-list')
     if boat_info_list:
@@ -1102,8 +1147,8 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
         except (json.JSONDecodeError, TypeError) as e:
             logger.warning(f"[parser] Ошибка парсинга boat-info-list params: {e}")
     else:
-        logger.warning(f"[parser] boat-info-list не найден!")
-    
+        logger.warning("[parser] boat-info-list не найден!")
+
     # Из add-to-wishlist (fallback)
     wishlist = soup.find('add-to-wishlist')
     if wishlist:
@@ -1112,7 +1157,7 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
             info['year'] = wishlist.get('year', '')
         if not info['cabins']:
             info['cabins'] = wishlist.get('cabins', '')
-    
+
     # FALLBACK: Если manufacturer пустой, пробуем извлечь из title
     if not info['manufacturer'] and info['title']:
         # Title обычно "Lagoon 380 S2 | Aride", manufacturer - до |
@@ -1123,7 +1168,7 @@ def _extract_boat_info(soup: BeautifulSoup, html_content: str) -> dict:
             model_parts = potential_manufacturer.split()
             if len(model_parts) > 0:
                 info['manufacturer'] = model_parts[0]  # Первое слово - производитель
-    
+
     logger.info(f"[parser] Final boat_info: {info}")
     return info
 
@@ -1158,37 +1203,37 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     """
     Парсит URL с boataround.com и возвращает данные о лодке.
     Главная функция для Django.
-    
+
     Args:
         url: URL с boataround.com
         save_to_db: Сохранить в ParsedBoat
-    
+
     Returns:
         dict: Полные данные о лодке
     """
     from urllib.parse import urlparse, parse_qs
-    
+
     # ⭐ ГЛАВНОЕ: Добавляем параметр currency=EUR чтобы получить цены в евро
     url = add_currency_param(url, 'EUR')
-    
+
     # Извлекаем параметры из URL
     parsed = urlparse(url)
     query_params = parse_qs(parsed.query)
-    
+
     check_in = query_params.get('checkIn', [''])[0]
     check_out = query_params.get('checkOut', [''])[0]
-    
+
     # Извлекаем slug
     match = SLUG_FROM_URL_PATTERN.search(url)
     slug = match.group(1) if match else 'unknown'
-    
+
     # Загружаем страницу
     html_content = fetch_page(url)
     if not html_content:
         return None
-    
+
     soup = BeautifulSoup(html_content, 'html.parser')
-    
+
     # Извлекаем данные
     boat_id = _extract_boat_id(html_content)
     pics = extract_pictures(html_content, soup)
@@ -1200,7 +1245,7 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     additional_services = _extract_additional_services_from_component(soup)
     delivery_extras = _extract_delivery_extras(soup)
     not_included = _extract_not_included(soup)
-    
+
     # ⭐ Загружаем страницу каждого языка ОДИН РАЗ и извлекаем все данные
     SUPPORTED_LANGUAGES = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR', 'es_ES']
     all_lang_data = _fetch_all_languages_data(slug, SUPPORTED_LANGUAGES)
@@ -1210,17 +1255,17 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     cockpit = ru_amenities.get('cockpit', [])
     entertainment = ru_amenities.get('entertainment', [])
     equipment = ru_amenities.get('equipment', [])
-    
+
     # Скачиваем фото (первые 20)
     pics_to_download = pics[:20]
     downloaded_pics = []
-    
+
     logger.info(f"Начинаем скачивание {len(pics_to_download)} фото...")
     for pic_path in pics_to_download:
         saved_path = download_and_save_image(pic_path)
         if saved_path:
             downloaded_pics.append(saved_path)
-    
+
     logger.info(f"Успешно скачано {len(downloaded_pics)}/{len(pics_to_download)} фото")
     if pics_to_download and not downloaded_pics:
         logger.error(
@@ -1235,32 +1280,32 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
         'url': url,
         'slug': slug,
         'boat_id': boat_id,
-        
+
         # Временные рамки
         'check_in': check_in,
         'check_out': check_out,
-        
+
         # Техническая информация о лодке (все параметры)
         'boat_info': boat_info,
-        
+
         # Цены
         'prices': prices,
-        
+
         # ГЛАВНОЕ: Фото в разных форматах для максимальной совместимости
         'pictures': downloaded_pics,      # Пути в /app/media/boats/...
         'gallery': downloaded_pics,       # Синоним для API совместимости
-        
+
         # Услуги и добавления
         'extras': extras,                           # Основные услуги (сапборд, капитан и т.д.)
-        'additional_services': additional_services, # Доп услуги (гибкая отмена и т.д.)
+        'additional_services': additional_services,  # Доп услуги (гибкая отмена и т.д.)
         'delivery_extras': delivery_extras,         # Услуги доставки
         'not_included': not_included,               # Что не включено в стоимость
-        
+
         # Оборудование (основной язык - русский)
         'cockpit': cockpit,                         # Оборудование кокпита
         'entertainment': entertainment,             # Развлечения
         'equipment': equipment,                     # Оборудование
-        
+
     }
     # Краткое структурированное логирование результата парсинга
     try:
@@ -1269,12 +1314,12 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
         price_val = 0
 
     logger.info(
-        f"[parser-summary] title='{boat_info.get('title','')}', boat_id={boat_id}, "
+        f"[parser-summary] title='{boat_info.get('title', '')}', boat_id={boat_id}, "
         f"price={price_val}, images={len(downloaded_pics)}, extras={len(extras)}, "
         f"adds={len(additional_services)}, delivery={len(delivery_extras)}, not_included={len(not_included)}, "
         f"cockpit={len(cockpit)}, entertainment={len(entertainment)}, equipment={len(equipment)}"
     )
-    
+
     # Сохраняем в базу
     if save_to_db and slug and slug != 'unknown':
         try:
@@ -1337,7 +1382,7 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
                     source_url=url,
                 )
                 created = True
-            
+
             # Из HTML сохраняем только фото (BoatGallery)
             BoatGallery.objects.filter(boat=parsed_boat).delete()
             for idx, pic_url in enumerate(downloaded_pics, 1):
@@ -1349,7 +1394,6 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
 
             # Из HTML сохраняем сервисные списки + amenities (BoatDetails)
             # + локализованные описания (BoatDescription) — title/country/marina/location
-            from boats.models import BoatDescription
             for language in SUPPORTED_LANGUAGES:
                 lang_equipment = all_lang_data.get(language, {}).get('amenities', {})
                 lang_services = all_lang_data.get(language, {}).get('services', {})
@@ -1425,7 +1469,7 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
         except Exception as e:
             import traceback
             logger.error(f"Ошибка сохранения в ParsedBoat: {e}\n{traceback.format_exc()}")
-    
+
     return result
 
 
@@ -1436,10 +1480,10 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
 def get_full_image_url(path: str, width: int = 1920, height: int = 1080) -> str:
     """
     Формирует URL изображения для CDN.
-    
+
     Args:
         path: Путь к изображению, например 'boats/62b96d157a9323583a5a4880/650d96fa43b7cac28800ead4.jpg'
-    
+
     Returns:
         str: https://b1cdn.prvms.ru/static/boats/.../image.jpg
     """
@@ -1449,10 +1493,10 @@ def get_full_image_url(path: str, width: int = 1920, height: int = 1080) -> str:
 def get_thumbnail_url(path: str, size: int = 200) -> str:
     """
     Формирует URL миниатюры для CDN.
-    
+
     Args:
         path: Путь к изображению
-    
+
     Returns:
         str: https://b1cdn.prvms.ru/static/boats/.../image.jpg
     """
@@ -1468,26 +1512,26 @@ def parse_boataround_url_minimal(url: str) -> Optional[dict]:
     Быстрый парсер который извлекает ТОЛЬКО:
     - Фото (pictures)
     - Extras, additional_services, delivery_extras, not_included
-    
+
     Не парсит технические параметры (они берутся из API).
     Предназначен для быстрого обновления фото и услуг.
-    
+
     Args:
         url: URL лодки на boataround.com
-    
+
     Returns:
         dict: {'pictures': [...], 'extras': [...], ...} или None
     """
     try:
         logger.info(f"[parser-minimal] Загружаем: {url}")
-        
+
         headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'}
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
-        
+
         soup = BeautifulSoup(response.content, 'html.parser')
         logger.info(f"[parser-minimal] ✅ Загружено {len(response.content)} байт")
-        
+
         result = {
             'pictures': [],
             'extras': [],
@@ -1495,17 +1539,17 @@ def parse_boataround_url_minimal(url: str) -> Optional[dict]:
             'delivery_extras': [],
             'not_included': [],
         }
-        
+
         # 1. Извлекаем фото из boat-info-list компонента
         boat_info_list = soup.find('boat-info-list')
         if boat_info_list:
             # Ищем изображения в компоненте и скрипте
             pass  # boat-info-list не содержит фото напрямую
-        
+
         # 2. Ищем gallery-mobile компонент для фото
         gallery = soup.find('gallery-mobile')
         if gallery:
-            logger.info(f"[parser-minimal] ✅ Найден gallery-mobile")
+            logger.info("[parser-minimal] ✅ Найден gallery-mobile")
             images_attr = gallery.get(':images', '[]')
             try:
                 images = json.loads(images_attr)
@@ -1520,13 +1564,13 @@ def parse_boataround_url_minimal(url: str) -> Optional[dict]:
             except Exception as e:
                 logger.warning(f"[parser-minimal] Ошибка парсинга gallery images: {e}")
         else:
-            logger.warning(f"[parser-minimal] gallery-mobile не найден")
-        
+            logger.warning("[parser-minimal] gallery-mobile не найден")
+
         # 3. Извлекаем extras/services из extras-list компонента
         extras_list = soup.find('extras-list')
         if extras_list:
-            logger.info(f"[parser-minimal] ✅ Найден extras-list")
-            
+            logger.info("[parser-minimal] ✅ Найден extras-list")
+
             # Парсим extras
             extras_attr = extras_list.get(':extras', '[]')
             try:
@@ -1536,7 +1580,7 @@ def parse_boataround_url_minimal(url: str) -> Optional[dict]:
                     logger.info(f"[parser-minimal] Извлечено {len(extras)} extras")
             except Exception as e:
                 logger.warning(f"[parser-minimal] Ошибка парсинга extras: {e}")
-            
+
             # Парсим additional_services
             services_attr = extras_list.get(':additional-services', '[]')
             try:
@@ -1546,7 +1590,7 @@ def parse_boataround_url_minimal(url: str) -> Optional[dict]:
                     logger.info(f"[parser-minimal] Извлечено {len(services)} additional_services")
             except Exception as e:
                 logger.warning(f"[parser-minimal] Ошибка парсинга services: {e}")
-            
+
             # Парсим delivery extras
             delivery_attr = extras_list.get(':extras-delivery', '[]')
             try:
@@ -1556,19 +1600,20 @@ def parse_boataround_url_minimal(url: str) -> Optional[dict]:
                     logger.info(f"[parser-minimal] Извлечено {len(delivery)} delivery_extras")
             except Exception as e:
                 logger.warning(f"[parser-minimal] Ошибка парсинга delivery: {e}")
-        
+
         # 4. Извлекаем not_included
         # Ищем в description или отдельном блоке
         not_included_section = soup.find(class_='not-included') or soup.find(text=re.compile('не включено', re.I))
         if not_included_section:
-            logger.info(f"[parser-minimal] Найдена секция 'не включено'")
+            logger.info("[parser-minimal] Найдена секция 'не включено'")
             # TODO: парсить этот блок если нужно
-        
-        logger.info(f"[parser-minimal] ✅ Завершено: {len(result['pictures'])} фото, "
-                   f"{len(result['extras'])} extras")
-        
+
+        logger.info(
+            f"[parser-minimal] ✅ Завершено: {len(result['pictures'])} фото, "
+            f"{len(result['extras'])} extras")
+
         return result
-        
+
     except Exception as e:
         logger.error(f"[parser-minimal] ❌ Ошибка: {e}")
         import traceback

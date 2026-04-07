@@ -15,7 +15,7 @@ def register_view(request):
     """Регистрация нового пользователя"""
     if request.user.is_authenticated:
         return redirect('home')
-    
+
     valid_plans = {'free', 'standard', 'advanced'}
     selected_plan = request.GET.get('plan', 'free')
     if selected_plan not in valid_plans:
@@ -41,7 +41,7 @@ def register_view(request):
             return redirect('profile')
     else:
         form = RegisterForm(initial={'subscription_plan': selected_plan})
-    
+
     return render(request, 'accounts/register.html', {'form': form})
 
 
@@ -49,12 +49,12 @@ def login_view(request):
     """Вход пользователя"""
     if request.user.is_authenticated:
         return redirect('home')
-    
+
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
-        
+
         if user is not None:
             login(request, user)
             messages.success(request, f'Добро пожаловать, {user.username}!')
@@ -64,7 +64,7 @@ def login_view(request):
             return redirect('home')
         else:
             messages.error(request, 'Неверное имя пользователя или пароль')
-    
+
     return render(request, 'accounts/login.html')
 
 
@@ -86,10 +86,10 @@ def profile_view(request):
             return redirect('profile')
     else:
         form = ProfileUpdateForm(instance=request.user.profile)
-    
+
     # Get stats for dashboard
     from boats.models import Favorite, Booking, Offer
-    
+
     context = {
         'form': form,
         # .count() использует индекс, быстро даже при большом объёме

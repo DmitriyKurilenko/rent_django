@@ -25,8 +25,10 @@ class Role(models.Model):
     permissions = models.ManyToManyField(
         Permission, blank=True, related_name='roles', verbose_name='Разрешения'
     )
-    is_system = models.BooleanField('Системная', default=False,
-                                     help_text='Системные роли нельзя удалить')
+    is_system = models.BooleanField(
+        'Системная', default=False,
+        help_text='Системные роли нельзя удалить'
+    )
 
     class Meta:
         verbose_name = 'Роль'
@@ -55,7 +57,7 @@ class UserProfile(models.Model):
         ('admin', 'Администратор'),
         ('superadmin', 'Суперадмин'),
     ]
-    
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role_ref = models.ForeignKey(
         Role, on_delete=models.PROTECT, related_name='profiles',
@@ -66,7 +68,7 @@ class UserProfile(models.Model):
     bio = models.TextField('О себе', blank=True)
     avatar = models.ImageField('Аватар', upload_to='avatars/', blank=True, null=True)
     created_at = models.DateTimeField('Дата регистрации', auto_now_add=True)
-    
+
     class Meta:
         verbose_name = 'Профиль пользователя'
         verbose_name_plural = 'Профили пользователей'

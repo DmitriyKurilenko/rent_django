@@ -14,12 +14,12 @@ class CharterAdmin(admin.ModelAdmin):
     search_fields = ['name', 'charter_id']
     list_editable = ['commission']
     readonly_fields = ['charter_id', 'created_at', 'updated_at']
-    
+
     def boats_count(self, obj):
         """Количество лодок у чартера"""
         return obj.boats.count()
     boats_count.short_description = 'Лодок'
-    
+
     fieldsets = (
         ('Основная информация', {
             'fields': ('charter_id', 'name', 'logo')
@@ -50,7 +50,7 @@ class FavoriteAdmin(admin.ModelAdmin):
     list_filter = ['created_at']
     search_fields = ['user__username', 'boat_slug', 'parsed_boat__slug']
     readonly_fields = ['boat_slug', 'boat_id']
-    
+
     def get_boat_title(self, obj):
         """Получить название лодки из parsed_boat"""
         return obj.get_boat_title()
@@ -59,7 +59,10 @@ class FavoriteAdmin(admin.ModelAdmin):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ['boat', 'user', 'start_date', 'end_date', 'guests', 'status', 'option_until', 'total_price', 'created_at']
+    list_display = [
+        'boat', 'user', 'start_date', 'end_date', 'guests',
+        'status', 'option_until', 'total_price', 'created_at',
+    ]
     list_filter = ['status', 'created_at', 'start_date']
     search_fields = ['boat__name', 'user__username']
     list_editable = ['status']
@@ -82,13 +85,17 @@ class ReviewAdmin(admin.ModelAdmin):
 
 @admin.register(Offer)
 class OfferAdmin(admin.ModelAdmin):
-    list_display = ['uuid', 'get_offer_type_badge', 'title', 'created_by', 'check_in', 'check_out', 'total_price', 'currency', 'is_active', 'views_count', 'created_at']
+    list_display = [
+        'uuid', 'get_offer_type_badge', 'title', 'created_by',
+        'check_in', 'check_out', 'total_price', 'currency',
+        'is_active', 'views_count', 'created_at',
+    ]
     list_filter = ['offer_type', 'is_active', 'currency', 'created_at', 'created_by']
     search_fields = ['uuid', 'title', 'created_by__username']
     list_editable = ['is_active']
     readonly_fields = ['uuid', 'views_count', 'created_at', 'updated_at']
     ordering = ['-created_at']
-    
+
     def get_offer_type_badge(self, obj):
         """Отображение типа оффера с цветным badge"""
         from django.utils.html import format_html
@@ -102,16 +109,18 @@ class OfferAdmin(admin.ModelAdmin):
         }
         color = colors.get(obj.offer_type, '#6b7280')
         icon = icons.get(obj.offer_type, '🚢')
-        
+
         return format_html(
-            '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px; font-weight: bold;">{} {}</span>',
+            '<span style="background-color: {}; color: white; '
+            'padding: 3px 10px; border-radius: 3px; '
+            'font-weight: bold;">{} {}</span>',
             color,
             icon,
             obj.get_offer_type_display()
         )
-    
+
     get_offer_type_badge.short_description = 'Тип'
-    
+
     fieldsets = (
         ('Основная информация', {
             'fields': ('uuid', 'created_by', 'offer_type', 'source_url', 'title', 'description')
@@ -139,12 +148,15 @@ class OfferAdmin(admin.ModelAdmin):
 
 @admin.register(ParsedBoat)
 class ParsedBoatAdmin(admin.ModelAdmin):
-    list_display = ['boat_id', 'manufacturer', 'model', 'year', 'charter', 'parse_count', 'last_parse_success', 'last_parsed']
+    list_display = [
+        'boat_id', 'manufacturer', 'model', 'year', 'charter',
+        'parse_count', 'last_parse_success', 'last_parsed',
+    ]
     list_filter = ['last_parse_success', 'manufacturer', 'charter', 'last_parsed']
     search_fields = ['boat_id', 'slug', 'manufacturer', 'model', 'charter__name']
     readonly_fields = ['boat_id', 'created_at', 'updated_at', 'last_parsed', 'parse_count']
     ordering = ['-last_parsed']
-    
+
     fieldsets = (
         ('Идентификация', {
             'fields': ('boat_id', 'slug', 'source_url')
@@ -214,7 +226,10 @@ class ContractAdmin(admin.ModelAdmin):
     list_display = ['contract_number', 'status', 'created_by', 'signer', 'booking', 'signed_at', 'created_at']
     list_filter = ['status', 'created_at', 'signed_at']
     search_fields = ['contract_number', 'created_by__username', 'signer__username', 'uuid']
-    readonly_fields = ['uuid', 'sign_token', 'document_hash', 'sign_ip', 'sign_user_agent', 'signed_at', 'created_at', 'updated_at']
+    readonly_fields = [
+        'uuid', 'sign_token', 'document_hash', 'sign_ip',
+        'sign_user_agent', 'signed_at', 'created_at', 'updated_at',
+    ]
     ordering = ['-created_at']
 
     fieldsets = (
@@ -244,7 +259,10 @@ class ContractAdmin(admin.ModelAdmin):
 
 @admin.register(ContractOTP)
 class ContractOTPAdmin(admin.ModelAdmin):
-    list_display = ['contract', 'code', 'phone', 'delivery_method', 'is_verified', 'attempts', 'created_at', 'expires_at']
+    list_display = [
+        'contract', 'code', 'phone', 'delivery_method',
+        'is_verified', 'attempts', 'created_at', 'expires_at',
+    ]
     list_filter = ['delivery_method', 'is_verified']
     search_fields = ['contract__contract_number', 'phone']
     readonly_fields = ['created_at']
