@@ -1278,9 +1278,9 @@ def my_bookings(request):
     option_bookings = bookings_qs.filter(status='option').count()
     confirmed_bookings = bookings_qs.filter(status='confirmed').count()
 
-    # Расшифровка цены для капитанов/менеджеров/админов
+    # Расшифровка цены только для менеджеров/админов
     booking_price_debug = {}
-    show_price_debug = user.profile.role in ('captain', 'manager', 'admin', 'superadmin')
+    show_price_debug = user.profile.role in ('manager', 'admin', 'superadmin')
     if show_price_debug:
         for b in bookings:
             if b.offer:

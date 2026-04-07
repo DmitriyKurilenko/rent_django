@@ -2,6 +2,13 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-07 — Price breakdown leaked to captain role
+- Problem: `show_price_debug` in `my_bookings` included `'captain'` — captains could see full price breakdown (API price, discounts, charter/agent commissions, adjustments). Must be restricted to manager/admin/superadmin.
+- Fix: Removed `'captain'` from role tuple in `my_bookings` view (line 1283). `_price_visibility_flags()` was already correct (captain gets only `show_charter_commission_only`), so boat detail/offers were fine.
+- Files: `boats/views.py`
+- Validation: `docker compose run --rm web python manage.py check` — 0 issues.
+- Risks: None. Captain now sees only total price in bookings list, consistent with detail/offer pages.
+
 ## 2026-04-07 — Contract signing download 404 fix
 - Problem: After OTP signing, "Скачать PDF" linked to `download_contract` which requires `@login_required`. Signer is not authenticated (accessed via `sign_token`). Also `LOGIN_URL = '/login/'` didn't match any i18n route (actual: `/ru/accounts/login/`).
 - Fix 1: Changed `LOGIN_URL` from `'/login/'` to `'login'` (named URL) in `boat_rental/settings.py` — Django resolves it with proper i18n prefix.

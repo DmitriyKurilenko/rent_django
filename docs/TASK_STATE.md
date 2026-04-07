@@ -4,6 +4,11 @@ Last updated: 2026-04-07 (Europe/Moscow)
 
 ## Current priorities
 
+### P0.1: Price breakdown visibility leak to captain
+- Status: **DONE (2026-04-07)**
+- `show_price_debug` in `my_bookings` had `'captain'` in role list — captains saw full breakdown.
+- Fixed: removed `'captain'`, now only `manager`/`admin`/`superadmin`.
+
 ### P0: Pricing consistency across search/detail/offers
 - Status: **RESOLVED (2026-04-02)** — cache-first lookup in `get_price()` eliminates price jitter symptom for users.
 

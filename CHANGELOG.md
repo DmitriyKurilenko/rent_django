@@ -2,6 +2,11 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.7.1-dev] - 2026-04-07
+
+### 🔒 Fixed — Price breakdown visible to captain
+- **`my_bookings` price debug**: removed `'captain'` from `show_price_debug` role list. Price breakdown (API price, discounts, charter/agent commissions, adjustments) is now visible **only** to `manager`, `admin`, `superadmin`. Captain sees total price only.
+
 ## [0.7.0-dev] - 2026-04-07
 
 ### ✨ Added — Booking option status + in-app notifications
