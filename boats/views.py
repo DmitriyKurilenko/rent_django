@@ -713,21 +713,24 @@ def boat_detail(request, pk):
     return render(request, 'boats/detail.html', context)
 
 
-def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU'):
+def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU', force_refresh=False):
     """
     Для detail/offer: если лодка есть в БД — возвращаем.
-    Если нет — полный парсинг: API → HTML.
+    Если нет или force_refresh — полный парсинг: API → HTML.
     """
     parsed_boat = ParsedBoat.objects.filter(slug=boat_slug).first()
 
-    if parsed_boat:
+    if parsed_boat and not force_refresh:
         # Если specs нет — подтянем из API (одноразовая операция)
         if not BoatTechnicalSpecs.objects.filter(boat=parsed_boat).exists():
             _ensure_api_metadata_for_boat(parsed_boat)
         return parsed_boat, None
 
-    # Лодки нет в БД — полный парсинг
-    logger.info(f"[Boat Data] {boat_slug} not in DB, starting full parse")
+    if force_refresh and parsed_boat:
+        logger.info(f"[Boat Data] Force refresh requested for {boat_slug}")
+
+    if not parsed_boat:
+        logger.info(f"[Boat Data] {boat_slug} not in DB, starting full parse")
 
     # --- Фаза 1: API metadata (specs, descriptions, charter) ---
     raw_boat = BoataroundAPI.search_by_slug(boat_slug, raw=True)
@@ -1878,7 +1881,8 @@ def create_offer(request):
             if not slug:
                 return ajax_error('Не удалось извлечь информацию о лодке из URL. Проверьте формат URL.', form=form)
             
-            parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(slug, 'ru_RU')
+            force_refresh = request.POST.get('force_refresh') == 'true'
+            parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(slug, 'ru_RU', force_refresh=force_refresh)
             if parse_error:
                 logger.error(f"[Create Offer] {parse_error} slug={slug}")
                 return ajax_error(parse_error, form=form)

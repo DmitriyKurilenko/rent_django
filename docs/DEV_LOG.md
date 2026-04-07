@@ -2,6 +2,13 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-07 — Force refresh flag ignored in create_offer
+- Problem: `create_offer.html` sends `force_refresh=true` via POST when "Обновить данные" checkbox is checked, but `create_offer` view never reads it. `_ensure_boat_data_for_critical_flow` always returned cached data.
+- Fix: Added `force_refresh` param to `_ensure_boat_data_for_critical_flow(slug, lang, force_refresh=False)`. When `True`, skips cache and runs full parse (API + HTML). `create_offer` reads `request.POST.get('force_refresh') == 'true'` and passes it.
+- Files: `boats/views.py`
+- Validation: `docker compose run --rm web python manage.py check` — 0 issues.
+- Risks: Force refresh adds ~10s latency (full HTML parse). Only triggered by explicit user action (checkbox).
+
 ## 2026-04-07 — Price breakdown leaked to captain role
 - Problem: `show_price_debug` in `my_bookings` included `'captain'` — captains could see full price breakdown (API price, discounts, charter/agent commissions, adjustments). Must be restricted to manager/admin/superadmin.
 - Fix: Removed `'captain'` from role tuple in `my_bookings` view (line 1283). `_price_visibility_flags()` was already correct (captain gets only `show_charter_commission_only`), so boat detail/offers were fine.

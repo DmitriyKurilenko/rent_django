@@ -2,6 +2,11 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.7.2-dev] - 2026-04-07
+
+### 🔧 Fixed — Force refresh in offer creation ignored
+- **`create_offer`**: `force_refresh` checkbox was sent from frontend but backend ignored it. Now reads `force_refresh` from POST and passes `force_refresh=True` to `_ensure_boat_data_for_critical_flow` — triggers full re-parse (API + HTML) instead of returning cached data.
+
 ## [0.7.1-dev] - 2026-04-07
 
 ### 🔒 Fixed — Price breakdown visible to captain
