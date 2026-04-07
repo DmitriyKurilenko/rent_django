@@ -14,14 +14,14 @@
             <div class="mb-6">
                 <h1 class="text-3xl font-bold">
                     <i class="fas fa-anchor"></i>
-                    {% if user.profile.role == 'tourist' %}
+                    {% if user.profile.is_tourist %}
                         {% trans "Мои бронирования" %}
                     {% else %}
                         {% trans "Все бронирования" %}
                     {% endif %}
                 </h1>
                 <p class="text-sm text-base-content/70 mt-1">
-                    {% if user.profile.role == 'tourist' %}
+                    {% if user.profile.is_tourist %}
                         {% trans "Ваши бронирования и круизы" %}
                     {% elif user.profile.can_see_all_bookings %}
                         {% trans "Управление всеми бронированиями" %}
@@ -165,7 +165,7 @@
 
                             <!-- Клиент -->
                             <td>
-                                {% if user.profile.role != 'tourist' %}
+                                {% if not user.profile.is_tourist %}
                                 <div x-data="clientAttach({{ booking.id }}, {{ booking.client.id|default:'null' }}, '{{ booking.client.full_name|default:'' }}')">
                                     <template x-if="clientName">
                                         <div>
@@ -295,7 +295,7 @@
                                     <a href="{% url 'contract_detail' booking.active_contract.uuid %}" class="link text-sm no-underline hover:underline {% if booking.active_contract.status == 'signed' %}link-success{% else %}link-info{% endif %}">
                                         {{ booking.active_contract.get_status_display }}
                                     </a>
-                                {% elif user.profile.role != 'tourist' %}
+                                {% elif not user.profile.is_tourist %}
                                     <a href="{% url 'create_contract' booking.id %}" class="link link-primary text-sm no-underline hover:underline">{% trans "Создать" %}</a>
                                 {% else %}
                                     <span class="text-base-content/30">—</span>
@@ -404,7 +404,7 @@
                                 {% endwith %}
                             </div>
 
-                            {% if user.profile.role != 'tourist' %}
+                            {% if not user.profile.is_tourist %}
                             <div class="text-base-content/50">{% trans "Клиент" %}</div>
                             <div x-data="clientAttach({{ booking.id }}, {{ booking.client.id|default:'null' }}, '{{ booking.client.full_name|default:'' }}')">
                                 <template x-if="clientName">
@@ -452,7 +452,7 @@
                                     <a href="{% url 'contract_detail' booking.active_contract.uuid %}" class="link text-sm {% if booking.active_contract.status == 'signed' %}link-success{% else %}link-info{% endif %}">
                                         {{ booking.active_contract.get_status_display }}
                                     </a>
-                                {% elif user.profile.role != 'tourist' %}
+                                {% elif not user.profile.is_tourist %}
                                     <a href="{% url 'create_contract' booking.id %}" class="link link-primary text-sm">{% trans "Создать" %}</a>
                                 {% else %}
                                     <span class="text-base-content/30">—</span>
@@ -548,13 +548,13 @@
                     </div>
                     <h2 class="text-xl font-bold mb-2">{% trans "Нет бронирований" %}</h2>
                     <p class="text-base-content/70 mb-4">
-                        {% if user.profile.role == 'tourist' %}
+                        {% if user.profile.is_tourist %}
                             {% trans "Начните искать лодки и создавайте бронирования!" %}
                         {% else %}
                             {% trans "Пока нет бронирований от клиентов" %}
                         {% endif %}
                     </p>
-                    {% if user.profile.role == 'tourist' %}
+                    {% if user.profile.is_tourist %}
                         <a href="{% url 'boat_search' %}" class="btn btn-primary btn-sm">
                             <i class="fas fa-search"></i> {% trans "Поиск лодок" %}
                         </a>

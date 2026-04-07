@@ -216,6 +216,24 @@ class UserProfile(models.Model):
     def can_manage_prices(self):
         return self.has_perm('manage_prices')
 
+    def can_view_price_breakdown(self):
+        return self.has_perm('view_price_breakdown')
+
+    def can_assign_managers(self):
+        return self.has_perm('assign_managers')
+
+    def can_delete_bookings(self):
+        return self.has_perm('delete_bookings')
+
+    def can_delete_offers(self):
+        return self.has_perm('delete_offers')
+
+    def can_create_contracts(self):
+        return self.has_perm('create_contracts')
+
+    def can_view_all_clients(self):
+        return self.has_perm('view_all_clients')
+
     def can_use_no_branding(self):
         return self.subscription_plan == 'advanced' or self.has_perm('no_branding')
 

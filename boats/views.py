@@ -68,10 +68,10 @@ def _price_visibility_flags(user) -> dict:
             'show_charter_commission_only': False,
         }
 
-    role = getattr(getattr(user, 'profile', None), 'role', '')
+    profile = getattr(user, 'profile', None)
     return {
-        'show_full_price_breakdown': role in ('manager', 'admin', 'superadmin'),
-        'show_charter_commission_only': role == 'captain',
+        'show_full_price_breakdown': profile.can_view_price_breakdown() if profile else False,
+        'show_charter_commission_only': profile.is_captain if profile else False,
     }
 
 
@@ -1281,10 +1281,9 @@ def my_bookings(request):
     option_bookings = bookings_qs.filter(status='option').count()
     confirmed_bookings = bookings_qs.filter(status='confirmed').count()
 
-    # Расшифровка цены только для менеджеров/админов
+    # Расшифровка цены
     booking_price_debug = {}
-    show_price_debug = user.profile.role in ('manager', 'admin', 'superadmin')
-    if show_price_debug:
+    if user.profile.can_view_price_breakdown():
         for b in bookings:
             if b.offer:
                 try:
@@ -1292,9 +1291,9 @@ def my_bookings(request):
                 except Exception:
                     logger.exception('[Bookings] Failed to build price debug for booking_id=%s', b.pk)
 
-    # Список менеджеров для суперадмина
+    # Список менеджеров для назначения
     managers = []
-    if user.profile.role == 'superadmin':
+    if user.profile.can_assign_managers():
         from django.contrib.auth.models import User as AuthUser
         managers = AuthUser.objects.filter(profile__role_ref__codename='manager').order_by('first_name', 'username')
 
@@ -1391,7 +1390,6 @@ def assign_booking_manager(request, booking_id):
     booking = get_object_or_404(Booking, id=booking_id)
     action = request.POST.get('action', '').strip()
     next_url = request.POST.get('next', '')
-    role = request.user.profile.role
 
     if action == 'unassign':
         booking.assigned_manager = None
@@ -1401,7 +1399,7 @@ def assign_booking_manager(request, booking_id):
         booking.assigned_manager = request.user
         booking.save(update_fields=['assigned_manager', 'updated_at'])
         messages.success(request, 'Вы назначены ответственным')
-    elif action == 'assign' and role == 'superadmin':
+    elif action == 'assign' and request.user.profile.can_assign_managers():
         manager_id = request.POST.get('manager_id')
         if manager_id:
             from accounts.models import UserProfile
@@ -1422,8 +1420,7 @@ def assign_booking_manager(request, booking_id):
 @login_required
 def attach_client_to_booking(request, booking_id):
     """Привязать клиента к бронированию (AJAX POST)."""
-    role = request.user.profile.role
-    if role not in ('captain', 'manager', 'admin', 'superadmin'):
+    if request.user.profile.is_tourist:
         return JsonResponse({'error': 'Нет прав'}, status=403)
 
     if request.method != 'POST':
@@ -1448,7 +1445,7 @@ def attach_client_to_booking(request, booking_id):
     if not client_id:
         return JsonResponse({'error': 'Не выбран клиент'}, status=400)
 
-    if role in ('manager', 'admin', 'superadmin'):
+    if request.user.profile.can_view_all_clients():
         client = get_object_or_404(Client, id=client_id)
     else:
         client = get_object_or_404(Client, id=client_id, created_by=request.user)
@@ -1469,7 +1466,7 @@ def attach_client_to_booking(request, booking_id):
 @login_required
 def delete_booking(request, booking_id):
     """Удаление бронирования (только для менеджеров и админов)"""
-    if request.user.profile.role not in ['manager', 'admin']:
+    if not request.user.profile.can_delete_bookings():
         messages.error(request, 'У вас нет прав для удаления бронирований')
         return redirect('my_bookings')
     
@@ -1579,7 +1576,7 @@ def offers_stats_api(request):
     if not request.user.profile.can_create_offers():
         return JsonResponse({'error': 'Forbidden'}, status=403)
     
-    if request.user.profile.role == 'admin':
+    if request.user.profile.can_see_all_bookings():
         offers = Offer.objects.all()
     else:
         offers = Offer.objects.filter(created_by=request.user)
@@ -1604,7 +1601,7 @@ def offers_list_api(request):
     if not request.user.profile.can_create_offers():
         return JsonResponse({'error': 'Forbidden'}, status=403)
     
-    if request.user.profile.role == 'admin':
+    if request.user.profile.can_see_all_bookings():
         offers = Offer.objects.all()
     else:
         offers = Offer.objects.filter(created_by=request.user)
@@ -1664,7 +1661,7 @@ def offers_list(request):
         messages.error(request, 'У вас нет прав для доступа к этой странице')
         return redirect('home')
 
-    if request.user.profile.role == 'admin':
+    if request.user.profile.can_see_all_bookings():
         offers_qs = Offer.objects.all()
     else:
         offers_qs = Offer.objects.filter(created_by=request.user)
@@ -2143,7 +2140,7 @@ def offer_detail(request, uuid):
     is_custom_branding = offer.branding_mode == 'custom_branding'
     can_view_internal_notes = request.user.is_authenticated and request.user == offer.created_by
     can_book_from_offer = request.user.is_authenticated and (
-        request.user == offer.created_by or request.user.profile.role == 'manager'
+        request.user == offer.created_by or request.user.profile.can_see_all_bookings()
     )
 
     context = {
@@ -2160,7 +2157,7 @@ def offer_detail(request, uuid):
         'data_error': data_error,
     }
 
-    if request.user.is_authenticated and request.user.profile.role in ('manager', 'admin', 'superadmin'):
+    if request.user.is_authenticated and request.user.profile.can_view_price_breakdown():
         context['price_debug'] = _build_price_debug(offer)
 
     # Выбираем шаблон в зависимости от типа оффера
@@ -2376,7 +2373,7 @@ def offer_view(request, uuid):
         'hide_site_branding': offer.branding_mode in ['no_branding', 'custom_branding'],
         'is_custom_branding': offer.branding_mode == 'custom_branding',
         'can_view_internal_notes': request.user == offer.created_by,
-        'can_book_from_offer': request.user == offer.created_by or request.user.profile.role == 'manager',
+        'can_book_from_offer': request.user == offer.created_by or request.user.profile.can_see_all_bookings(),
     }
     
     # Выбираем шаблон в зависимости от типа оффера
@@ -2393,7 +2390,7 @@ def delete_offer(request, uuid):
     offer = get_object_or_404(Offer, uuid=uuid)
     
     # Проверка прав
-    if not (request.user == offer.created_by or request.user.profile.role == 'admin'):
+    if not (request.user == offer.created_by or request.user.profile.can_delete_offers()):
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'error': 'У вас нет прав для удаления этого оффера'}, status=403)
         messages.error(request, 'У вас нет прав для удаления этого оффера')
@@ -2598,7 +2595,7 @@ def book_offer(request, uuid):
     offer = get_object_or_404(Offer, uuid=uuid)
     
     # Только автор оффера или менеджер могут создать бронирование из оффера
-    if not (request.user == offer.created_by or request.user.profile.role == 'manager'):
+    if not (request.user == offer.created_by or request.user.profile.can_see_all_bookings()):
         messages.error(request, 'Бронирование из оффера доступно только автору оффера или менеджеру')
         return redirect('offer_detail', uuid=uuid)
     
@@ -2727,7 +2724,7 @@ def create_contract(request, booking_id):
     """Создание договора для бронирования (менеджер/капитан)."""
     booking = get_object_or_404(Booking, id=booking_id)
 
-    if not request.user.profile.role in ('captain', 'manager', 'admin', 'superadmin'):
+    if not request.user.profile.can_create_contracts():
         messages.error(request, 'У вас нет прав для создания договоров')
         return redirect('my_bookings')
 
@@ -2831,7 +2828,7 @@ def contract_detail(request, uuid):
     # Доступ: создатель, подписант, менеджер, админ
     if not (request.user == contract.created_by
             or request.user == contract.signer
-            or request.user.profile.role in ('manager', 'admin', 'superadmin')):
+            or request.user.profile.can_see_all_bookings()):
         messages.error(request, 'У вас нет доступа к этому договору')
         return redirect('my_bookings')
 
@@ -2844,7 +2841,7 @@ def contract_detail(request, uuid):
     context = {
         'contract': contract,
         'sign_url': sign_url,
-        'can_manage': request.user == contract.created_by or request.user.profile.role in ('manager', 'admin', 'superadmin'),
+        'can_manage': request.user == contract.created_by or request.user.profile.can_see_all_bookings(),
     }
     return render(request, 'boats/contract_detail.html', context)
 
@@ -3014,7 +3011,7 @@ def download_contract(request, uuid):
     # Доступ: создатель, подписант, менеджер
     if not (request.user == contract.created_by
             or request.user == contract.signer
-            or request.user.profile.role in ('manager', 'admin', 'superadmin')):
+            or request.user.profile.can_see_all_bookings()):
         messages.error(request, 'У вас нет доступа к этому файлу')
         return redirect('my_bookings')
 
@@ -3052,9 +3049,9 @@ def contracts_list(request):
     """Список договоров для менеджера/капитана."""
     user = request.user
 
-    if user.profile.role in ('manager', 'admin', 'superadmin'):
+    if user.profile.can_see_all_bookings():
         contracts_qs = Contract.objects.all()
-    elif user.profile.role == 'captain':
+    elif user.profile.is_captain:
         contracts_qs = Contract.objects.filter(created_by=user)
     else:
         contracts_qs = Contract.objects.filter(signer=user)
@@ -3087,7 +3084,7 @@ def contracts_list(request):
 def clients_list(request):
     """Список клиентов агента/капитана"""
     user = request.user
-    if user.profile.role in ('manager', 'superadmin'):
+    if user.profile.can_view_all_clients():
         clients_qs = Client.objects.all()
     else:
         clients_qs = Client.objects.filter(created_by=user)
@@ -3138,7 +3135,7 @@ def client_create(request):
 @login_required
 def client_detail(request, pk):
     """Карточка клиента с историей"""
-    if request.user.profile.role in ('manager', 'superadmin'):
+    if request.user.profile.can_view_all_clients():
         client = get_object_or_404(Client, pk=pk)
     else:
         client = get_object_or_404(Client, pk=pk, created_by=request.user)
@@ -3158,7 +3155,7 @@ def client_detail(request, pk):
 @login_required
 def client_edit(request, pk):
     """Редактирование клиента"""
-    if request.user.profile.role in ('manager', 'superadmin'):
+    if request.user.profile.can_view_all_clients():
         client = get_object_or_404(Client, pk=pk)
     else:
         client = get_object_or_404(Client, pk=pk, created_by=request.user)
@@ -3186,7 +3183,7 @@ def client_search_api(request):
     if len(q) < 2:
         return JsonResponse({'results': []})
 
-    if request.user.profile.role in ('manager', 'superadmin'):
+    if request.user.profile.can_view_all_clients():
         qs = Client.objects.all()
     else:
         qs = Client.objects.filter(created_by=request.user)

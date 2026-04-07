@@ -2,6 +2,24 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.8.0-dev] - 2026-04-07
+
+### ✨ Added — Granular permission methods (Phase 2)
+- **6 new permissions**: `view_price_breakdown`, `assign_managers`, `delete_bookings`, `delete_offers`, `create_contracts`, `view_all_clients`.
+- **6 new `can_*()` methods** on `UserProfile`: `can_view_price_breakdown()`, `can_assign_managers()`, `can_delete_bookings()`, `can_delete_offers()`, `can_create_contracts()`, `can_view_all_clients()`.
+- **Migration `0008_add_granular_permissions.py`**: creates permissions and assigns to roles (captain → `create_contracts`; assistant → `create_contracts`, `view_all_clients`; manager → `view_price_breakdown`, `delete_bookings`, `create_contracts`, `view_all_clients`; admin → all + `assign_managers`, `delete_offers`; superadmin → all).
+
+### 🔧 Fixed — Eliminated ALL hardcoded role checks
+- **25+ locations in `boats/views.py`**: replaced `profile.role == '...'` / `profile.role in (...)` with `can_*()` and `is_*` permission methods.
+- **8 locations in templates**: `base.html`, `lk_sidebar.html`, `profile.html`, `my_bookings.html` — replaced 5-role OR chains with `not is_tourist`, `role == 'captain'` with `is_captain`.
+
+### 🔧 Fixed — Access control bugs
+- **`delete_booking`**: superadmin was excluded from deletion — now uses `can_delete_bookings()` (includes superadmin).
+- **`offers_stats_api` / `offers_list_api` / `offers_list`**: only admin could see all offers — now uses `can_see_all_bookings()` (includes manager, superadmin).
+- **`book_offer`**: only manager could book from offers — now uses `can_see_all_bookings()` (includes admin, superadmin).
+- **`delete_offer`**: only admin could delete — now uses `can_delete_offers()` (includes superadmin).
+- **`clients_list` / `client_detail` / `client_edit` / `client_search_api`**: admin was excluded from viewing all clients — now uses `can_view_all_clients()`.
+
 ## [0.7.2-dev] - 2026-04-07
 
 ### 🔧 Fixed — Force refresh in offer creation ignored

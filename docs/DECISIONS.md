@@ -195,7 +195,8 @@ Last updated: 2026-04-04 (Europe/Moscow)
 - Consequence: pricing in degraded mode is conservative (no hidden discounts); test environment doesn't depend on PriceSettings existing in DB for correct assertions.
 
 ## DR-029: Views/templates use can_*() methods instead of hardcoded role strings
-- Date: 2026-04-06
-- Context: Despite permission system (DR-024), 28 locations in views/templates still used hardcoded `role == 'manager'`/`role in ('manager', 'superadmin')`. Assistant role was blocked from offers, contracts, clients, booking-from-offer. Manager was blocked from see-all-offers.
-- Decision: Replace all "see all data" role checks with `can_see_all_bookings()`, "book from offer" with `can_see_all_bookings()` (owner always allowed too). Add `'assistant'` to contract creation role tuple. Navigation templates list all non-tourist roles explicitly.
+- Date: 2026-04-06, extended 2026-04-07
+- Context: Despite permission system (DR-024), 28+ locations in views/templates still used hardcoded `role == 'manager'`/`role in ('manager', 'superadmin')`. Bugs: delete_booking excluded superadmin, offers only visible to admin, client views missed admin, book_offer excluded admin/superadmin.
+- Decision: Phase 1 (04-06): Replace 15 critical checks. Phase 2 (04-07): Add 6 new granular permissions (`view_price_breakdown`, `assign_managers`, `delete_bookings`, `delete_offers`, `create_contracts`, `view_all_clients`) with migration 0008. Replace ALL remaining hardcoded checks (25+ in Python, 8 in templates) with `can_*()` and `is_*` properties. Only exception: profile badge coloring (display logic).
+- Consequence: All role-based access uses permission system. New roles/permissions can be managed via admin without code changes. 5 bugs fixed (expanded access for superadmin, admin, manager where previously missing).
 - Consequence: Any role with `view_all_bookings` permission automatically gets access to all offers, bookings, contracts, clients. Destructive actions (delete_offer, delete_booking) remain restricted to admin/superadmin. New roles added via admin will work correctly if given appropriate permissions.

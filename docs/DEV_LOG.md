@@ -2,6 +2,15 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-07 — Permission refactor Phase 2: eliminate all hardcoded role checks
+- Problem: 25+ hardcoded `profile.role == '...'` / `profile.role in (...)` checks in `boats/views.py` + 8 in templates. Some had bugs: `delete_booking` excluded superadmin, offers only visible to admin (not manager/superadmin), client views missed admin role.
+- Fix: Added 6 new permissions to `accounts/models.py`: `can_view_price_breakdown()`, `can_assign_managers()`, `can_delete_bookings()`, `can_delete_offers()`, `can_create_contracts()`, `can_view_all_clients()`. Migration `0008_add_granular_permissions.py` assigns to roles. Replaced all 25+ Python hardcodes and 8 template hardcodes with `can_*()` / `is_*` methods.
+- Files: `accounts/models.py`, `accounts/migrations/0008_add_granular_permissions.py`, `boats/views.py`, `templates/base.html`, `templates/includes/lk_sidebar.html`, `templates/accounts/profile.html`, `templates/boats/my_bookings.html`
+- Validation: `python manage.py check` — 0 issues. All 120 tests pass.
+- Bugs fixed: (1) `delete_booking` now works for superadmin, (2) offers visibility for manager/superadmin, (3) `book_offer` for admin/superadmin, (4) `delete_offer` for superadmin, (5) client CRUD for admin.
+- Only remaining `role == '...'` in templates: profile.html badge coloring (legitimate display logic, not capability).
+- Risks: None. Permissions are additive. Existing role assignments preserved via migration.
+
 ## 2026-04-07 — Force refresh flag ignored in create_offer
 - Problem: `create_offer.html` sends `force_refresh=true` via POST when "Обновить данные" checkbox is checked, but `create_offer` view never reads it. `_ensure_boat_data_for_critical_flow` always returned cached data.
 - Fix: Added `force_refresh` param to `_ensure_boat_data_for_critical_flow(slug, lang, force_refresh=False)`. When `True`, skips cache and runs full parse (API + HTML). `create_offer` reads `request.POST.get('force_refresh') == 'true'` and passes it.

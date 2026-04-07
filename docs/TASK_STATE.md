@@ -18,11 +18,12 @@ Last updated: 2026-04-07 (Europe/Moscow)
 - Status: **RESOLVED (2026-04-02)** — cache-first lookup in `get_price()` eliminates price jitter symptom for users.
 
 ### P0.5: Permission-based role system
-- Status: **DONE (2026-04-06)** — Permission + Role models, 3-step migration, all `can_*()` delegate to `has_perm()`.
+- Status: **DONE (2026-04-06, extended 2026-04-07)** — Permission + Role models, 3-step migration, all `can_*()` delegate to `has_perm()`.
 - Full audit completed: 28 hardcoded role checks found, 15 CRITICAL fixed. All views now use `can_*()` methods.
 - ORM compatibility fixes: `profile__role` → `profile__role_ref__codename`, `check_data_status` values_list, `additional_services` guard.
+- **Phase 2 (2026-04-07):** 6 new granular permissions added (`view_price_breakdown`, `assign_managers`, `delete_bookings`, `delete_offers`, `create_contracts`, `view_all_clients`). Migration 0008. Replaced all remaining 22+ hardcoded role checks in views.py + 8 in templates.
+- Bugs fixed: `delete_booking` now includes superadmin; offers visibility expanded to manager+superadmin; `book_offer` expanded to admin+superadmin; `delete_offer` expanded to superadmin; client views expanded to admin.
 - All 120 tests pass.
-- Assistant role fully functional: offers, bookings, contracts, clients, navigation.
 
 ### P1.5: Booking option status + notifications for assistant
 - Status: **DONE (2026-04-06)**

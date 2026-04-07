@@ -41,7 +41,7 @@
                                 {% if unread_notifications_count %}<span class="badge badge-xs badge-error">{{ unread_notifications_count }}</span>{% endif %}
                             </a>
                         </li>
-                        {% if user.profile.role == 'captain' or user.profile.role == 'assistant' or user.profile.role == 'manager' or user.profile.role == 'admin' or user.profile.role == 'superadmin' %}
+                        {% if not user.profile.is_tourist %}
                             <li><a href="{% url 'contracts_list' %}"><i class="fas fa-file-contract mr-2"></i>{% trans "Договоры" %}</a></li>
                             <li><a href="{% url 'clients_list' %}"><i class="fas fa-users mr-2"></i>{% trans "Клиенты" %}</a></li>
                         {% endif %}

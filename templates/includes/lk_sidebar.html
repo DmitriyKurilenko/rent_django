@@ -48,14 +48,14 @@
                 </a>
 
                 {# Договоры #}
-                {% if user.profile.role == 'captain' or user.profile.role == 'assistant' or user.profile.role == 'manager' or user.profile.role == 'admin' or user.profile.role == 'superadmin' %}
+                {% if not user.profile.is_tourist %}
                 <a href="{% url 'contracts_list' %}" class="btn btn-sm {% if active_page == 'contracts' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
                     <i class="fas fa-file-contract"></i> {% trans "Договоры" %}
                 </a>
                 {% endif %}
 
                 {# Клиенты #}
-                {% if user.profile.role == 'captain' or user.profile.role == 'assistant' or user.profile.role == 'manager' or user.profile.role == 'admin' or user.profile.role == 'superadmin' %}
+                {% if not user.profile.is_tourist %}
                 <a href="{% url 'clients_list' %}" class="btn btn-sm {% if active_page == 'clients' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
                     <i class="fas fa-users"></i> {% trans "Клиенты" %}
                 </a>

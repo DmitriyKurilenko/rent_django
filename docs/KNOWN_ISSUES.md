@@ -1,6 +1,6 @@
 # KNOWN ISSUES
 
-Last updated: 2026-04-04 (Europe/Moscow)
+Last updated: 2026-04-07 (Europe/Moscow)
 
 ## KI-001: Upstream price jitter for identical requests
 - Severity: medium (PARTIALLY RESOLVED 2026-04-02)
@@ -67,3 +67,15 @@ Last updated: 2026-04-04 (Europe/Moscow)
 - Fix applied: updater now uses strict per-language payload for non-English records and keeps fallback only for `en_EN`.
 - Remaining limitation: stale rows from older runs require destination/page backfill to be rewritten with localized values.
 - Action needed: run periodic destination-scoped `parse_boats_parallel --skip-existing --no-cache --max-pages N` backfills until stale pool is exhausted.
+
+## KI-009: Inconsistent role coverage in access control (CLOSED 2026-04-07)
+- Severity: medium
+- Area: boats/views.py — access control
+- Symptoms (all FIXED in 0.8.0-dev):
+  - `delete_booking` excluded superadmin
+  - `offers_stats_api` / `offers_list_api` / `offers_list` showed all offers only for admin, not manager/superadmin
+  - `book_offer` allowed only manager, not admin/superadmin
+  - `delete_offer` allowed only admin, not superadmin
+  - `clients_list` / `client_detail` / `client_edit` / `client_search_api` allowed only manager/superadmin, not admin
+- Root cause: hardcoded role string comparisons with incomplete role coverage.
+- Fix: replaced all hardcoded checks with `can_*()` permission methods (migration 0008).
