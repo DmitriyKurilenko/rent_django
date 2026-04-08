@@ -715,9 +715,7 @@ class BoataroundAPI:
 
             url = f"{BoataroundAPI.BASE_URL}/search"
             params = {
-                'slug': slug,
-                # slug-фильтр API бывает нестабильным; берём больше и фильтруем точно локально
-                'limit': 50,
+                'slugs': slug,
                 'lang': 'en_EN'
             }
 

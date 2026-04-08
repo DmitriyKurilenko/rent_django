@@ -2,6 +2,12 @@
 
 Last updated: 2026-04-08 (Europe/Moscow)
 
+## DR-035: search_by_slug uses `slugs` parameter (plural)
+- Date: 2026-04-08
+- Context: `BoataroundAPI.search_by_slug()` sent `slug` (singular) as API parameter. Boataround API ignores this unknown parameter and returns 50 default boats. If the target boat isn't among them, `BoatTechnicalSpecs` is never created — offers and detail pages show empty specs.
+- Decision: change API parameter from `slug` to `slugs` (plural) — the actual parameter name the API recognizes. Remove hardcoded `limit: 50` (API returns only the matched boat). No other code changes needed.
+- Consequence: `search_by_slug` now reliably finds any boat in the catalog. All existing flows (`_ensure_api_metadata_for_boat`, `_ensure_boat_data_for_critical_flow`, `boat_detail_api`) benefit immediately. Boats previously missing specs will get them on next detail/offer view.
+
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
 - Context: prices diverged between search, detail and offers due to duplicate logic.
@@ -99,17 +105,17 @@ Last updated: 2026-04-08 (Europe/Moscow)
 - Consequence: two-step workflow to fill commissions: (1) `update_charters` — assigns Charter FK from API, (2) `import_charter_commissions` — sets commission % from XLSX. Boats without charter show no commission breakdown.
 
 ## DR-016: parse_boats_parallel cache stores API metadata payload
-- Date: 2026-03-31 (SUPERSEDED 2026-04-08 by DR-029)
+- Date: 2026-03-31 (SUPERSEDED 2026-04-08 by DR-034)
 - Context: when slug list was loaded from local cache, command skipped API search call and had no `api_meta`/`thumb_map`, so Phase 1.5 metadata updates could be incomplete on cache-hit runs.
 - Decision: cache file now persists `slugs`, `thumb_map`, and `api_meta`; cache loader restores all three with backward compatibility for old list-only cache format.
 - Consequence: cache-hit runs keep API metadata update behavior consistent with fresh API scan and avoid unnecessary re-fetching.
-- **Superseded**: DR-029 removes `api_meta`/`api_meta_by_lang` from cache to prevent OOM.
+- **Superseded**: DR-034 moves all heavy work out of orchestrator into disposable Celery tasks.
 
-## DR-029: Per-page DB flush for API metadata during slug collection
+## DR-034: Disposable Celery tasks for parse_boats on 1 GB RAM VPS
 - Date: 2026-04-08
-- Context: `_collect_slugs_from_api` accumulated `api_meta` (28k×20 fields) + `api_meta_by_lang` (5 langs×28k×6 fields) in memory and serialized to JSON cache per page. On production VPS with limited RAM, Celery worker was killed by SIGKILL (OOM) at page 25 (~450 slugs). Supersedes DR-016.
-- Decision: `_collect_slugs_from_api` flushes API metadata to DB per-page via `_update_api_metadata()` and discards page data immediately. Cache file stores only `slugs` + `thumb_map` (lightweight). For mode=api, orchestrator finalizes after collection (no chord). `process_api_batch` kept but no longer dispatched.
-- Consequence: memory O(1) per page instead of O(N) catalog. Per-page DB writes add slight overhead (~18 boats/page). If flush fails on a page, that page's metadata lost (logged as error).
+- Context: Production VPS has only 1 GB RAM. Original code (OOM at page 25) and per-page flush fix (OOM at page 155) both failed — Python memory fragmentation from ORM operations in a long-running task caused RSS to grow unboundedly. Supersedes DR-016.
+- Decision: Orchestrator (`run_parse_job`) is now lightweight — collects slugs EN-only (~11 MB for 28k boats), no multilingual fetches, no DB writes, no ThreadPoolExecutor. All heavy work dispatched as disposable `process_api_page_range` tasks (20 pages each, ~360 boats). Each task: fetches 5 languages, calls `_update_api_metadata()` with per-page flush + `gc.collect()`, then exits. Worker process recycled by `--max-tasks-per-child=100`. `process_api_batch` kept for backward compat but no longer dispatched.
+- Consequence: Peak memory ~180 MB (orchestrator: ~160 MB base + 11 MB slugs; each page-range task: ~2 MB peak per page). Safe for 1 GB VPS. Trade-off: more Celery tasks dispatched (~80 for full catalog), slight scheduling overhead.
 
 ## DR-024: Search/detail price breakdown is role-scoped
 - Date: 2026-03-31

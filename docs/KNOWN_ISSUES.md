@@ -5,9 +5,10 @@ Last updated: 2026-04-08 (Europe/Moscow)
 ## KI-007: parse_boats OOM kill during slug collection (RESOLVED 2026-04-08)
 - Severity: critical (RESOLVED)
 - Area: boats/tasks.py — _collect_slugs_from_api / run_parse_job
-- Symptom: Celery worker killed by SIGKILL (signal 9) during slug collection phase on 28k+ boat catalogs. Job stuck in "Сбор slug'ов" forever.
-- Root cause: Unbounded memory accumulation of api_meta + api_meta_by_lang dicts + per-page JSON cache serialization.
-- Fix: Per-page flush to DB. Memory usage now O(1) per page instead of O(N) total catalog size.
+- Symptom: Celery worker killed by SIGKILL (signal 9) during slug collection phase on 1 GB RAM VPS. Job stuck in "Сбор slug'ов" forever.
+- Root cause (v1): Unbounded memory accumulation of api_meta dicts. Fix (per-page flush): still OOM at page 155 due to Python arena fragmentation.
+- Root cause (v2): ORM operations in a single long-running task fragment Python's memory arena. RSS grows unboundedly over 155+ pages.
+- Fix (v2): Disposable Celery tasks architecture. Orchestrator only collects slugs (EN-only, ~11 MB). All heavy work in short-lived `process_api_page_range` tasks. Worker recycled by `--max-tasks-per-child=100`. See DR-034.
 
 ## KI-001: Upstream price jitter for identical requests
 - Severity: medium (PARTIALLY RESOLVED 2026-04-02)
@@ -74,6 +75,14 @@ Last updated: 2026-04-08 (Europe/Moscow)
 - Fix applied: updater now uses strict per-language payload for non-English records and keeps fallback only for `en_EN`.
 - Remaining limitation: stale rows from older runs require destination/page backfill to be rewritten with localized values.
 - Action needed: run periodic destination-scoped `parse_boats_parallel --skip-existing --no-cache --max-pages N` backfills until stale pool is exhausted.
+
+## KI-010: search_by_slug used wrong API parameter, causing missing BoatTechnicalSpecs (FIXED 2026-04-08)
+- Severity: critical
+- Area: boats/boataround_api.py — `search_by_slug()`
+- Symptom: offers and detail pages showed empty specs (cabins, berths, length, beam, draft = None) for boats that exist in API but were not in the default top-50 results.
+- Root cause: `search_by_slug()` sent `slug` (singular) as API parameter. API ignores unknown params and returns 50 default boats. Target boat not among them → no `BoatTechnicalSpecs` created.
+- Fix: changed parameter from `slug` to `slugs` (plural) — the actual API-recognized parameter. Removed unnecessary `limit: 50`.
+- Impact: all boats affected by this bug will get specs on next detail/offer view (triggers `_ensure_api_metadata_for_boat`).
 
 ## KI-009: Inconsistent role coverage in access control (CLOSED 2026-04-07)
 - Severity: medium

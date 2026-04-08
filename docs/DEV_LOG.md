@@ -2,14 +2,26 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
-## 2026-04-08 — Fix OOM kill in parse_boats slug collection (per-page DB flush)
-- Problem: `run_parse_job` Celery task accumulates `api_meta` (28k × 20 fields) + `api_meta_by_lang` (5 langs × 28k × 6 fields) + JSON cache serialization per page. Worker killed by SIGKILL (OOM) at page 25 (~450 slugs) on production VPS. Job stuck in "Сбор slug'ов" forever.
-- Root cause: `_collect_slugs_from_api` stored ALL multilingual metadata in Python dicts, growing unboundedly. Each page added 5 API responses × 18 boats to memory. JSON cache file also grew per page.
-- Fix: Per-page flush architecture. `_collect_slugs_from_api` now accepts `flush_api_meta=True` — fetches 5 languages per page, calls `_update_api_metadata()` immediately, then discards page data. Only `slugs` + `thumb_map` (lightweight) stay in memory. Cache file no longer stores `api_meta`/`api_meta_by_lang`. For mode=api, orchestrator finalizes immediately after collection (no chord). For mode=html/full, only HTML batches dispatched via chord.
-- Files: `boats/tasks.py` (`_save_slug_cache`, `_collect_slugs_from_api`, `run_parse_job`)
+## 2026-04-08 — Fix search_by_slug: wrong API parameter name (`slug` → `slugs`)
+- Problem: `BoataroundAPI.search_by_slug()` used `slug` (singular) as API query parameter. Boataround API does not recognize this parameter — it ignores it silently and returns 50 default boats. If the target boat isn't among those 50, it is not found. This caused `BoatTechnicalSpecs` to never be created for many boats, resulting in empty specs on offers and detail pages.
+- Root cause: wrong parameter name. API expects `slugs` (plural).
+- Fix: `boats/boataround_api.py` line 718: `'slug': slug` → `'slugs': slug`. Removed `'limit': 50` (unnecessary when slug filter works).
+- Files: `boats/boataround_api.py`
+- Validation: `manage.py check` — 0 issues. Tested 3 boats via `search_by_slug()` — all found with full `parameters` dict. Updated broken offer `18785f61` — specs now show correctly.
+- Risks: None. Single parameter rename, no behavioral changes to response parsing.
+
+## 2026-04-08 — Fix OOM kill in parse_boats: disposable Celery tasks for 1 GB RAM VPS (v2)
+- Problem: v1 (per-page DB flush) still OOM-killed at page 155/1560 on 1 GB RAM VPS. Python memory fragmentation from 155× `_update_api_metadata()` ORM operations in a single long-running Celery task caused RSS to grow unboundedly despite per-page discard + gc.collect.
+- Root cause: Python's small-object arena allocator doesn't return freed memory to OS. Each `_update_api_metadata()` call creates ~100 ORM objects per page. After 155 pages, fragmented arena blocks accumulate beyond available RAM (~200 MB headroom on 1 GB VPS).
+- Fix (v2 — disposable tasks architecture):
+  - `_collect_slugs_from_api`: stripped to EN-only collection. No multilingual fetches, no DB writes, no ThreadPoolExecutor, no ORM objects. Only slugs + thumb_map accumulate (~11 MB for 28k boats). gc.collect() every 50 pages.
+  - New `process_api_page_range` task: handles ~20 API pages each. Fetches EN + 4 langs via ThreadPoolExecutor(max_workers=3), calls `_update_api_metadata()` per-page with gc.collect after each, then exits. Worker process recycled by `--max-tasks-per-child=100`.
+  - `run_parse_job`: lightweight orchestrator. Dispatches `process_api_page_range` tasks (for api/full, ~80 tasks for full catalog) and/or `process_html_batch` tasks (for html/full) via chord → finalize.
+  - `process_api_batch`: kept for backward compat, no longer dispatched by orchestrator.
+- Files: `boats/tasks.py` (`_collect_slugs_from_api`, `_save_slug_cache`, `process_api_page_range` NEW, `run_parse_job`)
 - Validation: `manage.py check` — 0 issues. All imports verified via Django shell.
-- Breaking: Old `.parse_cache/*.json` files with `api_meta` keys are ignored (backward compatible read, new writes are lightweight). `process_api_batch` task kept but no longer dispatched by orchestrator.
-- Risks: Per-page DB writes add slight overhead (~18 boats/page). If `_update_api_metadata` fails on a page, that page's API meta is lost (logged, non-fatal). ThreadPoolExecutor still uses 4 workers for language fetches.
+- Memory budget: orchestrator ~160 MB (base) + 11 MB (slugs) = ~171 MB. Each page-range task: ~2 MB peak/page, process recycled after task. Safe for 1 GB VPS with ~200 MB headroom.
+- Risks: API page results can shift between orchestrator's probe and page-range tasks' fetch (boats reorder). Acceptable: metadata written regardless of order. More Celery tasks dispatched (~80 vs 1), slight scheduling overhead.
 
 ## 2026-04-07 — PEP 8 full compliance refactor (835 → 0 violations)
 - Problem: 835 flake8 violations across 18 core Python files (max-line-length=120). Mix of whitespace issues (646), unused imports (21), empty f-strings (33), bare except (12), long lines (67), and minor issues (F811, F821, F841, E741, E127/E128, E225).

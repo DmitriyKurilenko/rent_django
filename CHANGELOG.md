@@ -2,13 +2,19 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
-## [0.8.2-dev] - 2026-04-08
+## [0.8.3-dev] - 2026-04-08
 
-### 🐛 Fixed — OOM kill in parse_boats slug collection
-- **Root cause**: `_collect_slugs_from_api` accumulated `api_meta` (28k × 20+ fields) + `api_meta_by_lang` (5 langs × 28k × 6 fields) in memory. Also serialized all data to JSON cache file after each page. Celery worker killed by SIGKILL (OOM) at page 25 (~450 slugs) on production VPS.
-- **Fix — Per-page DB flush**: `_collect_slugs_from_api` now accepts `flush_api_meta=True`. For each API page: fetches 5 languages → calls `_update_api_metadata()` to write to DB immediately → discards page data. Only `slugs` + `thumb_map` remain in memory (~100 bytes/slug). Memory: O(1) per page instead of O(N) total catalog.
-- **`_save_slug_cache`**: no longer stores `api_meta` / `api_meta_by_lang`. Cache file is now lightweight (slugs + thumb_map only).
-- **`run_parse_job`**: for mode=api — collection phase does all DB writes, job finalizes immediately (no chord needed). For mode=html/full — only HTML batches dispatched via chord. `process_api_batch` task kept for backward compatibility but no longer dispatched.
+### 🐛 Fixed — search_by_slug wrong API parameter (`slug` → `slugs`)
+- **Root cause**: `search_by_slug()` sent `slug` (singular) as API query parameter. Boataround API ignores unknown params and returns 50 default boats. If target boat not in those 50 → `BoatTechnicalSpecs` never created → offers/detail pages show empty specs.
+- **Fix**: renamed parameter to `slugs` (plural). Removed hardcoded `limit: 50`.
+- **Impact**: all boats now reliably found by slug. Boats with missing specs get them on next detail/offer view.
+
+### 🐛 Fixed — OOM kill in parse_boats on 1 GB RAM VPS (v2: disposable tasks)
+- **Root cause**: v1 (per-page DB flush) still OOM at page 155/1560. Python arena fragmentation from repeated ORM operations in a single long-running Celery task caused RSS to grow beyond 1 GB VPS headroom.
+- **Fix — Disposable tasks architecture**: Orchestrator (`run_parse_job`) is now lightweight — collects slugs EN-only (~11 MB for 28k boats). No multilingual fetches, no DB writes, no ThreadPoolExecutor during collection. gc.collect() every 50 pages.
+- **New task `process_api_page_range`**: Handles ~20 API pages each. Fetches 5 languages via ThreadPoolExecutor(max_workers=3), calls `_update_api_metadata()` per page with gc.collect, then exits. Worker process recycled by `--max-tasks-per-child=100`.
+- **`run_parse_job`**: Dispatches `process_api_page_range` tasks (for mode=api/full, ~80 tasks for full catalog) and/or `process_html_batch` tasks (for mode=html/full) via chord → finalize.
+- **`process_api_batch`**: Kept for backward compatibility but no longer dispatched by orchestrator.
 
 ## [0.8.1-dev] - 2026-04-07
 

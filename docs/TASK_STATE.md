@@ -4,11 +4,17 @@ Last updated: 2026-04-08 (Europe/Moscow)
 
 ## Current priorities
 
-### P0.4: parse_boats OOM kill during slug collection
+### P0.6: search_by_slug wrong API parameter → missing specs in offers
 - Status: **DONE (2026-04-08)**
-- Celery worker SIGKILL at page 25 (~450 slugs) due to unbounded memory growth.
-- Fix: per-page DB flush in `_collect_slugs_from_api`. Memory stays O(1) per page.
-- For mode=api: no chord needed, collection phase does all DB updates.
+- `search_by_slug()` sent `slug` (singular) — API ignores it, returns 50 default boats. Target boat not found → no `BoatTechnicalSpecs` → offers/detail show empty specs.
+- Fix: parameter `slug` → `slugs` (plural). One-line change in `boats/boataround_api.py`.
+- See DR-035, KI-010.
+
+### P0.4: parse_boats OOM kill during slug collection
+- Status: **DONE (2026-04-08, v2)**
+- Celery worker SIGKILL on 1 GB RAM VPS. v1 (per-page flush) still OOM at page 155 due to Python memory fragmentation from ORM ops in long-running task.
+- Fix (v2): Disposable Celery tasks architecture. Orchestrator only collects slugs EN-only (~11 MB). All heavy work (5-lang fetches + DB writes) dispatched as `process_api_page_range` tasks (20 pages each). Worker recycled by `--max-tasks-per-child=100`.
+- See DR-034.
 
 ### P0.3: PEP 8 compliance
 - Status: **DONE (2026-04-07)**
