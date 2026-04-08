@@ -1,6 +1,13 @@
 # KNOWN ISSUES
 
-Last updated: 2026-04-07 (Europe/Moscow)
+Last updated: 2026-04-08 (Europe/Moscow)
+
+## KI-007: parse_boats OOM kill during slug collection (RESOLVED 2026-04-08)
+- Severity: critical (RESOLVED)
+- Area: boats/tasks.py — _collect_slugs_from_api / run_parse_job
+- Symptom: Celery worker killed by SIGKILL (signal 9) during slug collection phase on 28k+ boat catalogs. Job stuck in "Сбор slug'ов" forever.
+- Root cause: Unbounded memory accumulation of api_meta + api_meta_by_lang dicts + per-page JSON cache serialization.
+- Fix: Per-page flush to DB. Memory usage now O(1) per page instead of O(N) total catalog size.
 
 ## KI-001: Upstream price jitter for identical requests
 - Severity: medium (PARTIALLY RESOLVED 2026-04-02)

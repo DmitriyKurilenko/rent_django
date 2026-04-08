@@ -2,6 +2,15 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-08 — Fix OOM kill in parse_boats slug collection (per-page DB flush)
+- Problem: `run_parse_job` Celery task accumulates `api_meta` (28k × 20 fields) + `api_meta_by_lang` (5 langs × 28k × 6 fields) + JSON cache serialization per page. Worker killed by SIGKILL (OOM) at page 25 (~450 slugs) on production VPS. Job stuck in "Сбор slug'ов" forever.
+- Root cause: `_collect_slugs_from_api` stored ALL multilingual metadata in Python dicts, growing unboundedly. Each page added 5 API responses × 18 boats to memory. JSON cache file also grew per page.
+- Fix: Per-page flush architecture. `_collect_slugs_from_api` now accepts `flush_api_meta=True` — fetches 5 languages per page, calls `_update_api_metadata()` immediately, then discards page data. Only `slugs` + `thumb_map` (lightweight) stay in memory. Cache file no longer stores `api_meta`/`api_meta_by_lang`. For mode=api, orchestrator finalizes immediately after collection (no chord). For mode=html/full, only HTML batches dispatched via chord.
+- Files: `boats/tasks.py` (`_save_slug_cache`, `_collect_slugs_from_api`, `run_parse_job`)
+- Validation: `manage.py check` — 0 issues. All imports verified via Django shell.
+- Breaking: Old `.parse_cache/*.json` files with `api_meta` keys are ignored (backward compatible read, new writes are lightweight). `process_api_batch` task kept but no longer dispatched by orchestrator.
+- Risks: Per-page DB writes add slight overhead (~18 boats/page). If `_update_api_metadata` fails on a page, that page's API meta is lost (logged, non-fatal). ThreadPoolExecutor still uses 4 workers for language fetches.
+
 ## 2026-04-07 — PEP 8 full compliance refactor (835 → 0 violations)
 - Problem: 835 flake8 violations across 18 core Python files (max-line-length=120). Mix of whitespace issues (646), unused imports (21), empty f-strings (33), bare except (12), long lines (67), and minor issues (F811, F821, F841, E741, E127/E128, E225).
 - Fix: 3-phase approach. Phase 1: autopep8 for auto-fixable whitespace (W291/W293/W391/E302/E303/E305/E306/E231/E226/E261). Phase 2: manual fixes for imports, f-strings, exception handling, variable naming, indentation. Phase 3: manual line-wrapping for all 67 E501 violations using idiomatic Python patterns.

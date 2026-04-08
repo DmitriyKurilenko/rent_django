@@ -2,6 +2,14 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.8.2-dev] - 2026-04-08
+
+### 🐛 Fixed — OOM kill in parse_boats slug collection
+- **Root cause**: `_collect_slugs_from_api` accumulated `api_meta` (28k × 20+ fields) + `api_meta_by_lang` (5 langs × 28k × 6 fields) in memory. Also serialized all data to JSON cache file after each page. Celery worker killed by SIGKILL (OOM) at page 25 (~450 slugs) on production VPS.
+- **Fix — Per-page DB flush**: `_collect_slugs_from_api` now accepts `flush_api_meta=True`. For each API page: fetches 5 languages → calls `_update_api_metadata()` to write to DB immediately → discards page data. Only `slugs` + `thumb_map` remain in memory (~100 bytes/slug). Memory: O(1) per page instead of O(N) total catalog.
+- **`_save_slug_cache`**: no longer stores `api_meta` / `api_meta_by_lang`. Cache file is now lightweight (slugs + thumb_map only).
+- **`run_parse_job`**: for mode=api — collection phase does all DB writes, job finalizes immediately (no chord needed). For mode=html/full — only HTML batches dispatched via chord. `process_api_batch` task kept for backward compatibility but no longer dispatched.
+
 ## [0.8.1-dev] - 2026-04-07
 
 ### 🔧 Refactor — PEP 8 compliance (835 → 0 violations)

@@ -354,9 +354,13 @@ def _load_slug_cache(destination, max_pages):
         return None
 
 
-def _save_slug_cache(destination, max_pages, slugs, thumb_map, api_meta, api_meta_by_lang,
+def _save_slug_cache(destination, max_pages, slugs, thumb_map,
                      last_page=0, total_pages=0, complete=False):
-    """Сохраняет slug'и и метаданные в кэш. Вызывается инкрементально."""
+    """Сохраняет slug'и и thumb_map в кэш (легковесный).
+
+    API-метаданные больше НЕ хранятся в кэше — они сбрасываются в БД
+    по мере сбора (per-page flush). Это предотвращает OOM на больших каталогах.
+    """
     import json as _json
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -371,8 +375,6 @@ def _save_slug_cache(destination, max_pages, slugs, thumb_map, api_meta, api_met
             'cached_at': time.strftime('%Y-%m-%d %H:%M:%S'),
             'slugs': slugs,
             'thumb_map': thumb_map,
-            'api_meta': api_meta,
-            'api_meta_by_lang': api_meta_by_lang,
         }
         with open(path, 'w') as f:
             _json.dump(data, f)
@@ -381,16 +383,28 @@ def _save_slug_cache(destination, max_pages, slugs, thumb_map, api_meta, api_met
         logger.warning(f'[collect_slugs] Ошибка записи кэша: {e}')
 
 
-def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False):
-    """Собирает slug'и, thumb_map, api_meta и api_meta_by_lang из API.
+def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False,
+                            flush_api_meta=False):
+    """Собирает slug'и и thumb_map из API. При flush_api_meta=True также
+    получает мультиязычные метаданные и сбрасывает их в БД per-page,
+    не накапливая в памяти (предотвращает OOM).
 
-    Инкрементальный кэш: сохраняется после каждой страницы.
+    Инкрементальный кэш: сохраняет slugs + thumb_map после каждой страницы.
     При рестарте — продолжает с last_page.
     Завершённый кэш (complete=True) — возвращается мгновенно.
     --no-cache сбрасывает кэш и начинает с нуля.
 
+    Args:
+        destination: Slug направления или None для всего каталога.
+        max_pages: Ограничение по числу страниц или None.
+        job_id: UUID задания ParseJob для логов и прогресса.
+        no_cache: Сбросить файловый кэш slug'ов.
+        flush_api_meta: Если True — для каждой страницы загружает мультиязычные
+            метаданные (5 языков) и сохраняет в БД немедленно. Используется
+            для mode=api/full. Если False — только EN, без мультиязычности.
+
     Returns:
-        dict: {slugs, thumb_map, api_meta, api_meta_by_lang, pages_scanned}
+        dict: {slugs, thumb_map, pages_scanned, api_updates}
     """
     from boats.boataround_api import BoataroundAPI, format_boat_data
     from boats.models import ParseJob
@@ -414,9 +428,8 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
         return {
             'slugs': cached['slugs'],
             'thumb_map': cached.get('thumb_map', {}),
-            'api_meta': cached.get('api_meta', {}),
-            'api_meta_by_lang': cached.get('api_meta_by_lang', {}),
             'pages_scanned': 0,
+            'api_updates': 0,
         }
 
     # --- Восстанавливаем состояние из частичного кэша или начинаем с нуля ---
@@ -424,8 +437,6 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
         slugs = cached.get('slugs', [])
         seen = set(slugs)
         thumb_map = cached.get('thumb_map', {})
-        api_meta = cached.get('api_meta', {})
-        api_meta_by_lang = cached.get('api_meta_by_lang', {lang: {} for lang in SUPPORTED_API_LANGS})
         start_page = cached.get('last_page', 0) + 1
         total_pages = cached.get('total_pages') or None
         if job_id:
@@ -435,24 +446,27 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
         slugs = []
         seen = set()
         thumb_map = {}
-        api_meta = {}
-        api_meta_by_lang = {lang: {} for lang in SUPPORTED_API_LANGS}
         start_page = 1
         total_pages = None
 
     pages_scanned = 0
+    api_updates = 0
     page = start_page
 
     while True:
         # Проверяем отмену каждые 10 страниц
         if job_id and page % 10 == 0:
             try:
-                status = ParseJob.objects.filter(job_id=job_id).values_list('status', flat=True).first()
+                status = ParseJob.objects.filter(
+                    job_id=job_id,
+                ).values_list('status', flat=True).first()
                 if status == 'cancelled':
                     logger.info(f'[collect_slugs] Отмена на стр.{page}')
                     _job_log(job_id, f'Сбор прерван (отмена). Собрано {len(slugs)} slug, стр.{page}.')
-                    _save_slug_cache(destination, max_pages, slugs, thumb_map, api_meta, api_meta_by_lang,
-                                     last_page=page, total_pages=total_pages or 0, complete=False)
+                    _save_slug_cache(
+                        destination, max_pages, slugs, thumb_map,
+                        last_page=page, total_pages=total_pages or 0, complete=False,
+                    )
                     break
             except Exception:
                 pass
@@ -468,50 +482,57 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
             logger.info(f'[collect_slugs] Пустая страница {page}, сохраняю кэш и завершаю')
             if job_id:
                 _job_log(job_id, f'Пустая страница (стр.{page}). Собрано {len(slugs)} slug.')
-            _save_slug_cache(destination, max_pages, slugs, thumb_map, api_meta, api_meta_by_lang,
-                             last_page=page, total_pages=total_pages or 0, complete=False)
+            _save_slug_cache(
+                destination, max_pages, slugs, thumb_map,
+                last_page=page, total_pages=total_pages or 0, complete=False,
+            )
             break
 
-        # Параллельный запрос остальных языков для этой страницы
-        def _fetch_lang_page(api_lang):
-            r = BoataroundAPI.search(
-                destination=destination or None,
-                page=page, limit=18, lang=api_lang,
-            )
-            return api_lang, (r or {}).get('boats', [])
+        # --- Мультиязычные метаданные (per-page flush) ---
+        page_api_meta = {}
+        page_api_meta_by_lang = {}
 
-        other_langs = [lang for lang in SUPPORTED_API_LANGS if lang != 'en_EN']
-        boats_by_lang = {'en_EN': results.get('boats', [])}
+        if flush_api_meta:
+            def _fetch_lang_page(api_lang):
+                r = BoataroundAPI.search(
+                    destination=destination or None,
+                    page=page, limit=18, lang=api_lang,
+                )
+                return api_lang, (r or {}).get('boats', [])
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(_fetch_lang_page, lang): lang for lang in other_langs}
-            for future in as_completed(futures):
-                try:
-                    lang, boats = future.result(timeout=60)
-                    boats_by_lang[lang] = boats
-                except Exception:
-                    boats_by_lang[futures[future]] = []
+            other_langs = [lang for lang in SUPPORTED_API_LANGS if lang != 'en_EN']
+            boats_by_lang = {'en_EN': results.get('boats', [])}
 
-        # Обработка результатов всех языков
-        for api_lang, boats_lang in boats_by_lang.items():
-            for boat_lang in boats_lang:
-                lang_slug = boat_lang.get('slug')
-                if not lang_slug:
-                    continue
-                api_meta_by_lang.setdefault(api_lang, {})[lang_slug] = {
-                    'title': boat_lang.get('title', ''),
-                    'location': (
-                        boat_lang.get('location', '')
-                        or boat_lang.get('region', '')
-                        or boat_lang.get('country', '')
-                    ),
-                    'marina': boat_lang.get('marina', ''),
-                    'country': boat_lang.get('country', ''),
-                    'region': boat_lang.get('region', ''),
-                    'city': boat_lang.get('city', ''),
-                }
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(_fetch_lang_page, lang): lang for lang in other_langs}
+                for future in as_completed(futures):
+                    try:
+                        lang, boats = future.result(timeout=60)
+                        boats_by_lang[lang] = boats
+                    except Exception:
+                        boats_by_lang[futures[future]] = []
 
-        # Обработка EN-результатов для slug/thumb/meta
+            # Собираем мультиязычные мета для ЭТОЙ страницы
+            for api_lang, boats_lang in boats_by_lang.items():
+                for boat_lang in boats_lang:
+                    lang_slug = boat_lang.get('slug')
+                    if not lang_slug:
+                        continue
+                    page_api_meta_by_lang.setdefault(api_lang, {})[lang_slug] = {
+                        'title': boat_lang.get('title', ''),
+                        'location': (
+                            boat_lang.get('location', '')
+                            or boat_lang.get('region', '')
+                            or boat_lang.get('country', '')
+                        ),
+                        'marina': boat_lang.get('marina', ''),
+                        'country': boat_lang.get('country', ''),
+                        'region': boat_lang.get('region', ''),
+                        'city': boat_lang.get('city', ''),
+                    }
+
+        # --- Обработка EN-результатов для slug/thumb/meta ---
+        page_new_slugs = 0
         for boat in results['boats']:
             try:
                 formatted = format_boat_data(boat)
@@ -522,35 +543,73 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
                 continue
             seen.add(boat_slug)
             slugs.append(boat_slug)
+            page_new_slugs += 1
 
             thumb = boat.get('thumb') or boat.get('main_img', '')
             if thumb and thumb.strip():
                 thumb_map[boat_slug] = thumb.strip()
 
-            api_meta[boat_slug] = {
-                'country': boat.get('country', ''),
-                'region': boat.get('region', ''),
-                'city': boat.get('city', ''),
-                'marina': boat.get('marina', ''),
-                'title': boat.get('title', ''),
-                'location': boat.get('location', '') or boat.get('region', '') or boat.get('country', ''),
-                'flag': boat.get('flag', ''),
-                'coordinates': boat.get('coordinates', []),
-                'category': boat.get('category', ''),
-                'category_slug': boat.get('category_slug', ''),
-                'engine_type': boat.get('engineType', ''),
-                'sail': boat.get('sail', ''),
-                'newboat': boat.get('newboat', False),
-                'reviews_score': boat.get('reviewsScore'),
-                'total_reviews': boat.get('totalReviews'),
-                'prepayment': boat.get('prepayment'),
-                'usp': boat.get('usp', []),
-                'parameters': boat.get('parameters', {}),
-                'charter_name': boat.get('charter', ''),
-                'charter_id': boat.get('charter_id', ''),
-                'charter_logo': boat.get('charter_logo', ''),
-                'charter_rank': boat.get('charter_rank', {}),
-            }
+            if flush_api_meta:
+                page_api_meta[boat_slug] = {
+                    'country': boat.get('country', ''),
+                    'region': boat.get('region', ''),
+                    'city': boat.get('city', ''),
+                    'marina': boat.get('marina', ''),
+                    'title': boat.get('title', ''),
+                    'location': (
+                        boat.get('location', '')
+                        or boat.get('region', '')
+                        or boat.get('country', '')
+                    ),
+                    'flag': boat.get('flag', ''),
+                    'coordinates': boat.get('coordinates', []),
+                    'category': boat.get('category', ''),
+                    'category_slug': boat.get('category_slug', ''),
+                    'engine_type': boat.get('engineType', ''),
+                    'sail': boat.get('sail', ''),
+                    'newboat': boat.get('newboat', False),
+                    'reviews_score': boat.get('reviewsScore'),
+                    'total_reviews': boat.get('totalReviews'),
+                    'prepayment': boat.get('prepayment'),
+                    'usp': boat.get('usp', []),
+                    'parameters': boat.get('parameters', {}),
+                    'charter_name': boat.get('charter', ''),
+                    'charter_id': boat.get('charter_id', ''),
+                    'charter_logo': boat.get('charter_logo', ''),
+                    'charter_rank': boat.get('charter_rank', {}),
+                }
+
+        # --- Flush API-метаданных в БД (per-page, без накопления) ---
+        if flush_api_meta and page_api_meta:
+            page_updated = 0
+            try:
+                from boats.management.commands.parse_boats_parallel import (
+                    Command as PBPCommand,
+                )
+                page_updated = PBPCommand._update_api_metadata(
+                    page_api_meta, page_api_meta_by_lang,
+                )
+                api_updates += page_updated
+                logger.info(
+                    f'[collect_slugs] Стр.{page}: flush {len(page_api_meta)} → '
+                    f'{page_updated} обновлено в БД'
+                )
+            except Exception as e:
+                logger.error(f'[collect_slugs] Стр.{page}: ошибка flush: {e}')
+
+            # Обновляем прогресс ParseJob
+            if job_id:
+                try:
+                    from django.db.models import F
+                    ParseJob.objects.filter(job_id=job_id).update(
+                        processed=F('processed') + len(page_api_meta),
+                        success=F('success') + page_updated,
+                    )
+                except Exception:
+                    pass
+
+            # Память: page_api_meta и page_api_meta_by_lang больше не нужны
+            del page_api_meta, page_api_meta_by_lang
 
         pages_scanned += 1
 
@@ -558,14 +617,20 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
             total_pages = int(results.get('totalPages') or 1)
         effective = min(total_pages, max_pages) if max_pages else total_pages
 
-        # Кэш после каждой страницы
+        # Кэш после каждой страницы (только slugs + thumb_map — легковесный)
         is_complete = page >= effective
-        _save_slug_cache(destination, max_pages, slugs, thumb_map, api_meta, api_meta_by_lang,
-                         last_page=page, total_pages=total_pages, complete=is_complete)
+        _save_slug_cache(
+            destination, max_pages, slugs, thumb_map,
+            last_page=page, total_pages=total_pages, complete=is_complete,
+        )
 
         # Прогресс каждые 10 страниц
         if job_id and pages_scanned % 10 == 0:
-            _job_log(job_id, f'Сбор slug: стр.{page}/{effective}, найдено {len(slugs)} slug')
+            _job_log(
+                job_id,
+                f'Сбор slug: стр.{page}/{effective}, найдено {len(slugs)} slug'
+                + (f', обновлено API: {api_updates}' if flush_api_meta else ''),
+            )
 
         if is_complete:
             if job_id:
@@ -576,9 +641,8 @@ def _collect_slugs_from_api(destination, max_pages, job_id=None, no_cache=False)
     return {
         'slugs': slugs,
         'thumb_map': thumb_map,
-        'api_meta': api_meta,
-        'api_meta_by_lang': api_meta_by_lang,
         'pages_scanned': pages_scanned,
+        'api_updates': api_updates,
     }
 
 
@@ -776,7 +840,15 @@ def finalize_parse_job(self, results, job_id_hex):
 
 @shared_task(bind=True, max_retries=0)
 def run_parse_job(self, job_id_hex, no_cache=False):
-    """Оркестратор: собирает slug'и, разбивает на батчи, запускает Celery chord."""
+    """Оркестратор: собирает slug'и, разбивает на батчи, запускает Celery chord.
+
+    Для mode=api/full — API-метаданные сбрасываются в БД per-page прямо
+    при сборе slug'ов (flush_api_meta=True). Это предотвращает OOM
+    на больших каталогах (~28k лодок × 5 языков).
+
+    Для mode=html/full — HTML-парсинг выполняется батчами через chord.
+    Для mode=api — после collection job сразу финализируется (no chord).
+    """
     from boats.models import ParseJob, ParsedBoat
     from django.utils import timezone
 
@@ -792,19 +864,28 @@ def run_parse_job(self, job_id_hex, no_cache=False):
     job.started_at = timezone.now()
     job.celery_task_id = self.request.id or ''
     job.save(update_fields=['status', 'started_at', 'celery_task_id'])
-    _job_log(job_id_hex, 'Начат сбор slug\'ов (mode={job.mode}, dest={job.destination or "все"})')
+    _job_log(
+        job_id_hex,
+        f'Начат сбор slug\'ов (mode={job.mode}, dest={job.destination or "все"})',
+    )
 
     # Глушим спам парсера в Celery-воркере
     logging.getLogger('boats.parser').setLevel(logging.WARNING)
     logging.getLogger('boats.boataround_api').setLevel(logging.WARNING)
 
-    # --- Фаза 1: Сбор slug'ов (только EN, без локализованных мета) ---
+    # --- Фаза 1: Сбор slug'ов ---
+    # Для api/full: flush_api_meta=True — мультиязычные метаданные сбрасываются
+    # в БД per-page, не накапливаясь в памяти.
+    # Для html: flush_api_meta=False — только EN, быстрый сбор slug'ов.
+    flush_api = job.mode in ('api', 'full')
+
     try:
         collected = _collect_slugs_from_api(
             destination=job.destination or None,
             max_pages=job.max_pages,
             job_id=job_id_hex,
             no_cache=no_cache,
+            flush_api_meta=flush_api,
         )
     except Exception:
         job.status = 'failed'
@@ -822,30 +903,47 @@ def run_parse_job(self, job_id_hex, no_cache=False):
 
     all_slugs = collected['slugs']
     thumb_map = collected['thumb_map']
-    api_meta = collected['api_meta']
-    api_meta_by_lang = collected['api_meta_by_lang']
+    api_updates = collected.get('api_updates', 0)
 
     _job_log(
         job_id_hex,
         f'Собрано {len(all_slugs)} slug\'ов ({collected["pages_scanned"]} стр.)'
+        + (f', API обновлено: {api_updates}' if api_updates else ''),
     )
 
+    # --- Для mode=api: всё уже сделано в collection phase ---
+    if job.mode == 'api':
+        job.refresh_from_db()
+        job.status = 'completed' if job.failed == 0 else 'partial'
+        job.finished_at = timezone.now()
+        job.total_slugs = len(all_slugs)
+        job.summary = (
+            f'API-метаданные обновлены per-page.\n'
+            f'Slug\'ов: {len(all_slugs)}\n'
+            f'API обновлений: {api_updates}'
+        )
+        job.save(update_fields=[
+            'status', 'finished_at', 'total_slugs', 'summary',
+        ])
+        _job_log(job_id_hex, f'Задание завершено: {job.get_status_display()}')
+        return
+
+    # --- Для html/full: нужны HTML-батчи ---
     # Фильтрация
-    if job.skip_existing and job.mode == 'html':
+    if job.skip_existing and job.mode in ('html', 'full'):
         existing = set(ParsedBoat.objects.values_list('slug', flat=True))
         before = len(all_slugs)
         all_slugs = [s for s in all_slugs if s not in existing]
         skipped = before - len(all_slugs)
         _job_log(job_id_hex, f'Пропущено существующих: {skipped}')
-        job.skipped = skipped
-    else:
-        skipped = 0
+        job.skipped = (job.skipped or 0) + skipped
 
-    if not all_slugs and not api_meta:
+    if not all_slugs:
+        job.refresh_from_db()
         job.status = 'completed'
         job.finished_at = timezone.now()
         job.total_slugs = 0
-        job.summary = 'Нет лодок для обработки'
+        job.summary = 'Нет лодок для HTML-парсинга'
         job.save()
         _job_log(job_id_hex, 'Нет лодок для обработки')
         return
@@ -857,39 +955,12 @@ def run_parse_job(self, job_id_hex, no_cache=False):
         for i in range(0, len(all_slugs), batch_size)
     ]
 
-    # В full-режиме каждый slug обрабатывается дважды (API + HTML)
-    multiplier = 2 if job.mode == 'full' else 1
-    job.total_slugs = len(all_slugs) * multiplier
-    job.status = 'running'
-
-    # --- Режимы ---
     tasks_list = []
-
-    if job.mode in ('api', 'full'):
-        # API-метаданные по батчам (lang_meta уже собрана в collection phase)
-        api_batches = []
-        for batch_slugs in slug_batches:
-            meta_subset = {s: api_meta[s] for s in batch_slugs if s in api_meta}
-            lang_subset = {
-                lang: {s: meta[s] for s in batch_slugs if s in meta}
-                for lang, meta in api_meta_by_lang.items()
-            }
-            api_batches.append(
-                process_api_batch.s(
-                    job_id_hex, batch_slugs, meta_subset, lang_subset,
-                )
-            )
-        tasks_list.extend(api_batches)
-
-    if job.mode in ('html', 'full'):
-        # HTML-парсинг по батчам
-        html_batches = []
-        for batch_slugs in slug_batches:
-            thumb_subset = {s: thumb_map[s] for s in batch_slugs if s in thumb_map}
-            html_batches.append(
-                process_html_batch.s(job_id_hex, batch_slugs, thumb_subset)
-            )
-        tasks_list.extend(html_batches)
+    for batch_slugs in slug_batches:
+        thumb_subset = {s: thumb_map[s] for s in batch_slugs if s in thumb_map}
+        tasks_list.append(
+            process_html_batch.s(job_id_hex, batch_slugs, thumb_subset)
+        )
 
     if not tasks_list:
         job.status = 'completed'
@@ -898,14 +969,18 @@ def run_parse_job(self, job_id_hex, no_cache=False):
         job.save()
         return
 
+    # total_slugs: уже обработанные API + оставшиеся HTML
+    job.refresh_from_db()
+    job.total_slugs = (job.processed or 0) + len(all_slugs)
     job.total_batches = len(tasks_list)
+    job.status = 'running'
     job.save(update_fields=['total_slugs', 'total_batches', 'status', 'skipped'])
 
     _job_log(
         job_id_hex,
-        f'Запуск {len(tasks_list)} батчей (batch_size={batch_size})'
+        f'Запуск {len(tasks_list)} HTML-батчей (batch_size={batch_size})',
     )
 
-    # chord: все batch-таски параллельно → finalize
+    # chord: все HTML batch-таски параллельно → finalize
     callback = finalize_parse_job.s(job_id_hex)
     chord(group(tasks_list))(callback)

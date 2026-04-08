@@ -1,8 +1,14 @@
 # TASK STATE
 
-Last updated: 2026-04-07 (Europe/Moscow)
+Last updated: 2026-04-08 (Europe/Moscow)
 
 ## Current priorities
+
+### P0.4: parse_boats OOM kill during slug collection
+- Status: **DONE (2026-04-08)**
+- Celery worker SIGKILL at page 25 (~450 slugs) due to unbounded memory growth.
+- Fix: per-page DB flush in `_collect_slugs_from_api`. Memory stays O(1) per page.
+- For mode=api: no chord needed, collection phase does all DB updates.
 
 ### P0.3: PEP 8 compliance
 - Status: **DONE (2026-04-07)**

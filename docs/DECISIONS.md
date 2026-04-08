@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-04 (Europe/Moscow)
+Last updated: 2026-04-08 (Europe/Moscow)
 
 ## DR-001: Unified pricing pipeline
 - Date: 2026-03-10
@@ -99,10 +99,17 @@ Last updated: 2026-04-04 (Europe/Moscow)
 - Consequence: two-step workflow to fill commissions: (1) `update_charters` — assigns Charter FK from API, (2) `import_charter_commissions` — sets commission % from XLSX. Boats without charter show no commission breakdown.
 
 ## DR-016: parse_boats_parallel cache stores API metadata payload
-- Date: 2026-03-31
+- Date: 2026-03-31 (SUPERSEDED 2026-04-08 by DR-029)
 - Context: when slug list was loaded from local cache, command skipped API search call and had no `api_meta`/`thumb_map`, so Phase 1.5 metadata updates could be incomplete on cache-hit runs.
 - Decision: cache file now persists `slugs`, `thumb_map`, and `api_meta`; cache loader restores all three with backward compatibility for old list-only cache format.
 - Consequence: cache-hit runs keep API metadata update behavior consistent with fresh API scan and avoid unnecessary re-fetching.
+- **Superseded**: DR-029 removes `api_meta`/`api_meta_by_lang` from cache to prevent OOM.
+
+## DR-029: Per-page DB flush for API metadata during slug collection
+- Date: 2026-04-08
+- Context: `_collect_slugs_from_api` accumulated `api_meta` (28k×20 fields) + `api_meta_by_lang` (5 langs×28k×6 fields) in memory and serialized to JSON cache per page. On production VPS with limited RAM, Celery worker was killed by SIGKILL (OOM) at page 25 (~450 slugs). Supersedes DR-016.
+- Decision: `_collect_slugs_from_api` flushes API metadata to DB per-page via `_update_api_metadata()` and discards page data immediately. Cache file stores only `slugs` + `thumb_map` (lightweight). For mode=api, orchestrator finalizes after collection (no chord). `process_api_batch` kept but no longer dispatched.
+- Consequence: memory O(1) per page instead of O(N) catalog. Per-page DB writes add slight overhead (~18 boats/page). If flush fails on a page, that page's metadata lost (logged as error).
 
 ## DR-024: Search/detail price breakdown is role-scoped
 - Date: 2026-03-31
