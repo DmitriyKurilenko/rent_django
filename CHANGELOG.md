@@ -2,6 +2,14 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.8.4-dev] - 2026-04-09
+
+### 🐛 Fixed — OOM v3: reduce page-range task size + fix totalPages inflation
+- **totalPages inflation**: `BoataroundAPI.search()` calculated `totalPages` using `len(boats)` on current page instead of the requested `limit`. When API returned fewer boats (e.g. 8 instead of 18), `totalPages` inflated from 1491 to 3354, doubling the number of dispatched tasks.
+- **Fix**: use `limit` (stable value) for `totalPages` calculation in both response parsing branches.
+- **PAGES_PER_RANGE: 20 → 5**: each `process_api_page_range` task now handles 5 pages (90 boats) instead of 20 (360 boats). Reduces ORM fragmentation per task by 4×. With full catalog (~1491 pages), dispatches ~298 tasks instead of ~75.
+- **`process_api_page_range`**: added `batches_done` counter increment (was missing — `--status` showed `Батчи: 0/N` even at 88% progress). Added `del results` for per-page memory release.
+
 ## [0.8.3-dev] - 2026-04-08
 
 ### 🐛 Fixed — search_by_slug wrong API parameter (`slug` → `slugs`)

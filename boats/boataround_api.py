@@ -281,10 +281,10 @@ class BoataroundAPI:
                             # Используем максимальное значение
                             total = max(total, total_boats, len(boats))
 
-                            # Вычисляем totalPages по реальному кол-ву лодок на странице
-                            # API может игнорировать наш limit и отдавать свой (напр. 18)
-                            actual_per_page = len(boats) if boats else limit
-                            total_pages = (total + actual_per_page - 1) // actual_per_page if total > 0 else 1
+                            # Вычисляем totalPages по запрошенному limit
+                            # len(boats) может быть меньше limit (фильтры, хвост),
+                            # поэтому используем limit для стабильной пагинации
+                            total_pages = (total + limit - 1) // limit if total > 0 else 1
 
                             logger.info(f"[Search] FINAL: boats={len(boats)}, total={total}, pages={total_pages}")
 
@@ -328,17 +328,17 @@ class BoataroundAPI:
                 else:
                     total = len(boats)
 
-                # Считаем totalPages по реальному кол-ву лодок на странице
-                # API может игнорировать наш limit и отдавать свой (напр. 18)
-                actual_per_page = len(boats) if boats else limit
-                if total > 0 and actual_per_page > 0:
-                    total_pages = (total + actual_per_page - 1) // actual_per_page
+                # Считаем totalPages по запрошенному limit
+                # len(boats) может быть меньше limit (фильтры, хвост),
+                # поэтому используем limit для стабильной пагинации
+                if total > 0 and limit > 0:
+                    total_pages = (total + limit - 1) // limit
                 else:
                     total_pages = 1
 
                 logger.info(
                     f"[Search] Parsed: boats={len(boats)}, total={total}, "
-                    f"pages={total_pages}, actual_per_page={actual_per_page}"
+                    f"pages={total_pages}, limit={limit}"
                 )
                 if boats and len(boats) > 0:
                     logger.info(f"[Search] First boat keys: {list(boats[0].keys())}")

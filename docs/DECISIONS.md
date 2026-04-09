@@ -1,6 +1,6 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-08 (Europe/Moscow)
+Last updated: 2026-04-09 (Europe/Moscow)
 
 ## DR-035: search_by_slug uses `slugs` parameter (plural)
 - Date: 2026-04-08
@@ -114,8 +114,9 @@ Last updated: 2026-04-08 (Europe/Moscow)
 ## DR-034: Disposable Celery tasks for parse_boats on 1 GB RAM VPS
 - Date: 2026-04-08
 - Context: Production VPS has only 1 GB RAM. Original code (OOM at page 25) and per-page flush fix (OOM at page 155) both failed — Python memory fragmentation from ORM operations in a long-running task caused RSS to grow unboundedly. Supersedes DR-016.
-- Decision: Orchestrator (`run_parse_job`) is now lightweight — collects slugs EN-only (~11 MB for 28k boats), no multilingual fetches, no DB writes, no ThreadPoolExecutor. All heavy work dispatched as disposable `process_api_page_range` tasks (20 pages each, ~360 boats). Each task: fetches 5 languages, calls `_update_api_metadata()` with per-page flush + `gc.collect()`, then exits. Worker process recycled by `--max-tasks-per-child=100`. `process_api_batch` kept for backward compat but no longer dispatched.
-- Consequence: Peak memory ~180 MB (orchestrator: ~160 MB base + 11 MB slugs; each page-range task: ~2 MB peak per page). Safe for 1 GB VPS. Trade-off: more Celery tasks dispatched (~80 for full catalog), slight scheduling overhead.
+- Decision: Orchestrator (`run_parse_job`) is now lightweight — collects slugs EN-only (~11 MB for 28k boats), no multilingual fetches, no DB writes, no ThreadPoolExecutor. All heavy work dispatched as disposable `process_api_page_range` tasks (5 pages each, ~90 boats). Each task: fetches 5 languages, calls `_update_api_metadata()` with per-page flush + `gc.collect()`, then exits. Worker process recycled by `--max-tasks-per-child=100`. `process_api_batch` kept for backward compat but no longer dispatched.
+- Updated 2026-04-09: reduced PAGES_PER_RANGE from 20 to 5 after production OOM at Job:16 (320 pages accumulated). Fixed `totalPages` inflation in `boataround_api.py` (used `len(boats)` instead of `limit`).
+- Consequence: Peak memory ~180 MB (orchestrator: ~160 MB base + 11 MB slugs; each page-range task: ~2 MB peak per page). Safe for 1 GB VPS. Trade-off: more Celery tasks dispatched (~298 for full catalog), slight scheduling overhead.
 
 ## DR-024: Search/detail price breakdown is role-scoped
 - Date: 2026-03-31

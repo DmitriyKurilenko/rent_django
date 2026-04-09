@@ -2,6 +2,20 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-09 — Fix OOM v3: reduce PAGES_PER_RANGE + fix totalPages inflation
+- Problem: v2 disposable tasks still OOM-killed on production (Job:16, signal 9). Two root causes found.
+- Root cause 1: `boataround_api.py` calculated `totalPages` as `total / len(boats)`. When API returned 8 boats instead of 18 on a page, totalPages inflated from 1491 to 3354. Doubled the number of dispatched `process_api_page_range` tasks.
+- Root cause 2: `PAGES_PER_RANGE=20` meant each task processed 20 pages × 5 langs = 100 ORM flush operations. At Job:16 (320 cumulative pages), arena fragmentation exceeded VPS headroom.
+- Root cause 3: `process_api_page_range` did not increment `batches_done` — `--status` showed `Батчи: 0/75` even at 88% completion.
+- Fix:
+  - `boataround_api.py`: use `limit` instead of `len(boats)` for `totalPages` in both response parsing branches.
+  - `tasks.py`: `PAGES_PER_RANGE: 20 → 5`. Each task: 5 pages × 5 langs = 25 ORM flushes. ~298 tasks for full catalog.
+  - `tasks.py`: added `batches_done` increment at end of `process_api_page_range`.
+  - `tasks.py`: added `del results` in per-page cleanup loop.
+- Files: `boats/boataround_api.py`, `boats/tasks.py`
+- Validation: `manage.py check` — 0 issues.
+- Risks: ~298 tasks vs ~75 — more scheduling overhead, but each task is 4× lighter. Net positive for 1 GB VPS.
+
 ## 2026-04-08 — Fix search_by_slug: wrong API parameter name (`slug` → `slugs`)
 - Problem: `BoataroundAPI.search_by_slug()` used `slug` (singular) as API query parameter. Boataround API does not recognize this parameter — it ignores it silently and returns 50 default boats. If the target boat isn't among those 50, it is not found. This caused `BoatTechnicalSpecs` to never be created for many boats, resulting in empty specs on offers and detail pages.
 - Root cause: wrong parameter name. API expects `slugs` (plural).

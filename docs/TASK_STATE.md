@@ -1,6 +1,6 @@
 # TASK STATE
 
-Last updated: 2026-04-08 (Europe/Moscow)
+Last updated: 2026-04-09 (Europe/Moscow)
 
 ## Current priorities
 
@@ -11,9 +11,9 @@ Last updated: 2026-04-08 (Europe/Moscow)
 - See DR-035, KI-010.
 
 ### P0.4: parse_boats OOM kill during slug collection
-- Status: **DONE (2026-04-08, v2)**
-- Celery worker SIGKILL on 1 GB RAM VPS. v1 (per-page flush) still OOM at page 155 due to Python memory fragmentation from ORM ops in long-running task.
-- Fix (v2): Disposable Celery tasks architecture. Orchestrator only collects slugs EN-only (~11 MB). All heavy work (5-lang fetches + DB writes) dispatched as `process_api_page_range` tasks (20 pages each). Worker recycled by `--max-tasks-per-child=100`.
+- Status: **DONE (2026-04-09, v3)**
+- v2 (disposable tasks, 20 pages/task) still OOM at Job:16 on 1 GB VPS. Also `totalPages` inflated 2× due to `len(boats)` vs `limit` in API pagination.
+- Fix (v3): `PAGES_PER_RANGE: 20 → 5` (4× lighter per task). Fixed `totalPages` calculation in `boataround_api.py`. Added `batches_done` counter + `del results` in page-range task.
 - See DR-034.
 
 ### P0.3: PEP 8 compliance

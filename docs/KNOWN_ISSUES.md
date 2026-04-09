@@ -1,6 +1,6 @@
 # KNOWN ISSUES
 
-Last updated: 2026-04-08 (Europe/Moscow)
+Last updated: 2026-04-09 (Europe/Moscow)
 
 ## KI-007: parse_boats OOM kill during slug collection (RESOLVED 2026-04-08)
 - Severity: critical (RESOLVED)
@@ -8,7 +8,8 @@ Last updated: 2026-04-08 (Europe/Moscow)
 - Symptom: Celery worker killed by SIGKILL (signal 9) during slug collection phase on 1 GB RAM VPS. Job stuck in "Сбор slug'ов" forever.
 - Root cause (v1): Unbounded memory accumulation of api_meta dicts. Fix (per-page flush): still OOM at page 155 due to Python arena fragmentation.
 - Root cause (v2): ORM operations in a single long-running task fragment Python's memory arena. RSS grows unboundedly over 155+ pages.
-- Fix (v2): Disposable Celery tasks architecture. Orchestrator only collects slugs (EN-only, ~11 MB). All heavy work in short-lived `process_api_page_range` tasks. Worker recycled by `--max-tasks-per-child=100`. See DR-034.
+- Fix (v2): Disposable Celery tasks architecture. Orchestrator only collects slugs (EN-only, ~11 MB). All heavy work in short-lived `process_api_page_range` tasks. Worker recycled by `--max-tasks-per-child=100`.
+- Fix (v3, 2026-04-09): `PAGES_PER_RANGE: 20 → 5` (v2 still OOM at Job:16). Fixed `totalPages` inflation in `boataround_api.py`. See DR-034.
 
 ## KI-001: Upstream price jitter for identical requests
 - Severity: medium (PARTIALLY RESOLVED 2026-04-02)

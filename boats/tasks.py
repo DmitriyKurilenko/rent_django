@@ -703,8 +703,16 @@ def process_api_page_range(self, job_id_hex, destination, start_page, end_page):
             pass
 
         # Free memory
-        del page_api_meta, page_api_meta_by_lang, boats_by_lang
+        del page_api_meta, page_api_meta_by_lang, boats_by_lang, results
         gc.collect()
+
+    # Increment batches_done
+    try:
+        ParseJob.objects.filter(job_id=job_id_hex).update(
+            batches_done=F('batches_done') + 1,
+        )
+    except Exception:
+        pass
 
     _job_log(
         job_id_hex,
@@ -886,7 +894,7 @@ def run_parse_job(self, job_id_hex, no_cache=False):
     from boats.models import ParseJob, ParsedBoat
     from django.utils import timezone
 
-    PAGES_PER_RANGE = 20
+    PAGES_PER_RANGE = 5
 
     job_id_hex = str(job_id_hex)
 
