@@ -1,6 +1,13 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-09 (Europe/Moscow)
+Last updated: 2026-04-10 (Europe/Moscow)
+
+## DR-036: Comprehensive search filters with comma-separated multi-values
+- Date: 2026-04-10
+- Context: Search used only 6 basic filters. Boataround API supports 15+ params (sleeps, guests, length, manufacturer, skipper, sail, engineType, cockpit, entertainment, equipment, toilets).
+- Decision: Add all supported params. Multi-value checkbox fields (sail, engine_type, cockpit, entertainment, equipment) use `getlist()` + comma-join in view, sent as comma-separated strings to API. Category values corrected to API format (sailing-yacht, motor-yacht, motor-boat, catamaran, gulet, power-catamaran). Amenity checkboxes in collapsible sections using Alpine.js `x-show`.
+- Refinement (2026-04-10): `active_*` context variables changed from comma-joined strings to lists. Django `in` operator on strings does substring matching, which could cause false-positive `checked` state on overlapping IDs. Lists ensure exact membership check. Manufacturer input lowercased to match API slug format.
+- Consequence: Users can filter by 17 parameters total. Checkbox state persists via `active_*` context variables (lists). Pagination URLs preserve all active filters.
 
 ## DR-035: search_by_slug uses `slugs` parameter (plural)
 - Date: 2026-04-08

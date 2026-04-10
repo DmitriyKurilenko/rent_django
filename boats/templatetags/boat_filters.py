@@ -7,6 +7,14 @@ register = template.Library()
 
 
 @register.filter
+def split(value, delimiter=","):
+    """Split string by delimiter, return list."""
+    if not value:
+        return []
+    return value.split(delimiter)
+
+
+@register.filter
 def mul(value, arg):
     """Multiply value by arg"""
     try:

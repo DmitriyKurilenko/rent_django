@@ -46,7 +46,7 @@
                 <span x-text="mobileFiltersOpen ? 'Скрыть фильтры' : 'Показать фильтры'"></span>
             </button>
 
-            <div class="card bg-base-200 sticky top-20 mt-3 lg:mt-0" x-show="isDesktop || mobileFiltersOpen" x-cloak>
+            <div class="card bg-base-200 sticky top-20 mt-3 lg:mt-0 max-h-[calc(100vh-6rem)] overflow-y-auto" x-show="isDesktop || mobileFiltersOpen" x-cloak>
                 <div class="card-body">
                     <h2 class="card-title text-lg mb-4">
                         <i class="fas fa-filter"></i> {% trans "Фильтры" %}
@@ -94,7 +94,7 @@
                                     >
                                         <div class="font-medium" x-text="suggestion.name"></div>
                                         <div class="text-xs text-base-content/90" x-show="suggestion.country" x-text="suggestion.country"></div>
-                                        <div class="text-xs text-base-content/50" x-show="suggestion.total" x-text="suggestion.total + ' лодок'"></div>
+                                        <div class="text-xs text-base-content/50" x-show="suggestion.total" x-text="suggestion.total + ' {% trans "лодок" %}'"></div>
                                     </div>
                                 </template>
                             </div>
@@ -107,52 +107,91 @@
                             </label>
                             <select id="search_category" name="category" class="select select-sm">
                                 <option value="">{% trans "Любой" %}</option>
-                                <option value="sailboat">{% trans "Парусник" %}</option>
-                                <option value="motorboat">{% trans "Моторная" %}</option>
-                                <option value="catamaran">{% trans "Катамаран" %}</option>
+                                <option value="sailing-yacht" {% if request.GET.category == 'sailing-yacht' %}selected{% endif %}>{% trans "Парусная яхта" %}</option>
+                                <option value="catamaran" {% if request.GET.category == 'catamaran' %}selected{% endif %}>{% trans "Катамаран" %}</option>
+                                <option value="motor-yacht" {% if request.GET.category == 'motor-yacht' %}selected{% endif %}>{% trans "Моторная яхта" %}</option>
+                                <option value="motor-boat" {% if request.GET.category == 'motor-boat' %}selected{% endif %}>{% trans "Моторная лодка" %}</option>
+                                <option value="gulet" {% if request.GET.category == 'gulet' %}selected{% endif %}>{% trans "Гулет" %}</option>
+                                <option value="power-catamaran" {% if request.GET.category == 'power-catamaran' %}selected{% endif %}>{% trans "Моторный катамаран" %}</option>
                             </select>
                         </div>
 
-                        <!-- Check-in Date -->
-                        <div class="form-control">
-                            <label class="label" for="search_check_in">
-                                <span class="label-text font-semibold">{% trans "Заезд" %}</span>
-                            </label>
-                            <input 
-                                id="search_check_in"
-                                type="date" 
-                                name="check_in" 
-                                value="{{ check_in|default:'' }}" 
-                                class="input input-sm"
-                            >
+                        <!-- Check-in / Check-out -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="form-control">
+                                <label class="label" for="search_check_in">
+                                    <span class="label-text font-semibold">{% trans "Заезд" %}</span>
+                                </label>
+                                <input id="search_check_in" type="date" name="check_in" value="{{ check_in|default:'' }}" class="input input-sm">
+                            </div>
+                            <div class="form-control">
+                                <label class="label" for="search_check_out">
+                                    <span class="label-text font-semibold">{% trans "Выезд" %}</span>
+                                </label>
+                                <input id="search_check_out" type="date" name="check_out" value="{{ check_out|default:'' }}" class="input input-sm">
+                            </div>
                         </div>
 
-                        <!-- Check-out Date -->
+                        <!-- Price Range -->
                         <div class="form-control">
-                            <label class="label" for="search_check_out">
-                                <span class="label-text font-semibold">{% trans "Выезд" %}</span>
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Цена" %}</span>
                             </label>
-                            <input 
-                                id="search_check_out"
-                                type="date" 
-                                name="check_out" 
-                                value="{{ check_out|default:'' }}" 
-                                class="input input-sm"
-                            >
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" name="price_from" value="{{ request.GET.price_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" step="100" class="input input-sm">
+                                <input type="number" name="price_to" value="{{ request.GET.price_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" step="100" class="input input-sm">
+                            </div>
                         </div>
 
                         <!-- Cabins -->
                         <div class="form-control">
                             <label class="label">
-                                <span class="label-text font-semibold">{% trans "Количество кают" %}</span>
+                                <span class="label-text font-semibold">{% trans "Каюты" %}</span>
                             </label>
                             <select name="cabins" class="select select-sm">
                                 <option value="">{% trans "Любое" %}</option>
-                                <option value="1" {% if request.GET.cabins == '1' %}selected{% endif %}>1</option>
-                                <option value="2" {% if request.GET.cabins == '2' %}selected{% endif %}>2</option>
-                                <option value="3" {% if request.GET.cabins == '3' %}selected{% endif %}>3</option>
-                                <option value="4" {% if request.GET.cabins == '4' %}selected{% endif %}>4</option>
+                                <option value="1" {% if request.GET.cabins == '1' %}selected{% endif %}>1+</option>
+                                <option value="2" {% if request.GET.cabins == '2' %}selected{% endif %}>2+</option>
+                                <option value="3" {% if request.GET.cabins == '3' %}selected{% endif %}>3+</option>
+                                <option value="4" {% if request.GET.cabins == '4' %}selected{% endif %}>4+</option>
                                 <option value="5-" {% if request.GET.cabins == '5-' %}selected{% endif %}>5+</option>
+                                <option value="6-" {% if request.GET.cabins == '6-' %}selected{% endif %}>6+</option>
+                            </select>
+                        </div>
+
+                        <!-- Sleeps -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Спальные места" %}</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" name="sleeps_from" value="{{ request.GET.sleeps_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" max="30" class="input input-sm">
+                                <input type="number" name="sleeps_to" value="{{ request.GET.sleeps_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" max="30" class="input input-sm">
+                            </div>
+                        </div>
+
+                        <!-- Guests -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Макс. гостей" %}</span>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" name="guests_from" value="{{ request.GET.guests_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" max="50" class="input input-sm">
+                                <input type="number" name="guests_to" value="{{ request.GET.guests_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" max="50" class="input input-sm">
+                            </div>
+                        </div>
+
+                        <!-- Toilets -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Санузлы" %}</span>
+                            </label>
+                            <select name="toilets" class="select select-sm">
+                                <option value="">{% trans "Любое" %}</option>
+                                <option value="1-" {% if request.GET.toilets == '1-' %}selected{% endif %}>1+</option>
+                                <option value="2-" {% if request.GET.toilets == '2-' %}selected{% endif %}>2+</option>
+                                <option value="3-" {% if request.GET.toilets == '3-' %}selected{% endif %}>3+</option>
+                                <option value="4-" {% if request.GET.toilets == '4-' %}selected{% endif %}>4+</option>
                             </select>
                         </div>
 
@@ -162,51 +201,114 @@
                                 <span class="label-text font-semibold">{% trans "Год выпуска" %}</span>
                             </label>
                             <div class="grid grid-cols-2 gap-2">
-                                <input 
-                                    type="number" 
-                                    name="year_from" 
-                                    value="{{ request.GET.year_from|default:'' }}" 
-                                    placeholder="{% trans 'От' %}"
-                                    min="1980"
-                                    max="2026"
-                                    class="input input-sm"
-                                >
-                                <input 
-                                    type="number" 
-                                    name="year_to" 
-                                    value="{{ request.GET.year_to|default:'' }}" 
-                                    placeholder="{% trans 'До' %}"
-                                    min="1980"
-                                    max="2026"
-                                    class="input input-sm"
-                                >
+                                <input type="number" name="year_from" value="{{ request.GET.year_from|default:'' }}" placeholder="{% trans 'От' %}" min="1980" max="2026" class="input input-sm">
+                                <input type="number" name="year_to" value="{{ request.GET.year_to|default:'' }}" placeholder="{% trans 'До' %}" min="1980" max="2026" class="input input-sm">
                             </div>
                         </div>
 
-                        <!-- Price Range -->
+                        <!-- Boat Length -->
                         <div class="form-control">
                             <label class="label">
-                                <span class="label-text font-semibold">{% trans "Цена за день (EUR)" %}</span>
+                                <span class="label-text font-semibold">{% trans "Длина (м)" %}</span>
                             </label>
                             <div class="grid grid-cols-2 gap-2">
-                                <input 
-                                    type="number" 
-                                    name="price_from" 
-                                    value="{{ request.GET.price_from|default:'' }}" 
-                                    placeholder="От"
-                                    min="0"
-                                    step="10"
-                                    class="input input-sm"
-                                >
-                                <input 
-                                    type="number" 
-                                    name="price_to" 
-                                    value="{{ request.GET.price_to|default:'' }}" 
-                                    placeholder="До"
-                                    min="0"
-                                    step="10"
-                                    class="input input-sm"
-                                >
+                                <input type="number" name="length_from" value="{{ request.GET.length_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" max="100" step="1" class="input input-sm">
+                                <input type="number" name="length_to" value="{{ request.GET.length_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" max="100" step="1" class="input input-sm">
+                            </div>
+                        </div>
+
+                        <!-- Skipper -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-semibold">{% trans "Экипаж" %}</span>
+                            </label>
+                            <select name="skipper" class="select select-sm">
+                                <option value="">{% trans "Любой" %}</option>
+                                {% for item in api_filters.skipper %}
+                                <option value="{{ item.id }}" {% if item.id == request.GET.skipper %}selected{% endif %}>{{ item.name }} ({{ item.count }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- == Collapsible: Sail & Engine == -->
+                        <div x-data="{ open: {% if active_sail or active_engine_type %}true{% else %}false{% endif %} }">
+                            <button type="button" @click="open = !open" class="flex items-center justify-between w-full text-sm font-semibold py-1">
+                                <span>{% trans "Парус и двигатель" %}</span>
+                                <i class="fas fa-chevron-down transition-transform" :class="open && 'rotate-180'"></i>
+                            </button>
+                            <div x-show="open" x-cloak class="space-y-3 pt-2">
+                                <!-- Sail Type -->
+                                <div class="form-control">
+                                    <span class="label-text text-xs mb-1">{% trans "Тип паруса" %}</span>
+                                    <div class="flex flex-col gap-1">
+                                        {% for item in api_filters.sail %}
+                                        <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                            <input type="checkbox" name="sail" value="{{ item.id }}" class="checkbox checkbox-xs checkbox-primary" {% if item.id in active_sail %}checked{% endif %}>
+                                            {{ item.name }} <span class="text-base-content/40">({{ item.count }})</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <!-- Engine Type -->
+                                <div class="form-control">
+                                    <span class="label-text text-xs mb-1">{% trans "Тип двигателя" %}</span>
+                                    <div class="flex flex-col gap-1">
+                                        {% for item in api_filters.engineType %}
+                                        <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                            <input type="checkbox" name="engine_type" value="{{ item.id }}" class="checkbox checkbox-xs checkbox-primary" {% if item.id in active_engine_type %}checked{% endif %}>
+                                            {{ item.name }} <span class="text-base-content/40">({{ item.count }})</span>
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- == Collapsible: Cockpit (Interior) == -->
+                        <div x-data="{ open: {% if active_cockpit %}true{% else %}false{% endif %} }">
+                            <button type="button" @click="open = !open" class="flex items-center justify-between w-full text-sm font-semibold py-1">
+                                <span>{% trans "Комфорт" %}</span>
+                                <i class="fas fa-chevron-down transition-transform" :class="open && 'rotate-180'"></i>
+                            </button>
+                            <div x-show="open" x-cloak class="flex flex-col gap-1 pt-2">
+                                {% for item in api_filters.cockpit %}
+                                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="checkbox" name="cockpit" value="{{ item.id }}" class="checkbox checkbox-xs checkbox-primary" {% if item.id in active_cockpit %}checked{% endif %}>
+                                    {{ item.name }} <span class="text-base-content/40">({{ item.count }})</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- == Collapsible: Entertainment == -->
+                        <div x-data="{ open: {% if active_entertainment %}true{% else %}false{% endif %} }">
+                            <button type="button" @click="open = !open" class="flex items-center justify-between w-full text-sm font-semibold py-1">
+                                <span>{% trans "Развлечения" %}</span>
+                                <i class="fas fa-chevron-down transition-transform" :class="open && 'rotate-180'"></i>
+                            </button>
+                            <div x-show="open" x-cloak class="flex flex-col gap-1 pt-2">
+                                {% for item in api_filters.entertainment %}
+                                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="checkbox" name="entertainment" value="{{ item.id }}" class="checkbox checkbox-xs checkbox-primary" {% if item.id in active_entertainment %}checked{% endif %}>
+                                    {{ item.name }} <span class="text-base-content/40">({{ item.count }})</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- == Collapsible: Equipment == -->
+                        <div x-data="{ open: {% if active_equipment %}true{% else %}false{% endif %} }">
+                            <button type="button" @click="open = !open" class="flex items-center justify-between w-full text-sm font-semibold py-1">
+                                <span>{% trans "Оборудование" %}</span>
+                                <i class="fas fa-chevron-down transition-transform" :class="open && 'rotate-180'"></i>
+                            </button>
+                            <div x-show="open" x-cloak class="flex flex-col gap-1 pt-2">
+                                {% for item in api_filters.equipment %}
+                                <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input type="checkbox" name="equipment" value="{{ item.id }}" class="checkbox checkbox-xs checkbox-primary" {% if item.id in active_equipment %}checked{% endif %}>
+                                    {{ item.name }} <span class="text-base-content/40">({{ item.count }})</span>
+                                </label>
+                                {% endfor %}
                             </div>
                         </div>
 
@@ -243,30 +345,43 @@
                             <option value="priceUp" {% if sort == 'priceUp' %}selected{% endif %}>{% trans "Цена ↑" %}</option>
                             <option value="priceDown" {% if sort == 'priceDown' %}selected{% endif %}>{% trans "Цена ↓" %}</option>
                             <option value="discountDown" {% if sort == 'discountDown' %}selected{% endif %}>{% trans "Скидка ↓" %}</option>
+                            <option value="reviewsDown" {% if sort == 'reviewsDown' %}selected{% endif %}>{% trans "По отзывам" %}</option>
+                            <option value="dealsFirst" {% if sort == 'dealsFirst' %}selected{% endif %}>{% trans "Лучшие предложения" %}</option>
                         </select>
-                        {% if destination or check_in or check_out or request.GET.category or request.GET.cabins or request.GET.year_from or request.GET.year_to or request.GET.price_from or request.GET.price_to or sort %}
+                        {% if destination or check_in or check_out or request.GET.category or request.GET.cabins or request.GET.year_from or request.GET.year_to or request.GET.price_from or request.GET.price_to or request.GET.sleeps_from or request.GET.sleeps_to or request.GET.guests_from or request.GET.guests_to or request.GET.length_from or request.GET.length_to or request.GET.toilets or request.GET.manufacturer or request.GET.skipper or request.GET.sail or request.GET.engine_type or request.GET.cockpit or request.GET.entertainment or request.GET.equipment or sort %}
                         <a href="{% url 'boat_search' %}" class="btn btn-ghost btn-sm">
                             <i class="fas fa-times"></i>
-                            <span class="hidden sm:inline">Сбросить</span>
+                            <span class="hidden sm:inline">{% trans "Сбросить" %}</span>
                         </a>
                         {% endif %}
                     </div>
                 </div>
 
-                {% if destination or check_in or check_out or request.GET.category or request.GET.cabins or request.GET.year_from or request.GET.year_to or request.GET.price_from or request.GET.price_to or sort %}
+                {% if destination or check_in or check_out or request.GET.category or request.GET.cabins or request.GET.year_from or request.GET.year_to or request.GET.price_from or request.GET.price_to or request.GET.sleeps_from or request.GET.sleeps_to or request.GET.guests_from or request.GET.guests_to or request.GET.length_from or request.GET.length_to or request.GET.toilets or request.GET.manufacturer or request.GET.skipper or request.GET.sail or request.GET.engine_type or request.GET.cockpit or request.GET.entertainment or request.GET.equipment or sort %}
                 <div class="mb-6 p-3 bg-base-200 rounded-lg">
                     <div class="flex flex-wrap items-center gap-2 text-sm">
-                        <span class="font-semibold text-base-content/70">Активные фильтры:</span>
+                        <span class="font-semibold text-base-content/70">{% trans "Активные фильтры" %}:</span>
                         {% if destination_display %}<span class="badge badge-outline">{{ destination_display }}</span>{% endif %}
                         {% if request.GET.category %}<span class="badge badge-outline">{{ request.GET.category }}</span>{% endif %}
-                        {% if check_in %}<span class="badge badge-outline">Заезд: {{ check_in }}</span>{% endif %}
-                        {% if check_out %}<span class="badge badge-outline">Выезд: {{ check_out }}</span>{% endif %}
-                        {% if request.GET.cabins %}<span class="badge badge-outline">Каюты: {{ request.GET.cabins }}</span>{% endif %}
-                        {% if request.GET.year_from %}<span class="badge badge-outline">Год от: {{ request.GET.year_from }}</span>{% endif %}
-                        {% if request.GET.year_to %}<span class="badge badge-outline">Год до: {{ request.GET.year_to }}</span>{% endif %}
-                        {% if request.GET.price_from %}<span class="badge badge-outline">Цена от: {{ request.GET.price_from }}</span>{% endif %}
-                        {% if request.GET.price_to %}<span class="badge badge-outline">Цена до: {{ request.GET.price_to }}</span>{% endif %}
-                        {% if sort and sort != 'rank' %}<span class="badge badge-primary">Сортировка: {{ sort }}</span>{% endif %}
+                        {% if check_in %}<span class="badge badge-outline">{% trans "Заезд" %}: {{ check_in }}</span>{% endif %}
+                        {% if check_out %}<span class="badge badge-outline">{% trans "Выезд" %}: {{ check_out }}</span>{% endif %}
+                        {% if request.GET.cabins %}<span class="badge badge-outline">{% trans "Каюты" %}: {{ request.GET.cabins }}</span>{% endif %}
+                        {% if request.GET.sleeps_from or request.GET.sleeps_to %}<span class="badge badge-outline">{% trans "Спальные места" %}: {{ request.GET.sleeps_from|default:"*" }}-{{ request.GET.sleeps_to|default:"*" }}</span>{% endif %}
+                        {% if request.GET.guests_from or request.GET.guests_to %}<span class="badge badge-outline">{% trans "Гостей" %}: {{ request.GET.guests_from|default:"*" }}-{{ request.GET.guests_to|default:"*" }}</span>{% endif %}
+                        {% if request.GET.toilets %}<span class="badge badge-outline">{% trans "Санузлы" %}: {{ request.GET.toilets }}</span>{% endif %}
+                        {% if request.GET.year_from %}<span class="badge badge-outline">{% trans "Год от" %}: {{ request.GET.year_from }}</span>{% endif %}
+                        {% if request.GET.year_to %}<span class="badge badge-outline">{% trans "Год до" %}: {{ request.GET.year_to }}</span>{% endif %}
+                        {% if request.GET.length_from or request.GET.length_to %}<span class="badge badge-outline">{% trans "Длина" %}: {{ request.GET.length_from|default:"*" }}-{{ request.GET.length_to|default:"*" }} м</span>{% endif %}
+                        {% if request.GET.price_from %}<span class="badge badge-outline">{% trans "Цена от" %}: {{ request.GET.price_from }}</span>{% endif %}
+                        {% if request.GET.price_to %}<span class="badge badge-outline">{% trans "Цена до" %}: {{ request.GET.price_to }}</span>{% endif %}
+                        {% if request.GET.manufacturer %}<span class="badge badge-outline">{{ request.GET.manufacturer }}</span>{% endif %}
+                        {% if request.GET.skipper %}<span class="badge badge-outline">{{ request.GET.skipper }}</span>{% endif %}
+                        {% if request.GET.sail %}<span class="badge badge-outline">{% trans "Парус" %}: {{ request.GET.sail }}</span>{% endif %}
+                        {% if request.GET.engine_type %}<span class="badge badge-outline">{% trans "Двигатель" %}: {{ request.GET.engine_type }}</span>{% endif %}
+                        {% if request.GET.cockpit %}<span class="badge badge-outline">{% trans "Комфорт" %}: {{ request.GET.cockpit }}</span>{% endif %}
+                        {% if request.GET.entertainment %}<span class="badge badge-outline">{% trans "Развлечения" %}: {{ request.GET.entertainment }}</span>{% endif %}
+                        {% if request.GET.equipment %}<span class="badge badge-outline">{% trans "Оборудование" %}: {{ request.GET.equipment }}</span>{% endif %}
+                        {% if sort and sort != 'rank' %}<span class="badge badge-primary">{% trans "Сортировка" %}: {{ sort }}</span>{% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -392,7 +507,7 @@
                                         <i class="far fa-heart"></i>
                                     </button>
                                     {% endif %}
-                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" class="btn btn-primary btn-xs sm:btn-sm flex-1 sm:flex-none">
+                                    <a href="{% url 'boat_detail_api' boat.slug|default:boat.id %}?check_in={{ check_in }}&check_out={{ check_out }}" target="_blank" class="btn btn-primary btn-xs sm:btn-sm flex-1 sm:flex-none">
                                         Подробно
                                     </a>
                                 </div>
@@ -504,18 +619,25 @@ function searchFiltersForm(initialLocation, initialDestinationSlug) {
     return {
         location: initialLocation || '',
         selectedDestination: initialDestinationSlug || '',
+        _lastSelectedName: initialLocation || '',
         suggestions: [],
         showSuggestions: false,
         loadingSuggestions: false,
 
         async fetchLocations() {
             const query = this.location.trim();
-            this.selectedDestination = '';
             if (query.length < 2) {
+                this.selectedDestination = '';
                 this.suggestions = [];
                 this.showSuggestions = false;
                 return;
             }
+
+            // Если текст не менялся — не сбрасываем destination
+            if (this.selectedDestination && query === (this._lastSelectedName || '')) {
+                return;
+            }
+            this.selectedDestination = '';
 
             this.loadingSuggestions = true;
             try {
@@ -540,6 +662,7 @@ function searchFiltersForm(initialLocation, initialDestinationSlug) {
         selectLocation(suggestion) {
             this.location = suggestion.name || suggestion.label || '';
             this.selectedDestination = suggestion.value || suggestion.slug || '';
+            this._lastSelectedName = this.location;
             this.suggestions = [];
             this.showSuggestions = false;
         },

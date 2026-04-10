@@ -118,12 +118,30 @@ def boat_search(request):
     check_in = request.GET.get('check_in', request.GET.get('checkIn', '')).strip()
     check_out = request.GET.get('check_out', request.GET.get('checkOut', '')).strip()
 
-    # Новые фильтры
+    # Числовые / range фильтры
     cabins = request.GET.get('cabins', '').strip()
     year_from = request.GET.get('year_from', '').strip()
     year_to = request.GET.get('year_to', '').strip()
     price_from = request.GET.get('price_from', '').strip()
     price_to = request.GET.get('price_to', '').strip()
+    sleeps_from = request.GET.get('sleeps_from', '').strip()
+    sleeps_to = request.GET.get('sleeps_to', '').strip()
+    guests_from = request.GET.get('guests_from', '').strip()
+    guests_to = request.GET.get('guests_to', '').strip()
+    length_from = request.GET.get('length_from', '').strip()
+    length_to = request.GET.get('length_to', '').strip()
+    toilets = request.GET.get('toilets', '').strip()
+
+    # Текстовые / select фильтры
+    manufacturer = request.GET.get('manufacturer', '').strip().lower()
+    skipper = request.GET.get('skipper', '').strip()
+
+    # Comma-separated checkbox фильтры (getlist → join для multi-value)
+    sail = ','.join(request.GET.getlist('sail'))
+    engine_type = ','.join(request.GET.getlist('engine_type'))
+    cockpit = ','.join(request.GET.getlist('cockpit'))
+    entertainment = ','.join(request.GET.getlist('entertainment'))
+    equipment = ','.join(request.GET.getlist('equipment'))
 
     try:
         page = int(request.GET.get('page', 1))
@@ -132,7 +150,10 @@ def boat_search(request):
     page = max(1, page)  # Минимум 1 страница
 
     # Сохраняем сортировку пользователя в сессии, чтобы не выбирать каждый раз заново
-    allowed_sorts = {'rank', 'priceUp', 'priceDown', 'discountDown'}
+    allowed_sorts = {
+        'rank', 'priceUp', 'priceDown', 'discountDown',
+        'reviewsDown', 'dealsFirst', 'freeCancellation',
+    }
     sort_session_key = 'boat_search_sort'
     raw_sort = request.GET.get('sort')
     if raw_sort is not None:
@@ -144,14 +165,22 @@ def boat_search(request):
         sort = saved_sort if saved_sort in allowed_sorts else 'rank'
 
     logger.info("[Search View] ============== NEW SEARCH ==============")
-    logger.info(f"[Search View] destination='{destination}'")
-    logger.info(f"[Search View] category='{category}'")
-    logger.info(f"[Search View] check_in='{check_in}'")
-    logger.info(f"[Search View] check_out='{check_out}'")
-    logger.info(f"[Search View] cabins='{cabins}'")
-    logger.info(f"[Search View] year={year_from}-{year_to}")
-    logger.info(f"[Search View] price={price_from}-{price_to}")
-    logger.info(f"[Search View] page={page}")
+    logger.info(f"[Search View] destination='{destination}' category='{category}'")
+    logger.info(f"[Search View] dates={check_in}..{check_out} page={page} sort={sort}")
+    active_filters = {
+        k: v for k, v in {
+            'cabins': cabins, 'year': f"{year_from}-{year_to}",
+            'price': f"{price_from}-{price_to}",
+            'sleeps': f"{sleeps_from}-{sleeps_to}",
+            'guests': f"{guests_from}-{guests_to}",
+            'length': f"{length_from}-{length_to}",
+            'toilets': toilets, 'manufacturer': manufacturer,
+            'skipper': skipper, 'sail': sail, 'engine_type': engine_type,
+            'cockpit': cockpit, 'entertainment': entertainment, 'equipment': equipment,
+        }.items() if v and v != '-'
+    }
+    if active_filters:
+        logger.info(f"[Search View] Filters: {active_filters}")
 
     # Пустой контекст если нет локации
     if not destination:
@@ -181,42 +210,48 @@ def boat_search(request):
         # Запрос к API boataround
         logger.info("[Search View] Calling BoataroundAPI.search...")
 
-        # Формируем year параметр для API
-        year_param = None
-        if year_from and year_to:
-            year_param = f"{year_from}-{year_to}"
-        elif year_from:
-            year_param = f"{year_from}-"
-        elif year_to:
-            year_param = f"-{year_to}"
+        # Утилита для формирования range-параметра ("from-to", "from-", "-to")
+        def _build_range(val_from, val_to):
+            if val_from and val_to:
+                return f"{val_from}-{val_to}"
+            if val_from:
+                return f"{val_from}-"
+            if val_to:
+                return f"-{val_to}"
+            return None
 
-        # Формируем price параметр для API
-        price_param = None
-        if price_from and price_to:
-            price_param = f"{price_from}-{price_to}"
-        elif price_from:
-            price_param = f"{price_from}-"
-        elif price_to:
-            price_param = f"-{price_to}"
+        year_param = _build_range(year_from, year_to)
+        price_param = _build_range(price_from, price_to)
+        sleeps_param = _build_range(sleeps_from, sleeps_to)
+        guests_param = _build_range(guests_from, guests_to)
+        length_param = _build_range(length_from, length_to)
 
         # Формат cabins для API: "4-" означает "4 или больше"
         cabins_param = None
         if cabins:
-            if cabins == "5":
-                cabins_param = "5-"  # 5+ кают
-            else:
-                cabins_param = f"{cabins}-"  # N или больше кают
+            cabins_param = cabins if '-' in cabins else f"{cabins}-"
 
         search_results = BoataroundAPI.search(
             destination=destination,
-            category=category if category else None,
-            check_in=check_in if check_in else None,
-            check_out=check_out if check_out else None,
-            cabins=cabins_param if cabins_param else None,
-            year=year_param if year_param else None,
-            price=price_param if price_param else None,
+            category=category or None,
+            check_in=check_in or None,
+            check_out=check_out or None,
+            cabins=cabins_param or None,
+            year=year_param,
+            price=price_param,
+            max_sleeps=sleeps_param,
+            allowed_people=guests_param,
+            boat_length=length_param,
+            manufacturer=manufacturer or None,
+            skipper=skipper or None,
+            sail=sail or None,
+            engine_type=engine_type or None,
+            cockpit=cockpit or None,
+            entertainment=entertainment or None,
+            equipment=equipment or None,
+            toilets=toilets or None,
             page=page,
-            limit=18,  # 18 лодок на страницу
+            limit=18,
             sort=sort,
             lang=_request_api_lang(request),
         )
@@ -397,28 +432,21 @@ def boat_search(request):
             page = total_pages
             logger.warning(f"[Search View] Page {page} exceeded total pages {total_pages}, adjusting")
 
-        # Строка параметров для пагинации
-        query_params = {}
-        if destination:
-            query_params['destination'] = destination
-        if category:
-            query_params['category'] = category
-        if check_in:
-            query_params['check_in'] = check_in
-        if check_out:
-            query_params['check_out'] = check_out
-        if cabins:
-            query_params['cabins'] = cabins
-        if year_from:
-            query_params['year_from'] = year_from
-        if year_to:
-            query_params['year_to'] = year_to
-        if price_from:
-            query_params['price_from'] = price_from
-        if price_to:
-            query_params['price_to'] = price_to
-        if sort:
-            query_params['sort'] = sort
+        # Строка параметров для пагинации — все ненулевые фильтры
+        _pagination_fields = {
+            'destination': destination, 'category': category,
+            'check_in': check_in, 'check_out': check_out,
+            'cabins': cabins, 'year_from': year_from, 'year_to': year_to,
+            'price_from': price_from, 'price_to': price_to,
+            'sleeps_from': sleeps_from, 'sleeps_to': sleeps_to,
+            'guests_from': guests_from, 'guests_to': guests_to,
+            'length_from': length_from, 'length_to': length_to,
+            'toilets': toilets, 'manufacturer': manufacturer,
+            'skipper': skipper, 'sail': sail, 'engine_type': engine_type,
+            'cockpit': cockpit, 'entertainment': entertainment,
+            'equipment': equipment, 'sort': sort,
+        }
+        query_params = {k: v for k, v in _pagination_fields.items() if v}
         search_query_str = "&" + urlencode(query_params) if query_params else ""
 
         # ⭐ Расчет количества дней аренды
@@ -442,6 +470,30 @@ def boat_search(request):
         page_plus_1 = int(page + 1)
         page_plus_2 = int(page + 2)
 
+        # API возвращает доступные значения фильтров с counts
+        # Django templates запрещают ключи с _ в начале, переименуем _id → id
+        raw_filters = search_results.get('filters', {})
+        api_filters = {}
+        for fkey, fval in raw_filters.items():
+            if isinstance(fval, list):
+                api_filters[fkey] = [
+                    {('id' if k == '_id' else k): v for k, v in item.items()}
+                    for item in fval if isinstance(item, dict)
+                ]
+            else:
+                api_filters[fkey] = fval
+
+        # API не локализует engineType — подставляем перевод
+        _engine_names = {
+            'diesel': _('Дизель'), 'electric': _('Электрический'),
+            'hybrid': _('Гибрид'), 'petrol': _('Бензиновый'),
+            'patrol': _('Бензиновый'), 'no_engine': _('Без двигателя'),
+        }
+        for item in api_filters.get('engineType', []):
+            translated = _engine_names.get(item.get('id', ''))
+            if translated:
+                item['name'] = translated
+
         context = {
             'boats': boats,
             'total_results': total_results,
@@ -460,10 +512,17 @@ def boat_search(request):
             'category': category,
             'check_in': check_in,
             'check_out': check_out,
-            'rental_days': rental_days,  # ⭐ Добавляем количество дней
+            'rental_days': rental_days,
             'sort': sort,
             'show_pagination': total_pages > 1,
             'search_query_str': search_query_str,
+            'api_filters': api_filters,
+            # Multi-value checkbox фильтры (списки для корректной проверки in)
+            'active_sail': sail.split(',') if sail else [],
+            'active_engine_type': engine_type.split(',') if engine_type else [],
+            'active_cockpit': cockpit.split(',') if cockpit else [],
+            'active_entertainment': entertainment.split(',') if entertainment else [],
+            'active_equipment': equipment.split(',') if equipment else [],
             **_price_visibility_flags(request.user),
         }
 
@@ -474,10 +533,6 @@ def boat_search(request):
         )
 
         response = render(request, 'boats/search.html', context)
-        # Отключаем кеширование для динамических результатов поиска
-        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response['Pragma'] = 'no-cache'
-        response['Expires'] = '0'
         return response
 
     except Exception as e:

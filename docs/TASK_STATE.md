@@ -1,8 +1,17 @@
 # TASK STATE
 
-Last updated: 2026-04-09 (Europe/Moscow)
+Last updated: 2026-04-10 (Europe/Moscow)
 
 ## Current priorities
+
+### P0.7: Comprehensive search filters from Boataround API
+- Status: **DONE (2026-04-10) — Testing complete**
+- Added 11 new search filters: maxSleeps, allowedPeople, boatLength, manufacturer, skipper, sail, engineType, cockpit, entertainment, equipment, toilets.
+- Fixed category values (sailboat→sailing-yacht, etc.), added gulet + power-catamaran.
+- Expanded sort options: reviewsDown, dealsFirst.
+- Collapsible amenity sections with checkbox persistence across page loads.
+- Bug fixes from deep testing: checkbox substring matching → list check, manufacturer case-sensitivity → .lower(), duplicate @staticmethod removed.
+- Files: `boats/boataround_api.py`, `boats/views.py`, `templates/boats/search.html`, `boats/templatetags/boat_filters.py`.
 
 ### P0.6: search_by_slug wrong API parameter → missing specs in offers
 - Status: **DONE (2026-04-08)**

@@ -2,6 +2,25 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.9.0-dev] - 2026-04-10
+
+### ✨ Added — Comprehensive search filters from Boataround API
+- **11 new search filter parameters**: maxSleeps, allowedPeople, boatLength, manufacturer, skipper, sail, engineType, cockpit, entertainment, equipment, toilets.
+- **`boats/boataround_api.py`**: `search()` accepts all 11 new named params, mapping to API camelCase equivalents (e.g., `engine_type` → `engineType`, `boat_length` → `boatLength`).
+- **`boats/views.py`**: new GET param extraction with `getlist()` for multi-value checkboxes (sail, engine_type, cockpit, entertainment, equipment). `_build_range()` helper for DRY "from-to" formatting. Expanded `allowed_sorts` with `reviewsDown`, `dealsFirst`, `freeCancellation`. API filter response processed with `_id` → `id` rename (Django templates forbid underscore-prefix attributes). `_engine_names` fallback dict for engineType localization (API doesn't localize this filter). `active_*` context variables as lists for correct template membership check.
+- **`templates/boats/search.html`**: Full sidebar rewrite with dynamic API-driven filters. Fixed category values (sailing-yacht, motor-yacht, motor-boat, catamaran, gulet, power-catamaran). Price filter moved after dates. Sticky scrollable sidebar (`max-h-[calc(100vh-6rem)] overflow-y-auto`). Collapsible sections for sail+engine, cockpit, entertainment, equipment using Alpine.js. Sort dropdown expanded. Active filter badges for all 17+ filter types. Detail link opens in new tab (`target="_blank"`). Mobile filter toggle.
+- **`boats/templatetags/boat_filters.py`**: Added `split` template filter.
+
+### 🐛 Fixed — Search filter bugs found during deep testing
+- **Checkbox `checked` substring matching** (HIGH): `{% if item.id in active_sail %}` did string containment on comma-joined string. If one ID were a substring of another, both would show as checked. Fixed by passing lists instead of strings for all `active_*` context variables.
+- **Manufacturer case-sensitivity** (MEDIUM): API expects lowercase slug IDs (`bavaria`), but text input allowed capitalized input (`Bavaria`). Added `.lower()` to manufacturer extraction.
+- **Duplicate `@staticmethod` decorator** (LOW): `get_boat_combined_data()` in `boataround_api.py` had doubled decorator. Removed duplicate.
+
+### 🔧 Improved — Search UX
+- **Removed aggressive `Cache-Control` headers** from search response to allow browser bfcache. Prevents destination loss on back navigation.
+- **Destination persistence**: Alpine.js `_lastSelectedName` tracking prevents `fetchLocations()` from zeroing selected destination when input text hasn't changed.
+- **Sort persistence**: Sort choice saved in session — survives page changes and re-searches.
+
 ## [0.8.4-dev] - 2026-04-09
 
 ### 🐛 Fixed — OOM v3: reduce page-range task size + fix totalPages inflation

@@ -142,6 +142,17 @@ class BoataroundAPI:
         limit: int = 18,
         sort: str = "rank",
         lang: str = "en_EN",
+        max_sleeps: Optional[str] = None,
+        allowed_people: Optional[str] = None,
+        boat_length: Optional[str] = None,
+        manufacturer: Optional[str] = None,
+        skipper: Optional[str] = None,
+        sail: Optional[str] = None,
+        engine_type: Optional[str] = None,
+        cockpit: Optional[str] = None,
+        entertainment: Optional[str] = None,
+        equipment: Optional[str] = None,
+        toilets: Optional[str] = None,
         **kwargs
     ) -> Dict:
         """
@@ -159,6 +170,17 @@ class BoataroundAPI:
             limit: Количество результатов (1-50, default 18)
             sort: Сортировка (priceDown, priceUp, rank, etc)
             lang: Язык (en_EN, ru_RU, etc)
+            max_sleeps: Спальные места (число или диапазон X-Y)
+            allowed_people: Макс. гостей (число или диапазон X-Y)
+            boat_length: Длина лодки в метрах (число или диапазон X-Y)
+            manufacturer: Производитель (имя или имена через запятую)
+            skipper: Шкипер (Bareboat, Crewed)
+            sail: Тип паруса (classic, roll, No sail — через запятую)
+            engine_type: Тип двигателя (diesel, electric, hybrid — через запятую)
+            cockpit: Интерьер/комфорт (значения через запятую)
+            entertainment: Развлечения (значения через запятую)
+            equipment: Оборудование/навигация (значения через запятую)
+            toilets: Санузлы (число или диапазон X-Y)
             **kwargs: Дополнительные параметры
 
         Returns:
@@ -198,6 +220,28 @@ class BoataroundAPI:
                 params['price'] = price
             if sort:
                 params['sort'] = sort
+            if max_sleeps:
+                params['maxSleeps'] = max_sleeps
+            if allowed_people:
+                params['allowedPeople'] = allowed_people
+            if boat_length:
+                params['boatLength'] = boat_length
+            if manufacturer:
+                params['manufacturer'] = manufacturer
+            if skipper:
+                params['skipper'] = skipper
+            if sail:
+                params['sail'] = sail
+            if engine_type:
+                params['engineType'] = engine_type
+            if cockpit:
+                params['cockpit'] = cockpit
+            if entertainment:
+                params['entertainment'] = entertainment
+            if equipment:
+                params['equipment'] = equipment
+            if toilets:
+                params['toilets'] = toilets
 
             # Язык (важно для фильтров и названий)
             if lang:
@@ -551,7 +595,6 @@ class BoataroundAPI:
             logger.error(f"[Price] Error getting price for {slug}: {e}")
             return {}
 
-    @staticmethod
     @staticmethod
     def get_boat_combined_data(slug: str) -> Dict:
         """

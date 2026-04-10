@@ -2,6 +2,35 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-10 — Search filters: bug fixes from deep testing
+- Bugs found & fixed:
+  1. **Checkbox `checked` substring matching** (HIGH): `{% if item.id in active_sail %}` did string containment on comma-joined string. If one ID were a substring of another, both would show checked. Fixed by passing lists instead of strings for `active_sail`, `active_engine_type`, `active_cockpit`, `active_entertainment`, `active_equipment`.
+  2. **Manufacturer case-sensitivity** (MEDIUM): API expects lowercase slug IDs (e.g., `bavaria`) but user might type `Bavaria`. Added `.lower()` to manufacturer input.
+  3. **Duplicate `@staticmethod`** (LOW): `boataround_api.py` line 598-599 had doubled decorator on `get_boat_combined_data`. Removed duplicate.
+- Files: `boats/views.py`, `boats/boataround_api.py`
+- Validation: `manage.py check` — 0 issues. HTTP tests:
+  - All 22 filter fields render (name= attributes verified)
+  - Each of 12 filter types reduces result count (diesel: 3147, catamaran: 936, cabins 3+: 2769, etc.)
+  - Multi-value checkboxes persist correctly (checked/unchecked verified)
+  - Pagination preserves all filter params in links
+  - All 6 sort options return results
+  - Active filter badges render for all active filters
+  - XSS, SQL injection, CRLF injection — all safely handled
+  - Invalid inputs (negative page, huge page, invalid sort) return HTTP 200 gracefully
+  - Russian localization of all dynamic filters confirmed (engine, sail, skipper, cockpit)
+- Risks: None. All changes are strictly correctness fixes.
+
+## 2026-04-10 — Comprehensive search filters from Boataround API
+- Problem: Search page only supported 6 basic filters (destination, category, dates, cabins, year, price). Boataround API exposes 15+ filter parameters that were unused. Category values were wrong (sailboat instead of sailing-yacht).
+- Fix:
+  - `boats/boataround_api.py`: Added 11 new named params to `search()`: max_sleeps, allowed_people, boat_length, manufacturer, skipper, sail, engine_type, cockpit, entertainment, equipment, toilets.
+  - `boats/views.py`: Extract all new GET params. Multi-value checkbox params use `getlist()` + comma-join. Added `_build_range()` helper for DRY range formatting. Expanded `allowed_sorts` with reviewsDown, dealsFirst, freeCancellation. Added `active_*` context vars for checkbox state persistence. Added `api_filters` to context.
+  - `templates/boats/search.html`: Fixed category values (sailing-yacht, motor-yacht, motor-boat, catamaran, gulet, power-catamaran). Added sleeps/guests/length/toilets/manufacturer/skipper fields. Collapsible sections for sail+engine, cockpit (17 items), entertainment (15 items), equipment (15 items). Expanded sort dropdown. Updated active filter badges for all new fields. All labels wrapped in `{% trans %}`.
+  - `boats/templatetags/boat_filters.py`: Added `split` template filter for iterating comma-separated lists in templates.
+- Files: `boats/boataround_api.py`, `boats/views.py`, `templates/boats/search.html`, `boats/templatetags/boat_filters.py`
+- Validation: `manage.py check` — 0 issues. Template compilation — OK.
+- Risks: Checkbox "checked" persistence uses `in` string containment on comma-joined values — could false-positive if one value is substring of another (e.g. `roll` in `Snorkel`), but current amenity names are distinct enough. Boataround API may not support all params simultaneously — test needed.
+
 ## 2026-04-09 — Fix OOM v3: reduce PAGES_PER_RANGE + fix totalPages inflation
 - Problem: v2 disposable tasks still OOM-killed on production (Job:16, signal 9). Two root causes found.
 - Root cause 1: `boataround_api.py` calculated `totalPages` as `total / len(boats)`. When API returned 8 boats instead of 18 on a page, totalPages inflated from 1491 to 3354. Doubled the number of dispatched `process_api_page_range` tasks.
