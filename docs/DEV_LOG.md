@@ -2,6 +2,23 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-12 — Auth forms DaisyUI 5 compliance (v2 — fieldset/label fix)
+- Problem (v1 attempt): Replaced v4 `form-control`/`label-text` with DaisyUI 5 `fieldset`/`label` classes. Result was worse: `.fieldset` and `.fieldset-legend` classes **do not generate CSS** in current DaisyUI 5 + Tailwind v4 build — native `<fieldset>` element borders appeared. `.label` class has `white-space: nowrap` (text overflow) and `color-mix(60% transparent)` (dim text). Buttons outside `<fieldset>` rendered narrower than inputs inside it due to native `min-inline-size: min-content`.
+- Root cause: DaisyUI 5 plugin under current Tailwind v4 setup does NOT emit `.fieldset`, `.fieldset-legend` CSS rules. Only `fieldset:disabled .input` selectors exist. `.label` IS emitted but as a description/hint component (small, dim, nowrap) — NOT suitable for field labels.
+- Fix (v2): Removed ALL `<fieldset>`, `<label class="label">`, `.fieldset-legend` from auth forms. New structure:
+  - Field labels: `<div class="text-sm font-semibold mb-1.5">` — plain Tailwind, no DaisyUI form component.
+  - Inputs: `<input class="input w-full">` — DaisyUI 5 `input` component directly on element.
+  - Selects: `<select class="select w-full">` — DaisyUI 5 `select` component.
+  - Errors: `<p class="text-xs text-error mt-1">` — plain Tailwind error text.
+  - Helper text: `<p class="text-xs opacity-60 mt-1.5 leading-relaxed">` — wrappable, properly styled.
+  - Form: `<form class="flex flex-col gap-4">` — consistent vertical spacing.
+  - Alert: `<div role="alert" class="alert alert-error">` — DaisyUI 5 flat alert.
+  - Removed `input-lg` (was causing oversized inputs), `select-lg`, `focus:input-primary` (non-existent variant).
+- Components used (all verified in built CSS): `input`, `select`, `btn`, `card`, `card-body`, `alert`, `divider`, `link`.
+- Files: `templates/accounts/login.html`, `templates/accounts/register.html`.
+- Validation: `manage.py check` — 0 issues. HTTP 200 for both pages. No legacy classes (`fieldset`, `label`, `form-control`, `label-text`) in rendered HTML.
+- Risks: None. Only template changes. CSS compat shims for `form-control`/`label-text` kept for other templates.
+
 ## 2026-04-12 — Commission display on offer page & offers list
 - Problem: Commission was visible in search results and detail page for captains, but missing from offer detail page and offers list table.
 - Fix:

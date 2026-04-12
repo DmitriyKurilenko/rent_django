@@ -15,91 +15,81 @@
             <h1 class="text-4xl font-bold text-white mb-2">{% trans "Добро пожаловать!" %}</h1>
             <p class="text-base-100">{% trans "Войдите в свой аккаунт" %}</p>
         </div>
-        
+
         <!-- Login Card -->
         <div class="card bg-base-100 shadow-2xl">
-            <div class="card-body gap-4">
-                <form method="post" class="space-y-4">
+            <div class="card-body">
+                <form method="post" class="flex flex-col gap-4">
                     {% csrf_token %}
-                    
+
                     {% if form.non_field_errors %}
-                    <div class="alert alert-error shadow-lg">
-                        <div>
-                            <i class="fas fa-exclamation-circle"></i>
-                            <div>
-                                {% for error in form.non_field_errors %}
-                                <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        </div>
+                    <div role="alert" class="alert alert-error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>
+                            {% for error in form.non_field_errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </span>
                     </div>
                     {% endif %}
-                    
+
                     <!-- Username -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">
-                                <i class="fas fa-user text-primary mr-2"></i>
-                                {% trans "Имя пользователя" %}
-                            </span>
-                        </label>
-                        <input 
-                            type="text" 
-                            name="username" 
-                            placeholder="example_user" 
-                            class="input input-lg focus:input-primary"
-                            required 
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">
+                            <i class="fas fa-user text-primary mr-1"></i>
+                            {% trans "Имя пользователя" %}
+                        </div>
+                        <input
+                            type="text"
+                            name="username"
+                            placeholder="example_user"
+                            class="input w-full"
+                            required
                         />
                         {% if form.username.errors %}
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ form.username.errors.0 }}</span>
-                        </label>
+                        <p class="text-xs text-error mt-1">{{ form.username.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
+
                     <!-- Password -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">
-                                <i class="fas fa-lock text-primary mr-2"></i>
-                                {% trans "Пароль" %}
-                            </span>
-                        </label>
-                        <input 
-                            type="password" 
-                            name="password" 
-                            placeholder="••••••••" 
-                            class="input input-lg focus:input-primary"
-                            required 
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">
+                            <i class="fas fa-lock text-primary mr-1"></i>
+                            {% trans "Пароль" %}
+                        </div>
+                        <input
+                            type="password"
+                            name="password"
+                            placeholder="••••••••"
+                            class="input w-full"
+                            required
                         />
                         {% if form.password.errors %}
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ form.password.errors.0 }}</span>
-                        </label>
+                        <p class="text-xs text-error mt-1">{{ form.password.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
+
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary btn-lg w-full mt-6">
+                    <button type="submit" class="btn btn-primary btn-lg w-full mt-2">
                         <i class="fas fa-sign-in-alt"></i>
                         {% trans "Войти" %}
                     </button>
                 </form>
-                
+
                 <div class="divider">{% trans "или" %}</div>
-                
+
                 <!-- Register Link -->
                 <a href="{% url 'register' %}" class="btn btn-outline btn-lg w-full">
                     <i class="fas fa-user-plus"></i>
                     {% trans "Создать аккаунт" %}
                 </a>
-                
+
                 <!-- Password Reset Link -->
-                <p class="text-center text-sm">
+                <p class="text-center text-sm mt-2">
                     <a href="#" class="link link-primary font-semibold">
                         {% trans "Забыли пароль?" %}
                     </a>
-                </p>                
+                </p>
             </div>
         </div>
     </div>

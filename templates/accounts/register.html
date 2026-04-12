@@ -15,149 +15,125 @@
             <h1 class="text-4xl font-bold text-white mb-2">{% trans "Присоединитесь к нам!" %}</h1>
             <p class="text-base-100">{% trans "Создайте новый аккаунт" %}</p>
         </div>
-        
+
         <!-- Register Card -->
         <div class="card bg-base-100 shadow-2xl">
-            <div class="card-body gap-4">
-                <form method="post" class="space-y-4">
+            <div class="card-body">
+                <form method="post" class="flex flex-col gap-4">
                     {% csrf_token %}
-                    
+
                     {% if form.non_field_errors %}
-                    <div class="alert alert-error shadow-lg">
-                        <div>
-                            <i class="fas fa-exclamation-circle"></i>
-                            <div>
-                                {% for error in form.non_field_errors %}
-                                <span>{{ error }}</span>
-                                {% endfor %}
-                            </div>
-                        </div>
+                    <div role="alert" class="alert alert-error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>
+                            {% for error in form.non_field_errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </span>
                     </div>
                     {% endif %}
-                    
+
                     <!-- Username -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">
-                                <i class="fas fa-user text-primary mr-2"></i>
-                                {% trans "Имя пользователя" %}
-                            </span>
-                        </label>
-                        <input 
-                            type="text" 
-                            name="username" 
-                            placeholder="example_user" 
-                            class="input input-lg focus:input-primary"
-                            required 
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">
+                            <i class="fas fa-user text-primary mr-1"></i>
+                            {% trans "Имя пользователя" %}
+                        </div>
+                        <input
+                            type="text"
+                            name="username"
+                            placeholder="example_user"
+                            class="input w-full"
+                            required
                         />
                         {% if form.username.errors %}
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ form.username.errors.0 }}</span>
-                        </label>
+                        <p class="text-xs text-error mt-1">{{ form.username.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
+
                     <!-- Email -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">
-                                <i class="fas fa-envelope text-primary mr-2"></i>
-                                {% trans "Email" %}
-                            </span>
-                        </label>
-                        <input 
-                            type="email" 
-                            name="email" 
-                            placeholder="user@example.com" 
-                            class="input input-lg focus:input-primary"
-                            required 
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">
+                            <i class="fas fa-envelope text-primary mr-1"></i>
+                            {% trans "Email" %}
+                        </div>
+                        <input
+                            type="email"
+                            name="email"
+                            placeholder="user@example.com"
+                            class="input w-full"
+                            required
                         />
                         {% if form.email.errors %}
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ form.email.errors.0 }}</span>
-                        </label>
+                        <p class="text-xs text-error mt-1">{{ form.email.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
+
                     <!-- Subscription Selection -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">
-                                <i class="fas fa-briefcase text-primary mr-2"></i>
-                                {% trans "Подписка" %}
-                            </span>
-                        </label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">
+                            <i class="fas fa-briefcase text-primary mr-1"></i>
+                            {% trans "Подписка" %}
+                        </div>
                         {% with selected_plan=form.subscription_plan.value %}
-                        <select name="subscription_plan" class="select select-lg focus:select-primary" required>
+                        <select name="subscription_plan" class="select w-full" required>
                             <option value="" {% if not selected_plan %}selected{% endif %}>{% trans "Выберите подписку" %}</option>
                             <option value="free" {% if selected_plan == 'free' %}selected{% endif %}>🆓 {% trans "Бесплатная" %} — {% trans "Турист" %}</option>
-                            <option value="standard" {% if selected_plan == 'standard' %}selected{% endif %}>⚓ {% trans "Стандарт" %} — {% trans "Капитан/агент" %} (500 ₽/мес)</option>
-                            <option value="advanced" {% if selected_plan == 'advanced' %}selected{% endif %}>🚀 {% trans "Продвинутая" %} — {% trans "Капитан + кастомный брендинг" %} (1000 ₽/мес)</option>
+                            <option value="standard" {% if selected_plan == 'standard' %}selected{% endif %}>⚓ {% trans "Стандарт" %} — {% trans "Капитан/агент" %} (500 ₽/{% trans "мес" %})</option>
+                            <option value="advanced" {% if selected_plan == 'advanced' %}selected{% endif %}>🚀 {% trans "Продвинутая" %} — {% trans "Капитан + кастомный брендинг" %} (1000 ₽/{% trans "мес" %})</option>
                         </select>
                         {% endwith %}
                         {% if form.subscription_plan.errors %}
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ form.subscription_plan.errors.0 }}</span>
-                        </label>
+                        <p class="text-xs text-error mt-1">{{ form.subscription_plan.errors.0 }}</p>
                         {% endif %}
-                        <label class="label">
-                            <span class="label-text-alt opacity-70">{% trans "Бесплатная: поиск/избранное/бронирования. Стандарт: агентский оффер. Продвинутая: кастомный брендинг (1000 ₽/мес)." %}</span>
-                        </label>
+                        <p class="text-xs opacity-60 mt-1.5 leading-relaxed">{% trans "Бесплатная: поиск/избранное/бронирования. Стандарт: агентский оффер. Продвинутая: кастомный брендинг (1000 ₽/мес)." %}</p>
                     </div>
-                    
+
                     <!-- Password -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">
-                                <i class="fas fa-lock text-primary mr-2"></i>
-                                {% trans "Пароль" %}
-                            </span>
-                        </label>
-                        <input 
-                            type="password" 
-                            name="password1" 
-                            placeholder="••••••••" 
-                            class="input input-lg focus:input-primary"
-                            required 
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">
+                            <i class="fas fa-lock text-primary mr-1"></i>
+                            {% trans "Пароль" %}
+                        </div>
+                        <input
+                            type="password"
+                            name="password1"
+                            placeholder="••••••••"
+                            class="input w-full"
+                            required
                         />
                         {% if form.password1.errors %}
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ form.password1.errors.0 }}</span>
-                        </label>
+                        <p class="text-xs text-error mt-1">{{ form.password1.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
+
                     <!-- Confirm Password -->
-                    <div class="form-control">
-                        <label class="label">
-                            <span class="label-text font-semibold">
-                                <i class="fas fa-check-circle text-primary mr-2"></i>
-                                {% trans "Подтвердить пароль" %}
-                            </span>
-                        </label>
-                        <input 
-                            type="password" 
-                            name="password2" 
-                            placeholder="••••••••" 
-                            class="input input-lg focus:input-primary"
-                            required 
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">
+                            <i class="fas fa-check-circle text-primary mr-1"></i>
+                            {% trans "Подтвердить пароль" %}
+                        </div>
+                        <input
+                            type="password"
+                            name="password2"
+                            placeholder="••••••••"
+                            class="input w-full"
+                            required
                         />
                         {% if form.password2.errors %}
-                        <label class="label">
-                            <span class="label-text-alt text-error">{{ form.password2.errors.0 }}</span>
-                        </label>
+                        <p class="text-xs text-error mt-1">{{ form.password2.errors.0 }}</p>
                         {% endif %}
                     </div>
-                    
+
                     <!-- Submit Button -->
-                    <button type="submit" class="btn btn-primary btn-lg w-full mt-6">
+                    <button type="submit" class="btn btn-primary btn-lg w-full mt-2">
                         <i class="fas fa-user-plus"></i>
                         {% trans "Зарегистрироваться" %}
                     </button>
                 </form>
-                
+
                 <div class="divider">{% trans "или" %}</div>
-                
+
                 <!-- Login Link -->
                 <a href="{% url 'login' %}" class="btn btn-outline btn-lg w-full">
                     <i class="fas fa-sign-in-alt"></i>

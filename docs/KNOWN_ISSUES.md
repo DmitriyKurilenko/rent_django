@@ -1,6 +1,15 @@
 # KNOWN ISSUES
 
-Last updated: 2026-04-09 (Europe/Moscow)
+Last updated: 2026-04-12 (Europe/Moscow)
+
+## KI-011: DaisyUI 5 fieldset/fieldset-legend CSS not generated in current build
+- Severity: medium
+- Area: CSS build / DaisyUI 5 + Tailwind v4 plugin integration
+- Symptom: `.fieldset` and `.fieldset-legend` class rules are NOT present in built `styles.css`. Using `<fieldset class="fieldset">` results in native browser fieldset rendering (borders, margin, padding, min-inline-size: min-content).
+- Root cause: DaisyUI 5 plugin under Tailwind v4 (`@plugin "daisyui"`) does not emit fieldset component CSS. Only `fieldset:disabled .input`/`.select` selectors exist.
+- Workaround: Do NOT use `<fieldset class="fieldset">` or `<legend class="fieldset-legend">` in templates. Use plain `<div>` wrappers with Tailwind utilities for form field grouping.
+- Also affected: `.label` class IS emitted but as hint/description component (`white-space: nowrap`, 60% transparent color) — not suitable for prominent field labels. Use `text-sm font-semibold` instead.
+- Action needed: Investigate DaisyUI 5 version compatibility with Tailwind v4 plugin system. May require DaisyUI update or explicit component import.
 
 ## KI-007: parse_boats OOM kill during slug collection (RESOLVED 2026-04-08)
 - Severity: critical (RESOLVED)
