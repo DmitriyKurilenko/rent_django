@@ -4,6 +4,14 @@ Last updated: 2026-04-12 (Europe/Moscow)
 
 ## Current priorities
 
+### P1.1: Strip charter company name from boat descriptions
+- Status: **DONE (2026-04-12)**
+- Charter company mention (last sentence of every boat description) removed at presentation layer via template filter `strip_charter_company`.
+- Covers all 5 languages (EN, RU, DE, ES, FR) and all boat types (yacht, motorboat, catamaran, gulet, houseboat).
+- 17 regex patterns handle language-specific sentence structures.
+- Tested on 1500+ real descriptions (300/language), 0 leaks.
+- Files: `boats/templatetags/boat_filters.py`, `templates/boats/detail.html`.
+
 ### P1.0: Full DaisyUI 5 migration — all templates
 - Status: **DONE (2026-04-12)**
 - Phase 1: Auth forms (login, register) rewritten from legacy DaisyUI v4 patterns.

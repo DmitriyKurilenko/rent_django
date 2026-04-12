@@ -2,6 +2,14 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.13.0-dev] - 2026-04-12
+
+### ✨ Added — Strip charter company name from boat descriptions
+- **`boats/templatetags/boat_filters.py`**: New template filter `strip_charter_company` removes the charter company mention sentence from the end of boat descriptions at display time (presentation layer only — database data untouched).
+- **17 regex patterns** cover all 5 languages (EN, RU, DE, ES, FR) and all boat types: yacht, motorboat, catamaran, power catamaran, gulet, houseboat, goélette/péniche/goleta.
+- **`templates/boats/detail.html`**: Description rendered via `{{ boat.description|strip_charter_company|linebreaks }}`. Description card hidden if result is empty.
+- **Tested on 1500+ real descriptions** (300/language), 0 charter mentions leaked through.
+
 ## [0.12.0-dev] - 2026-04-12
 
 ### 🎨 Changed — Full DaisyUI 5 migration: all templates

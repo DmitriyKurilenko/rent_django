@@ -2,6 +2,13 @@
 
 Last updated: 2026-04-12 (Europe/Moscow)
 
+## DR-040: Charter company name stripped at presentation layer, not in database
+- Date: 2026-04-12
+- Context: Boataround.com descriptions end with a sentence naming the charter company (per language/boat type). This is undesirable to display to users but the data itself may be useful internally (e.g., for charter identification or commission mapping).
+- Decision: Strip the charter sentence via a Django template filter (`strip_charter_company`) applied at render time. Database `BoatDescription.description` field remains unmodified. Filter uses 17 compiled regex patterns anchored to the end of string (`\Z`).
+- Alternatives considered: (1) Strip during parsing/save — rejected because it would destroy potentially useful source data and require re-parsing all boats if the logic changes. (2) DB migration to clean existing data — rejected for same reason plus irreversibility.
+- Consequence: Zero data loss. Filter can be updated independently if boataround.com changes sentence formats. New boat types or reformulated sentences require adding new regex patterns.
+
 ## DR-039: DaisyUI 5 form pattern — no fieldset/label, no size overrides, theme-native sizing
 - Date: 2026-04-12
 - Context: DaisyUI 5 under Tailwind v4 does not emit `.fieldset`/`.fieldset-legend` CSS. `.label` is a hint component (nowrap, dim), not a field label. Explicit `-lg` modifiers override the winter theme's `--size-field`/`--size-selector` variables, creating inconsistent sizing.

@@ -83,17 +83,19 @@
         <div class="lg:col-span-2 space-y-3">
             
             <!-- Description -->
-            {% if boat.description %}
+            {% with clean_description=boat.description|strip_charter_company %}
+            {% if clean_description %}
             <div class="card bg-base-100 shadow">
                 <div class="card-body">
                     <h2 class="card-title">
                         <i class="fas fa-align-left"></i>
                         Описание
                     </h2>
-                    <p class="leading-relaxed mt-4">{{ boat.description|linebreaks }}</p>
+                    <p class="leading-relaxed mt-4">{{ clean_description|linebreaks }}</p>
                 </div>
             </div>
             {% endif %}
+            {% endwith %}
             
             <!-- Location Info -->
             {% if boat.marina or boat.country or boat.city %}

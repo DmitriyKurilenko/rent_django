@@ -2,6 +2,21 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-12 — Strip charter company name from boat descriptions
+- Problem: Every boat description from boataround.com ends with a sentence naming the charter company (e.g., "This motor yacht is operated by the charter company X."). This appears on the detail page across all 5 languages.
+- Approach: Presentation-layer filter — database data is NOT modified. Template filter `strip_charter_company` in `boats/templatetags/boat_filters.py` detects and removes the charter sentence using 17 regex patterns (per language × per boat type).
+- Patterns by language:
+  - EN: "This [type] is operated by the charter company [Name]." (with optional rating suffix for houseboats)
+  - RU: "Яхта находится в ... и обслуживается [Name].", "Моторная Лодка под управлением компании [Name].", "Этот гулет ... под управлением компании [Name].", "Хаусбот управляется компанией [Name]..."
+  - DE: "Diese Yacht wird in ... Charter [Name] betrieben.", "Dieses Gulet wird in ... von der Chartergesellschaft [Name] betrieben.", "Dieses Hausboot wird von [Name] betrieben...", "Das Motorboot gehört zur [Name] Charter-Flotte."
+  - ES: "Este [type] está gestionado en [Country] por el chárter [Name].", "Esta goleta es operada en [Country] por la empresa de chárter [Name].", "Esta casa flotante es administrada por [Name]...", "La lancha a motor es operada por [Name]."
+  - FR: "Ce yacht est opéré par [Name].", "Le bateau est géré par [Name].", "Cette péniche est gérée par [Name]...", "Cette goélette est louée par [Name]..."
+- Regex design: `\Z` anchor (end of string only), `[^.]+?` for mid-segments to prevent cross-sentence matching, `.+\Z` for final segments to handle names with periods (e.g., "Inc.", "boats.gr").
+- Template: `detail.html` uses `{% with clean_description=boat.description|strip_charter_company %}{% if clean_description %}` to hide empty-description card.
+- Files: `boats/templatetags/boat_filters.py`, `templates/boats/detail.html`.
+- Validation: `manage.py check` — 0 issues. 1500 real descriptions tested (300/language), 0 leaks. HTTP 200 for home, detail (RU + EN), login pages. `grep` confirms zero charter mentions in rendered HTML.
+- Risks: New boat types or reformulated charter sentences from boataround.com might not match existing patterns — would require adding new regex. Database data is untouched.
+
 ## 2026-04-12 — Full DaisyUI 5 migration: all templates (Phase 2)
 - Scope: Migrated ALL remaining 11 templates from DaisyUI v4 compat classes to native DaisyUI 5 + Tailwind utilities. Zero legacy `form-control`, `label-text`, `label-text-alt`, `class="label"` (form label) remaining anywhere.
 - Migration pattern:
