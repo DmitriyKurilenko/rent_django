@@ -23,10 +23,8 @@
                         </div>
 
                         <!-- URL Input -->
-                        <div class="form-control">
-                            <label class="label" for="source_url">
-                                <span class="label-text font-semibold">{% trans "Ссылка boataround.com" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Ссылка boataround.com" %}</div>
                             <input id="source_url" name="source_url" type="text" x-model="form.source_url" @input="validateUrl"
                                 placeholder="https://www.boataround.com/ru/yachta/...?checkIn=...&checkOut=..."
                                 class="input input-sm font-mono text-xs"
@@ -41,17 +39,15 @@
 
                         <!-- Offer Type -->
                         {% if user.profile.can_create_tourist_offers and user.profile.can_create_captain_offers %}
-                        <div class="form-control">
-                            <label class="label pt-2">
-                                <span class="label-text font-semibold">{% trans "Тип оффера" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Тип оффера" %}</div>
                             <div class="flex gap-2">
-                                <label class="label cursor-pointer flex-1 justify-start gap-2 border border-base-300 rounded p-2">
+                                <label class="cursor-pointer flex items-center flex-1 justify-start gap-2 border border-base-300 rounded p-2">
                                     <input type="radio" name="offer_type" value="tourist" x-model="form.offer_type" 
                                            class="radio radio-xs radio-primary" checked>
                                     <span class="text-sm">⛵ {% trans "Туристический" %}</span>
                                 </label>
-                                <label class="label cursor-pointer flex-1 justify-start gap-2 border border-base-300 rounded p-2">
+                                <label class="cursor-pointer flex items-center flex-1 justify-start gap-2 border border-base-300 rounded p-2">
                                     <input type="radio" name="offer_type" value="captain" x-model="form.offer_type" 
                                            class="radio radio-xs radio-secondary">
                                     <span class="text-sm">⚓ {% trans "Агентский" %}</span>
@@ -63,23 +59,21 @@
                         {% endif %}
 
                         <!-- Branding Mode -->
-                        <div class="form-control">
-                            <label class="label pt-2">
-                                <span class="label-text font-semibold">{% trans "Брендинг страницы" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Брендинг страницы" %}</div>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <label class="label cursor-pointer justify-start gap-2 border border-base-300 rounded p-2">
+                                <label class="cursor-pointer flex items-center justify-start gap-2 border border-base-300 rounded p-2">
                                     <input type="radio" name="branding_mode" value="default" x-model="form.branding_mode" class="radio radio-xs radio-primary" checked>
                                     <span class="text-sm">{% trans "Стандарт" %}</span>
                                 </label>
                                 {% if user.profile.can_use_no_branding %}
-                                <label class="label cursor-pointer justify-start gap-2 border border-base-300 rounded p-2">
+                                <label class="cursor-pointer flex items-center justify-start gap-2 border border-base-300 rounded p-2">
                                     <input type="radio" name="branding_mode" value="no_branding" x-model="form.branding_mode" class="radio radio-xs radio-primary">
                                     <span class="text-sm">{% trans "Без брендинга" %}</span>
                                 </label>
                                 {% endif %}
                                 {% if user.profile.can_use_custom_branding %}
-                                <label class="label cursor-pointer justify-start gap-2 border border-base-300 rounded p-2">
+                                <label class="cursor-pointer flex items-center justify-start gap-2 border border-base-300 rounded p-2">
                                     <input type="radio" name="branding_mode" value="custom_branding" x-model="form.branding_mode" class="radio radio-xs radio-primary">
                                     <span class="text-sm">{% trans "Кастом (заглушка)" %}</span>
                                 </label>
@@ -88,29 +82,29 @@
                         </div>
 
                         <!-- Title -->
-                        <div class="form-control">
-                            <label class="label" for="offer_title">
-                                <span class="label-text font-semibold">{% trans "Заголовок" %}</span>
-                                <span class="label-text-alt text-xs" x-show="form.title.length > 0">
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-sm font-semibold">{% trans "Заголовок" %}</span>
+                                <span class="text-xs opacity-60" x-show="form.title.length > 0">
                                     <span x-text="form.title.length"></span>/300</span>
-                            </label>
+                            </div>
                             <input id="offer_title" name="title" type="text" x-model="form.title" placeholder="{% trans 'Роскошная яхта на Кипре' %}"
                                 class="input input-sm" maxlength="300">
                         </div>
 
                         <!-- Checkboxes -->
                         <div class="flex flex-col gap-3 pt-2">
-                            <label class="label cursor-pointer justify-start gap-2">
+                            <label class="cursor-pointer flex items-center justify-start gap-2">
                                 <input type="checkbox" x-model="form.show_countdown" class="checkbox checkbox-xs checkbox-primary">
                                 <span class="text-sm">{% trans "Таймер обратного отсчета" %}</span>
                             </label>
-                            <label class="label cursor-pointer justify-start gap-2">
+                            <label class="cursor-pointer flex items-center justify-start gap-2">
                                 <input type="checkbox" x-model="form.force_refresh" name="force_refresh" 
                                        class="checkbox checkbox-xs checkbox-warning">
                                 <span class="text-sm">{% trans "Обновить данные" %}</span>
                             </label>
                             {% if user.profile.can_create_tourist_offers %}
-                            <label class="label cursor-pointer justify-start gap-2" x-show="form.offer_type === 'tourist'">
+                            <label class="cursor-pointer flex items-center justify-start gap-2" x-show="form.offer_type === 'tourist'">
                                 <input type="checkbox" x-model="form.has_meal" class="checkbox checkbox-xs checkbox-success">
                                 <span class="text-sm">{% trans "Включено питание" %}</span>
                             </label>
@@ -118,35 +112,29 @@
                         </div>
 
                         <!-- Price Adjustment -->
-                        <div class="form-control">
-                            <label class="label" for="price_adjustment">
-                                <span class="label-text font-semibold">{% trans "Корректировка цены (€)" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Корректировка цены (€)" %}</div>
                             <input id="price_adjustment" name="price_adjustment" type="number" step="0.01"
                                 x-model="form.price_adjustment" placeholder="0.00"
                                 class="input input-sm">
-                            <label class="label">
-                                <span class="label-text-alt text-xs">{% trans "Положительное — наценка, отрицательное — скидка" %}</span>
-                            </label>
+                            <p class="text-xs opacity-60 mt-1">{% trans "Положительное — наценка, отрицательное — скидка" %}</p>
                         </div>
 
                         <!-- Notes -->
-                        <div class="form-control">
-                            <label class="label" for="offer_notes">
-                                <span class="label-text font-semibold">{% trans "Заметки" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Заметки" %}</div>
                             <textarea id="offer_notes" name="notes" x-model="form.notes" rows="2" placeholder="{% trans 'Внутренние заметки' %}"
                                 class="textarea textarea-sm"></textarea>
                         </div>
 
                         <!-- Client Selection -->
-                        <div class="form-control" x-data="clientSelector()" x-init="init()">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Клиент" %}</span>
-                                <a href="{% url 'client_create' %}?next={% url 'create_offer' %}" class="label-text-alt link link-primary text-xs">
+                        <div x-data="clientSelector()" x-init="init()">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-sm font-semibold">{% trans "Клиент" %}</span>
+                                <a href="{% url 'client_create' %}?next={% url 'create_offer' %}" class="link link-primary text-xs">
                                     <i class="fas fa-plus mr-1"></i>{% trans "Новый клиент" %}
                                 </a>
-                            </label>
+                            </div>
                             <div class="relative">
                                 <input type="text" x-model="searchQuery" @input.debounce.300ms="search()"
                                        @focus="showDropdown = results.length > 0"

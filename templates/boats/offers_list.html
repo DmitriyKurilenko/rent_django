@@ -27,10 +27,8 @@
             <div class="card bg-base-100 shadow-sm mb-4">
                 <div class="card-body p-4">
                     <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end" x-data="{ t: null }">
-                        <div class="form-control md:w-96">
-                            <label class="label py-1">
-                                <span class="label-text text-sm">{% trans "Поиск по офферам" %}</span>
-                            </label>
+                        <div class="md:w-96">
+                            <div class="text-sm font-medium mb-1">{% trans "Поиск по офферам" %}</div>
                             <input
                                 type="text"
                                 name="q"

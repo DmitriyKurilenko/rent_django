@@ -17,13 +17,11 @@
             <div class="card bg-base-100 shadow-2xl" x-data="searchForm()">
                 <div class="card-body gap-4">
                     <form @submit.prevent="handleSearch()" class="space-y-4">
-                        <div class="form-control relative">
-                            <label class="label">
-                                <span class="label-text font-semibold">
+                        <div class="relative">
+                            <div class="text-sm font-semibold mb-1.5">
                                     <i class="fas fa-map-marker-alt text-primary mr-2"></i>
                                     {% trans "Направление" %}
-                                </span>
-                            </label>
+                            </div>
                             <div class="relative">
                                 <input 
                                     type="text" 
@@ -31,7 +29,7 @@
                                     @input.debounce.500ms="fetchLocations"
                                     @focus="if(suggestions.length > 0 && location.trim().length >= 2 && !selectedDestination) showSuggestions = true"
                                     placeholder="Турция, Греция, Хорватия..."
-                                    class="input input-lg w-full"
+                                    class="input w-full"
                                     autocomplete="off"
                                 />
                                 <div x-show="loadingSuggestions" class="absolute right-3 top-1/2 -translate-y-1/2">
@@ -55,47 +53,41 @@
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="form-control">
-                                <label class="label" for="check-in">
-                                    <span class="label-text font-semibold">
+                            <div>
+                                <div class="text-sm font-semibold mb-1.5">
                                         <i class="fas fa-calendar text-primary mr-2"></i>
                                         {% trans "Заезд" %}
-                                    </span>
-                                </label>
+                                </div>
                                 <input
                                     id="check-in"
                                     type="date"
                                     x-model="checkIn"
                                     :min="today"
-                                    class="input input-lg"
+                                    class="input w-full"
                                 />
                             </div>
                             
-                            <div class="form-control">
-                                <label class="label" for="check-out">
-                                    <span class="label-text font-semibold">
+                            <div>
+                                <div class="text-sm font-semibold mb-1.5">
                                         <i class="fas fa-calendar-check text-primary mr-2"></i>
                                         {% trans "Выезд" %}
-                                    </span>
-                                </label>
+                                </div>
                                 <input
                                     id="check-out"
                                     type="date"
                                     x-model="checkOut"
                                     :min="checkIn || today"
-                                    class="input input-lg"
+                                    class="input w-full"
                                 />
                             </div>
                         </div>
                         
-                        <div class="form-control">
-                            <label class="label" for="boat-type">
-                                <span class="label-text font-semibold">
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">
                                     <i class="fas fa-ship text-primary mr-2"></i>
                                     {% trans "Тип судна" %}
-                                </span>
-                            </label>
-                            <select id="boat-type" x-model="boatType" class="select select-lg">
+                            </div>
+                            <select id="boat-type" x-model="boatType" class="select w-full">
                                 <option value="">{% trans "Все типы" %}</option>
                                 <option value="sailing-yacht">⛵ {% trans "Парусная яхта" %}</option>
                                 <option value="catamaran">🚤 {% trans "Катамаран" %}</option>
@@ -104,7 +96,7 @@
                             </select>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary btn-lg w-full" :class="{ 'loading': loading }" :aria-busy="loading">
+                        <button type="submit" class="btn btn-primary w-full" :class="{ 'loading': loading }" :aria-busy="loading">
                             <i class="fas fa-search" x-show="!loading" aria-hidden="true"></i>
                             <span x-show="!loading">{% trans "Найти лодки" %}</span>
                             <span x-show="loading">{% trans "Поиск..." %}</span>

@@ -44,10 +44,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {% for field, label, ftype, value in price_fields %}
                     {% if field == 'extra_discount_max' or field == 'agent_commission_pct' %}
-                    <div class="form-control">
-                        <label class="label py-1">
-                            <span class="label-text text-sm font-medium">{{ label }}</span>
-                        </label>
+                    <div>
+                        <div class="text-sm font-medium mb-1">{{ label }}</div>
                         <input
                             type="number"
                             name="{{ field }}"
@@ -59,7 +57,7 @@
                             required
                         >
                         {% if errors and field in errors %}
-                        <label class="label py-0"><span class="label-text-alt text-error">{{ errors|dictsortreversed:field }}</span></label>
+                        <p class="text-xs text-error mt-1">{{ errors|dictsortreversed:field }}</p>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -89,16 +87,16 @@
                 <div x-show="showAddCountry" x-cloak class="bg-base-200 rounded-lg p-3 mb-3 space-y-2">
                     <p class="font-semibold text-sm">Добавить страну</p>
                     <div class="flex flex-wrap gap-2 items-end">
-                        <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs">Название</span></label>
+                        <div>
+                            <div class="text-xs font-medium mb-1">Название</div>
                             <input type="text" name="new_country_name" class="input input-sm w-40" placeholder="Греция" form="add-country-form">
                         </div>
-                        <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs">Код (slug)</span></label>
+                        <div>
+                            <div class="text-xs font-medium mb-1">Код (slug)</div>
                             <input type="text" name="new_country_code" class="input input-sm w-32" placeholder="greece" form="add-country-form">
                         </div>
-                        <div class="form-control">
-                            <label class="label py-0"><span class="label-text text-xs">Алиасы <span class="opacity-50">(через запятую)</span></span></label>
+                        <div>
+                            <div class="text-xs font-medium mb-1">Алиасы <span class="opacity-50">(через запятую)</span></div>
                             <input type="text" name="new_match_names" class="input input-sm w-48" placeholder="greece, греция" form="add-country-form">
                         </div>
                         <button type="submit" form="add-country-form" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> Добавить</button>

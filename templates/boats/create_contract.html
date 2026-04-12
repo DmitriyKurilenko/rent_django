@@ -62,28 +62,28 @@
                     <i class="fas fa-user text-info"></i> {% trans "Данные клиента (подписант)" %}
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="form-control md:col-span-2">
-                        <label class="label"><span class="label-text">{{ form.signer_full_name.label }}</span></label>
+                    <div class="md:col-span-2">
+                        <div class="text-sm font-semibold mb-1.5">{{ form.signer_full_name.label }}</div>
                         {{ form.signer_full_name }}
                         {% if form.signer_full_name.errors %}<p class="text-error text-xs mt-1">{{ form.signer_full_name.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">{{ form.signer_passport.label }}</span></label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">{{ form.signer_passport.label }}</div>
                         {{ form.signer_passport }}
                         {% if form.signer_passport.errors %}<p class="text-error text-xs mt-1">{{ form.signer_passport.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">{{ form.signer_phone.label }}</span></label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">{{ form.signer_phone.label }}</div>
                         {{ form.signer_phone }}
                         {% if form.signer_phone.errors %}<p class="text-error text-xs mt-1">{{ form.signer_phone.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">{{ form.signer_email.label }}</span></label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">{{ form.signer_email.label }}</div>
                         {{ form.signer_email }}
                         {% if form.signer_email.errors %}<p class="text-error text-xs mt-1">{{ form.signer_email.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">{{ form.signer_address.label }}</span></label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">{{ form.signer_address.label }}</div>
                         {{ form.signer_address }}
                         {% if form.signer_address.errors %}<p class="text-error text-xs mt-1">{{ form.signer_address.errors.0 }}</p>{% endif %}
                     </div>
@@ -98,17 +98,17 @@
                     <i class="fas fa-user-tie text-primary"></i> {% trans "Данные агента" %}
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">{{ form.agent_full_name.label }}</span></label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">{{ form.agent_full_name.label }}</div>
                         {{ form.agent_full_name }}
                         {% if form.agent_full_name.errors %}<p class="text-error text-xs mt-1">{{ form.agent_full_name.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">{{ form.agent_company.label }}</span></label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">{{ form.agent_company.label }}</div>
                         {{ form.agent_company }}
                     </div>
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">{{ form.agent_phone.label }}</span></label>
+                    <div>
+                        <div class="text-sm font-semibold mb-1.5">{{ form.agent_phone.label }}</div>
                         {{ form.agent_phone }}
                         {% if form.agent_phone.errors %}<p class="text-error text-xs mt-1">{{ form.agent_phone.errors.0 }}</p>{% endif %}
                     </div>
@@ -122,8 +122,8 @@
                 <h2 class="font-bold text-lg mb-4">
                     <i class="fas fa-plus-circle text-warning"></i> {% trans "Дополнительные условия" %}
                 </h2>
-                <div class="form-control">
-                    <label class="label"><span class="label-text">{{ form.additional_terms.label }}</span></label>
+                <div>
+                    <div class="text-sm font-semibold mb-1.5">{{ form.additional_terms.label }}</div>
                     {{ form.additional_terms }}
                 </div>
             </div>

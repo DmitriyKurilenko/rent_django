@@ -35,10 +35,8 @@
             <div class="card bg-base-100 shadow-sm mb-4">
                 <div class="card-body p-4">
                     <form method="GET" class="flex flex-col md:flex-row gap-3 md:items-end" x-data="{ t: null }">
-                        <div class="form-control md:w-96">
-                            <label class="label py-1">
-                                <span class="label-text text-sm">{% trans "Поиск по автору оффера" %}</span>
-                            </label>
+                        <div class="md:w-96">
+                            <div class="text-sm font-medium mb-1">{% trans "Поиск по автору оффера" %}</div>
                             <input
                                 type="text"
                                 name="author_q"
@@ -48,9 +46,9 @@
                                 @input="clearTimeout(t); t=setTimeout(() => $el.form.submit(), 400)"
                             />
                         </div>
-                        <label class="label cursor-pointer gap-2 self-end">
+                        <label class="cursor-pointer flex items-center gap-2 self-end">
                             <input type="checkbox" name="only_mine" value="1" {% if only_mine %}checked{% endif %} class="checkbox checkbox-sm checkbox-primary" onchange="this.form.submit()">
-                            <span class="label-text text-sm">{% trans "Только мои" %}</span>
+                            <span class="text-sm">{% trans "Только мои" %}</span>
                         </label>
                         <div class="flex gap-2">
                             <button type="submit" class="btn btn-primary btn-sm">
@@ -419,7 +417,7 @@
                                 <dialog x-ref="mdialog" class="modal">
                                     <div class="modal-box max-w-sm">
                                         <h3 class="font-bold text-lg mb-4">{% trans "Привязать клиента" %}</h3>
-                                        <div class="form-control">
+                                        <div>
                                             <input type="text" x-model="query" @input.debounce.300ms="search()" class="input input-sm w-full" placeholder="{% trans 'Поиск...' %}">
                                         </div>
                                         <ul class="menu menu-sm bg-base-200 rounded-box mt-2 max-h-48 overflow-y-auto" x-show="results.length > 0">

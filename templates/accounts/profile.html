@@ -156,10 +156,8 @@
                                 </div>
 
                                 {% for field, label, ftype, value in price_searcher_fields %}
-                                <div class="form-control">
-                                    <label class="label pb-0">
-                                        <span class="label-text font-medium text-sm">{{ label }}</span>
-                                    </label>
+                                <div>
+                                    <div class="text-sm font-medium mb-1">{{ label }}</div>
                                     <div class="flex items-center gap-2 mt-1">
                                         <input type="number" name="{{ field }}"
                                                value="{{ value|unlocalize }}"
@@ -207,16 +205,16 @@
                                 <div x-show="showAddCountry" x-cloak class="bg-base-200 rounded-lg p-3 mb-3 space-y-2">
                                     <p class="font-semibold text-sm">{% trans "Добавить страну" %}</p>
                                     <div class="flex flex-wrap gap-2 items-end">
-                                        <div class="form-control">
-                                            <label class="label py-0"><span class="label-text text-xs">{% trans "Название" %}</span></label>
+                                        <div>
+                                            <div class="text-xs font-medium mb-1">{% trans "Название" %}</div>
                                             <input type="text" name="new_country_name" class="input input-sm w-40" placeholder="{% trans 'Греция' %}" form="add-country-form">
                                         </div>
-                                        <div class="form-control">
-                                            <label class="label py-0"><span class="label-text text-xs">{% trans "Код" %} (slug)</span></label>
+                                        <div>
+                                            <div class="text-xs font-medium mb-1">{% trans "Код" %} (slug)</div>
                                             <input type="text" name="new_country_code" class="input input-sm w-32" placeholder="greece" form="add-country-form">
                                         </div>
-                                        <div class="form-control">
-                                            <label class="label py-0"><span class="label-text text-xs">{% trans "Алиасы" %} <span class="opacity-50">({% trans "через запятую" %})</span></span></label>
+                                        <div>
+                                            <div class="text-xs font-medium mb-1">{% trans "Алиасы" %} <span class="opacity-50">({% trans "через запятую" %})</span></div>
                                             <input type="text" name="new_match_names" class="input input-sm w-48" placeholder="greece, греция" form="add-country-form">
                                         </div>
                                         <button type="submit" form="add-country-form" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> {% trans "Добавить" %}</button>
@@ -438,31 +436,23 @@
                             
 
 
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium text-sm">Имя</span>
-                                </label>
+                            <div>
+                                <div class="text-sm font-medium mb-1">Имя</div>
                                 {{ form.first_name }}
                             </div>
 
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium text-sm">Фамилия</span>
-                                </label>
+                            <div>
+                                <div class="text-sm font-medium mb-1">Фамилия</div>
                                 {{ form.last_name }}
                             </div>
 
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium text-sm">Email</span>
-                                </label>
+                            <div>
+                                <div class="text-sm font-medium mb-1">Email</div>
                                 <input type="email" class="input input-sm w-full" value="{{ user.email }}" readonly>
                             </div>
 
-                            <div class="form-control">
-                                <label class="label">
-                                    <span class="label-text font-medium text-sm">Телефон</span>
-                                </label>
+                            <div>
+                                <div class="text-sm font-medium mb-1">Телефон</div>
                                 {{ form.phone }}
                             </div>
                             

@@ -2,6 +2,12 @@
 
 Last updated: 2026-04-12 (Europe/Moscow)
 
+## DR-039: DaisyUI 5 form pattern — no fieldset/label, no size overrides, theme-native sizing
+- Date: 2026-04-12
+- Context: DaisyUI 5 under Tailwind v4 does not emit `.fieldset`/`.fieldset-legend` CSS. `.label` is a hint component (nowrap, dim), not a field label. Explicit `-lg` modifiers override the winter theme's `--size-field`/`--size-selector` variables, creating inconsistent sizing.
+- Decision: All forms use plain `<div>` wrappers, `text-sm font-semibold` labels, DaisyUI `input`/`select`/`btn` without size modifiers, `text-xs text-error` errors, `text-xs opacity-60` hints. Checkbox/radio labels: `cursor-pointer flex items-center gap-2`. No `form-control`, `label-text`, `label-text-alt`, `class="label"`, `input-lg`, `select-lg`, `btn-lg`.
+- Consequence: All 13 templates follow a single consistent pattern. Component sizing governed by theme variables. CSS compat shims removed. See KI-011 for background.
+
 ## DR-038: Commission visibility on offer pages reuses existing price visibility flags
 - Date: 2026-04-12
 - Context: Commission was visible in search and detail pages via `_price_visibility_flags()` (`show_full_price_breakdown` for manager/admin, `show_charter_commission_only` for captain). Offer detail and offers list lacked commission display.

@@ -65,8 +65,8 @@
                 <h2 class="font-bold text-lg mb-3">
                     <i class="fas fa-user-check"></i> {% trans "Подтверждение" %}
                 </h2>
-                <div class="form-control mb-4">
-                    <label class="label"><span class="label-text">{{ form.signer_name_confirm.label }}</span></label>
+                <div class="mb-4">
+                    <div class="text-sm font-semibold mb-1.5">{{ form.signer_name_confirm.label }}</div>
                     <input
                         type="text" name="signer_name_confirm"
                         value="{{ form.signer_name_confirm.value|default_if_none:'' }}"
@@ -77,10 +77,10 @@
                     {% if form.signer_name_confirm.errors %}<p class="text-error text-xs mt-1">{{ form.signer_name_confirm.errors.0 }}</p>{% endif %}
                 </div>
 
-                <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-3">
+                <div>
+                    <label class="cursor-pointer flex items-center gap-3 justify-start">
                         <input type="checkbox" name="agree_terms" class="checkbox checkbox-primary" required>
-                        <span class="label-text">{{ form.agree_terms.label }}</span>
+                        <span class="text-sm">{{ form.agree_terms.label }}</span>
                     </label>
                     {% if form.agree_terms.errors %}<p class="text-error text-xs mt-1">{{ form.agree_terms.errors.0 }}</p>{% endif %}
                 </div>
@@ -123,8 +123,8 @@
                         {% trans "Код отправлен на номер" %} <strong x-text="phoneMasked"></strong>
                     </p>
 
-                    <div class="form-control mb-4">
-                        <label class="label"><span class="label-text">{% trans "Введите 6-значный код" %}</span></label>
+                    <div class="mb-4">
+                        <div class="text-sm font-semibold mb-1.5">{% trans "Введите 6-значный код" %}</div>
                         <input
                             type="text" name="otp_code"
                             class="input otp-input w-full max-w-xs mx-auto"

@@ -2,6 +2,16 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.12.0-dev] - 2026-04-12
+
+### 🎨 Changed — Full DaisyUI 5 migration: all templates
+- **13 templates migrated** from legacy DaisyUI v4 form classes (`form-control`, `label-text`, `label-text-alt`, `class="label"` as form labels) to DaisyUI 5 + Tailwind utilities.
+- **Migration pattern**: `form-control` → plain `<div>`, `label`/`label-text` → `text-sm font-semibold mb-1.5`, errors → `text-xs text-error`, hints → `text-xs opacity-60`, checkbox wrappers → `cursor-pointer flex items-center gap-2`.
+- **CSS compat shims removed**: 3 `@utility` blocks (form-control, label-text, label-text-alt) deleted from `assets/css/tailwind.input.css`.
+- **Theme-native sizing**: Removed all explicit `-lg` size modifiers (`input-lg`, `select-lg`, `btn-lg`) from home, login, and register pages. All form elements now use the winter theme's `--size-field`/`--size-selector` sizing.
+- **Templates**: `login.html`, `register.html`, `profile.html`, `price_settings.html`, `home.html`, `search.html`, `detail.html`, `offers_list.html`, `my_bookings.html`, `create_offer.html`, `create_contract.html`, `contract_sign.html`, `client_form.html`.
+- **KI-011 downgraded**: from medium to low — no template uses affected classes anymore.
+
 ## [0.11.1-dev] - 2026-04-12
 
 ### 🐛 Fixed — Auth forms (login/register) broken layout

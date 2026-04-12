@@ -60,10 +60,8 @@
                     >
                         <input type="hidden" name="destination" x-ref="destinationSlug" value="{{ destination|default:'' }}">
                         <!-- Search Destination -->
-                        <div class="form-control relative">
-                            <label class="label" for="search_destination">
-                                <span class="label-text font-semibold">{% trans "Направление" %}</span>
-                            </label>
+                        <div class="relative">
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Направление" %}</div>
                             <div class="relative">
                                 <input
                                     id="search_destination"
@@ -101,10 +99,8 @@
                         </div>
 
                         <!-- Category -->
-                        <div class="form-control">
-                            <label class="label" for="search_category">
-                                <span class="label-text font-semibold">{% trans "Тип яхты" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Тип яхты" %}</div>
                             <select id="search_category" name="category" class="select select-sm">
                                 <option value="">{% trans "Любой" %}</option>
                                 <option value="sailing-yacht" {% if request.GET.category == 'sailing-yacht' %}selected{% endif %}>{% trans "Парусная яхта" %}</option>
@@ -118,25 +114,19 @@
 
                         <!-- Check-in / Check-out -->
                         <div class="grid grid-cols-2 gap-2">
-                            <div class="form-control">
-                                <label class="label" for="search_check_in">
-                                    <span class="label-text font-semibold">{% trans "Заезд" %}</span>
-                                </label>
+                            <div>
+                                <div class="text-sm font-semibold mb-1.5">{% trans "Заезд" %}</div>
                                 <input id="search_check_in" type="date" name="check_in" value="{{ check_in|default:'' }}" class="input input-sm">
                             </div>
-                            <div class="form-control">
-                                <label class="label" for="search_check_out">
-                                    <span class="label-text font-semibold">{% trans "Выезд" %}</span>
-                                </label>
+                            <div>
+                                <div class="text-sm font-semibold mb-1.5">{% trans "Выезд" %}</div>
                                 <input id="search_check_out" type="date" name="check_out" value="{{ check_out|default:'' }}" class="input input-sm">
                             </div>
                         </div>
 
                         <!-- Price Range -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Цена" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Цена" %}</div>
                             <div class="grid grid-cols-2 gap-2">
                                 <input type="number" name="price_from" value="{{ request.GET.price_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" step="100" class="input input-sm">
                                 <input type="number" name="price_to" value="{{ request.GET.price_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" step="100" class="input input-sm">
@@ -144,10 +134,8 @@
                         </div>
 
                         <!-- Cabins -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Каюты" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Каюты" %}</div>
                             <select name="cabins" class="select select-sm">
                                 <option value="">{% trans "Любое" %}</option>
                                 <option value="1" {% if request.GET.cabins == '1' %}selected{% endif %}>1+</option>
@@ -160,10 +148,8 @@
                         </div>
 
                         <!-- Sleeps -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Спальные места" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Спальные места" %}</div>
                             <div class="grid grid-cols-2 gap-2">
                                 <input type="number" name="sleeps_from" value="{{ request.GET.sleeps_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" max="30" class="input input-sm">
                                 <input type="number" name="sleeps_to" value="{{ request.GET.sleeps_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" max="30" class="input input-sm">
@@ -171,10 +157,8 @@
                         </div>
 
                         <!-- Guests -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Макс. гостей" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Макс. гостей" %}</div>
                             <div class="grid grid-cols-2 gap-2">
                                 <input type="number" name="guests_from" value="{{ request.GET.guests_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" max="50" class="input input-sm">
                                 <input type="number" name="guests_to" value="{{ request.GET.guests_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" max="50" class="input input-sm">
@@ -182,10 +166,8 @@
                         </div>
 
                         <!-- Toilets -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Санузлы" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Санузлы" %}</div>
                             <select name="toilets" class="select select-sm">
                                 <option value="">{% trans "Любое" %}</option>
                                 <option value="1-" {% if request.GET.toilets == '1-' %}selected{% endif %}>1+</option>
@@ -196,10 +178,8 @@
                         </div>
 
                         <!-- Year Range -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Год выпуска" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Год выпуска" %}</div>
                             <div class="grid grid-cols-2 gap-2">
                                 <input type="number" name="year_from" value="{{ request.GET.year_from|default:'' }}" placeholder="{% trans 'От' %}" min="1980" max="2026" class="input input-sm">
                                 <input type="number" name="year_to" value="{{ request.GET.year_to|default:'' }}" placeholder="{% trans 'До' %}" min="1980" max="2026" class="input input-sm">
@@ -207,10 +187,8 @@
                         </div>
 
                         <!-- Boat Length -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Длина (м)" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Длина (м)" %}</div>
                             <div class="grid grid-cols-2 gap-2">
                                 <input type="number" name="length_from" value="{{ request.GET.length_from|default:'' }}" placeholder="{% trans 'От' %}" min="0" max="100" step="1" class="input input-sm">
                                 <input type="number" name="length_to" value="{{ request.GET.length_to|default:'' }}" placeholder="{% trans 'До' %}" min="0" max="100" step="1" class="input input-sm">
@@ -218,10 +196,8 @@
                         </div>
 
                         <!-- Skipper -->
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text font-semibold">{% trans "Экипаж" %}</span>
-                            </label>
+                        <div>
+                            <div class="text-sm font-semibold mb-1.5">{% trans "Экипаж" %}</div>
                             <select name="skipper" class="select select-sm">
                                 <option value="">{% trans "Любой" %}</option>
                                 {% for item in api_filters.skipper %}
@@ -238,8 +214,8 @@
                             </button>
                             <div x-show="open" x-cloak class="space-y-3 pt-2">
                                 <!-- Sail Type -->
-                                <div class="form-control">
-                                    <span class="label-text text-xs mb-1">{% trans "Тип паруса" %}</span>
+                                <div>
+                                    <div class="text-xs font-medium mb-1">{% trans "Тип паруса" %}</div>
                                     <div class="flex flex-col gap-1">
                                         {% for item in api_filters.sail %}
                                         <label class="flex items-center gap-2 cursor-pointer text-sm">
@@ -250,8 +226,8 @@
                                     </div>
                                 </div>
                                 <!-- Engine Type -->
-                                <div class="form-control">
-                                    <span class="label-text text-xs mb-1">{% trans "Тип двигателя" %}</span>
+                                <div>
+                                    <div class="text-xs font-medium mb-1">{% trans "Тип двигателя" %}</div>
                                     <div class="flex flex-col gap-1">
                                         {% for item in api_filters.engineType %}
                                         <label class="flex items-center gap-2 cursor-pointer text-sm">

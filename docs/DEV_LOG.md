@@ -2,6 +2,25 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-12 — Full DaisyUI 5 migration: all templates (Phase 2)
+- Scope: Migrated ALL remaining 11 templates from DaisyUI v4 compat classes to native DaisyUI 5 + Tailwind utilities. Zero legacy `form-control`, `label-text`, `label-text-alt`, `class="label"` (form label) remaining anywhere.
+- Migration pattern:
+  - `form-control` → plain `<div>` (or removed wrapper entirely)
+  - `<label class="label"><span class="label-text">` → `<div class="text-sm font-semibold mb-1.5">` (or `text-xs font-medium mb-1` for compact filters)
+  - `label-text-alt text-error` → `<p class="text-xs text-error mt-1">`
+  - `label-text-alt` hints → `<p class="text-xs opacity-60 mt-1">`
+  - `<label class="label cursor-pointer">` (checkbox/radio) → `<label class="cursor-pointer flex items-center gap-2">`
+- CSS cleanup: Removed 3 `@utility` compat shims from `assets/css/tailwind.input.css` (form-control, label-text, label-text-alt).
+- Files modified: `templates/boats/offers_list.html`, `templates/boats/my_bookings.html`, `templates/boats/contract_sign.html`, `templates/accounts/price_settings.html`, `templates/boats/client_form.html`, `templates/boats/create_contract.html`, `templates/boats/create_offer.html`, `templates/accounts/profile.html`, `templates/boats/home.html`, `templates/boats/search.html`, `templates/boats/detail.html`, `assets/css/tailwind.input.css`.
+- Validation: `manage.py check` — 0 issues. HTTP 200 for home, search, login, register. Global grep: 0 legacy matches across all templates. Rendered HTML verified clean.
+- Risks: No logic changes. Template-only migration. CSS compat shims removed — any template still using legacy classes would lose styling (but grep confirms none remain).
+
+## 2026-04-12 — Theme-native sizing: remove explicit -lg overrides
+- Problem: Home page search form had `input-lg`, `select-lg`, `btn-lg` on all elements. Login/register had `btn-lg` on buttons but default-sized inputs — creating visible size mismatch. The winter theme defines `--size-field: 0.1875rem` and `--size-selector: 0.1875rem` which should govern all component sizes.
+- Fix: Removed all `-lg` modifiers from home.html (4 inputs + 1 select + 1 button), login.html (2 buttons), register.html (2 buttons). All elements now use theme-native sizing.
+- Files: `templates/boats/home.html`, `templates/accounts/login.html`, `templates/accounts/register.html`.
+- Validation: Docker rebuild + HTTP 200 for all three pages.
+
 ## 2026-04-12 — Auth forms DaisyUI 5 compliance (v2 — fieldset/label fix)
 - Problem (v1 attempt): Replaced v4 `form-control`/`label-text` with DaisyUI 5 `fieldset`/`label` classes. Result was worse: `.fieldset` and `.fieldset-legend` classes **do not generate CSS** in current DaisyUI 5 + Tailwind v4 build — native `<fieldset>` element borders appeared. `.label` class has `white-space: nowrap` (text overflow) and `color-mix(60% transparent)` (dim text). Buttons outside `<fieldset>` rendered narrower than inputs inside it due to native `min-inline-size: min-content`.
 - Root cause: DaisyUI 5 plugin under current Tailwind v4 setup does NOT emit `.fieldset`, `.fieldset-legend` CSS rules. Only `fieldset:disabled .input` selectors exist. `.label` IS emitted but as a description/hint component (small, dim, nowrap) — NOT suitable for field labels.

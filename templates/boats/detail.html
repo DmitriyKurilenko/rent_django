@@ -668,10 +668,8 @@
                 
                 <template x-if="!hasExistingDates">
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text text-xs">Заезд</span>
-                            </label>
+                        <div>
+                            <div class="text-xs font-medium mb-1">Заезд</div>
                             <input 
                                 type="date" 
                                 x-model="checkIn"
@@ -681,10 +679,8 @@
                                 required
                             />
                         </div>
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text text-xs">Выезд</span>
-                            </label>
+                        <div>
+                            <div class="text-xs font-medium mb-1">Выезд</div>
                             <input 
                                 type="date" 
                                 x-model="checkOut"
@@ -718,10 +714,8 @@
             </div>
 
             <!-- Корректировка цены -->
-            <div class="form-control">
-                <label class="label">
-                    <span class="label-text font-semibold">Корректировка цены (EUR)</span>
-                </label>
+            <div>
+                <div class="text-sm font-semibold mb-1.5">Корректировка цены (EUR)</div>
                 <input
                     type="number"
                     step="0.01"
@@ -729,9 +723,7 @@
                     placeholder="0.00"
                     class="input input-sm"
                 />
-                <label class="label">
-                    <span class="label-text-alt text-xs">Положительное — наценка, отрицательное — скидка</span>
-                </label>
+                <p class="text-xs opacity-60 mt-1">Положительное — наценка, отрицательное — скидка</p>
             </div>
 
             {% if user.profile.can_create_tourist_offers and user.profile.can_create_captain_offers %}
@@ -741,8 +733,8 @@
                 <input type="hidden" name="price_adjustment" :value="priceAdjustment || 0" />
 
                 <!-- Выбор клиента -->
-                <div class="form-control mb-4" x-data="quickClientSelector()">
-                    <label class="label"><span class="label-text font-semibold">{% trans "Клиент" %}</span></label>
+                <div class="mb-4" x-data="quickClientSelector()">
+                    <div class="text-sm font-semibold mb-1.5">{% trans "Клиент" %}</div>
                     <div class="relative">
                         <template x-if="!selectedClient">
                             <div>
@@ -764,26 +756,24 @@
                     </div>
                 </div>
 
-                <div class="form-control mb-4">
-                    <label class="label">
-                        <span class="label-text font-semibold">Тип оффера</span>
-                    </label>
+                <div class="mb-4">
+                    <div class="text-sm font-semibold mb-1.5">Тип оффера</div>
                     <div class="space-y-2">
-                        <label class="label cursor-pointer bg-base-200 p-3 rounded-lg hover:bg-base-300 transition-colors">
+                        <label class="cursor-pointer flex items-center bg-base-200 p-3 rounded-lg hover:bg-base-300 transition-colors">
                             <div class="flex items-start gap-3 flex-1">
                                 <input type="radio" name="offer_type" value="captain" x-model="offerType" class="radio radio-primary" />
                                 <div>
-                                    <span class="label-text font-semibold">Агентский</span>
+                                    <span class="text-sm font-semibold">Агентский</span>
                                     <div class="text-xs opacity-70">Детальная информация для агентов</div>
                                 </div>
                             </div>
                         </label>
 
-                        <label class="label cursor-pointer bg-base-200 p-3 rounded-lg hover:bg-base-300 transition-colors">
+                        <label class="cursor-pointer flex items-center bg-base-200 p-3 rounded-lg hover:bg-base-300 transition-colors">
                             <div class="flex items-start gap-3 flex-1">
                                 <input type="radio" name="offer_type" value="tourist" x-model="offerType" class="radio radio-primary" />
                                 <div>
-                                    <span class="label-text font-semibold">Туристический</span>
+                                    <span class="text-sm font-semibold">Туристический</span>
                                     <div class="text-xs opacity-70">Упрощенный вид для клиентов</div>
                                 </div>
                             </div>
@@ -791,9 +781,9 @@
                     </div>
                 </div>
 
-                <div class="form-control mb-4" x-show="offerType === 'tourist'">
-                    <label class="label cursor-pointer bg-base-200 p-3 rounded-lg">
-                        <span class="label-text">Включить питание</span>
+                <div class="mb-4" x-show="offerType === 'tourist'">
+                    <label class="cursor-pointer flex items-center bg-base-200 p-3 rounded-lg">
+                        <span class="text-sm">Включить питание</span>
                         <input type="checkbox" name="has_meal" class="checkbox checkbox-primary" />
                     </label>
                 </div>
@@ -801,13 +791,13 @@
                 <!-- Дополнительные опции -->
                 <div class="flex flex-col gap-3 mb-4">
                     {% if user.profile.can_use_countdown %}
-                    <label class="label cursor-pointer justify-start gap-2">
+                    <label class="cursor-pointer flex items-center justify-start gap-2">
                         <input type="checkbox" name="show_countdown" class="checkbox checkbox-xs checkbox-primary" checked />
                         <span class="text-sm">{% trans "Таймер обратного отсчета" %}</span>
                     </label>
                     {% endif %}
                     {% if user.profile.can_use_force_refresh %}
-                    <label class="label cursor-pointer justify-start gap-2">
+                    <label class="cursor-pointer flex items-center justify-start gap-2">
                         <input type="checkbox" name="force_refresh" class="checkbox checkbox-xs checkbox-warning" />
                         <span class="text-sm">{% trans "Обновить данные" %}</span>
                     </label>
@@ -830,8 +820,8 @@
                 <input type="hidden" name="price_adjustment" :value="priceAdjustment || 0" />
 
                 <!-- Выбор клиента -->
-                <div class="form-control mb-4" x-data="quickClientSelector()">
-                    <label class="label"><span class="label-text font-semibold">{% trans "Клиент" %}</span></label>
+                <div class="mb-4" x-data="quickClientSelector()">
+                    <div class="text-sm font-semibold mb-1.5">{% trans "Клиент" %}</div>
                     <div class="relative">
                         <template x-if="!selectedClient">
                             <div>
@@ -861,13 +851,13 @@
                 <!-- Дополнительные опции -->
                 <div class="flex flex-col gap-3 mb-4">
                     {% if user.profile.can_use_countdown %}
-                    <label class="label cursor-pointer justify-start gap-2">
+                    <label class="cursor-pointer flex items-center justify-start gap-2">
                         <input type="checkbox" name="show_countdown" class="checkbox checkbox-xs checkbox-primary" checked />
                         <span class="text-sm">{% trans "Таймер обратного отсчета" %}</span>
                     </label>
                     {% endif %}
                     {% if user.profile.can_use_force_refresh %}
-                    <label class="label cursor-pointer justify-start gap-2">
+                    <label class="cursor-pointer flex items-center justify-start gap-2">
                         <input type="checkbox" name="force_refresh" class="checkbox checkbox-xs checkbox-warning" />
                         <span class="text-sm">{% trans "Обновить данные" %}</span>
                     </label>
@@ -931,10 +921,8 @@
 
                 <template x-if="!hasExistingDates">
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text text-xs">Заезд</span>
-                            </label>
+                        <div>
+                            <div class="text-xs font-medium mb-1">Заезд</div>
                             <input 
                                 type="date" 
                                 x-model="checkIn"
@@ -944,10 +932,8 @@
                                 required
                             />
                         </div>
-                        <div class="form-control">
-                            <label class="label">
-                                <span class="label-text text-xs">Выезд</span>
-                            </label>
+                        <div>
+                            <div class="text-xs font-medium mb-1">Выезд</div>
                             <input 
                                 type="date" 
                                 x-model="checkOut"

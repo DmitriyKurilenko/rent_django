@@ -24,18 +24,18 @@
                     <i class="fas fa-user mr-1"></i> {% trans "ФИО" %}
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div class="form-control">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.last_name.label }} <span class="text-error">*</span></span></label>
+                    <div>
+                        <div class="text-xs font-medium mb-1">{{ form.last_name.label }} <span class="text-error">*</span></div>
                         {{ form.last_name }}
                         {% if form.last_name.errors %}<p class="text-error text-xs mt-1">{{ form.last_name.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.first_name.label }} <span class="text-error">*</span></span></label>
+                    <div>
+                        <div class="text-xs font-medium mb-1">{{ form.first_name.label }} <span class="text-error">*</span></div>
                         {{ form.first_name }}
                         {% if form.first_name.errors %}<p class="text-error text-xs mt-1">{{ form.first_name.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.middle_name.label }}</span></label>
+                    <div>
+                        <div class="text-xs font-medium mb-1">{{ form.middle_name.label }}</div>
                         {{ form.middle_name }}
                     </div>
                 </div>
@@ -49,13 +49,13 @@
                     <i class="fas fa-phone mr-1"></i> {% trans "Контакты" %}
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div class="form-control">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.phone.label }} <span class="text-error">*</span></span></label>
+                    <div>
+                        <div class="text-xs font-medium mb-1">{{ form.phone.label }} <span class="text-error">*</span></div>
                         {{ form.phone }}
                         {% if form.phone.errors %}<p class="text-error text-xs mt-1">{{ form.phone.errors.0 }}</p>{% endif %}
                     </div>
-                    <div class="form-control">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.email.label }}</span></label>
+                    <div>
+                        <div class="text-xs font-medium mb-1">{{ form.email.label }}</div>
                         {{ form.email }}
                         {% if form.email.errors %}<p class="text-error text-xs mt-1">{{ form.email.errors.0 }}</p>{% endif %}
                     </div>
@@ -70,20 +70,20 @@
                     <i class="fas fa-id-card mr-1"></i> {% trans "Документы" %}
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div class="form-control">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.passport_number.label }}</span></label>
+                    <div>
+                        <div class="text-xs font-medium mb-1">{{ form.passport_number.label }}</div>
                         {{ form.passport_number }}
                     </div>
-                    <div class="form-control">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.passport_date.label }}</span></label>
+                    <div>
+                        <div class="text-xs font-medium mb-1">{{ form.passport_date.label }}</div>
                         {{ form.passport_date }}
                     </div>
-                    <div class="form-control md:col-span-2">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.passport_issued_by.label }}</span></label>
+                    <div class="md:col-span-2">
+                        <div class="text-xs font-medium mb-1">{{ form.passport_issued_by.label }}</div>
                         {{ form.passport_issued_by }}
                     </div>
-                    <div class="form-control md:col-span-2">
-                        <label class="label py-1"><span class="label-text text-xs">{{ form.address.label }}</span></label>
+                    <div class="md:col-span-2">
+                        <div class="text-xs font-medium mb-1">{{ form.address.label }}</div>
                         {{ form.address }}
                     </div>
                 </div>
@@ -96,7 +96,7 @@
                 <h3 class="font-bold text-sm mb-3">
                     <i class="fas fa-sticky-note mr-1"></i> {% trans "Заметки" %}
                 </h3>
-                <div class="form-control">
+                <div>
                     {{ form.notes }}
                 </div>
             </div>
