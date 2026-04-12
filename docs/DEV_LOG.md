@@ -2,6 +2,16 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-12 — Commission display on offer page & offers list
+- Problem: Commission was visible in search results and detail page for captains, but missing from offer detail page and offers list table.
+- Fix:
+  - `boats/views.py`: Extracted `_compute_offer_commission(offer)` helper from `_build_price_debug`. Added commission context + visibility flags to `offer_detail` view. Added bulk commission computation to `offers_list` view (single DB query via `select_related('charter')`).
+  - `templates/boats/offer_captain.html`: Added commission display inside the price card. Captain sees agent commission amount. Manager/admin sees charter commission % + amount + agent commission + charter name.
+  - `templates/boats/offers_list.html`: Added "Комиссия" column to desktop table and commission line to mobile cards. Same visibility rules.
+- Visibility: `show_charter_commission_only` (captain) → agent commission only. `show_full_price_breakdown` (manager/admin) → full breakdown. Anonymous/tourist → nothing.
+- Validation: `manage.py check` — 0 issues. HTTP 200 for offer detail + offers list. Captain sees commission values, anonymous does not.
+- Risks: None. Purely additive display change. No data model changes.
+
 ## 2026-04-11 — Quick offer modal: countdown & force-refresh flags
 - Problem: Quick offer creation modal (boat detail page) lacked "Обратный отсчет" (show_countdown) and "Обновить данные" (force_refresh) checkboxes that exist in the full create_offer form.
 - Fix:

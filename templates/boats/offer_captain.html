@@ -194,6 +194,25 @@
                             <div class="text-6xl font-bold">{{ offer.total_price|floatformat:0 }}</div>
                             <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>
                         </div>
+                        {% if commission.agent_commission %}
+                        <div class="border-t border-primary-content/20 pt-2">
+                            {% if show_charter_commission_only %}
+                                <div class="text-sm font-semibold text-success-content bg-success/30 rounded px-2 py-1">
+                                    <i class="fas fa-coins"></i> {% trans "Комиссия" %} {{ commission.agent_commission|floatformat:0 }} €
+                                </div>
+                            {% elif show_full_price_breakdown %}
+                                <div class="text-sm opacity-80">
+                                    <i class="fas fa-percentage"></i> {% trans "Комиссия чартера" %} {{ commission.charter_commission|floatformat:0 }}% ({{ commission.charter_commission_amount|floatformat:0 }} €)
+                                </div>
+                                <div class="text-sm font-semibold text-success-content bg-success/30 rounded px-2 py-1 mt-1">
+                                    <i class="fas fa-coins"></i> {% trans "Агент" %} {{ commission.agent_commission|floatformat:0 }} €
+                                </div>
+                                {% if commission.charter_name %}
+                                <div class="text-xs opacity-60 mt-1">{{ commission.charter_name }}</div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
                         {% if can_book_from_offer %}
                         <form method="post" action="{% url 'book_offer' offer.uuid %}">
                             {% csrf_token %}

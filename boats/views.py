@@ -1795,15 +1795,34 @@ def offers_list(request):
     # Один запрос на все превью страницы
     valid_slugs = [s for s in offer_slugs if s]
     preview_map = {}
+    commission_map = {}
     if valid_slugs:
         # Диагностика: проверяем что лодки вообще есть в БД
         existing = list(
             ParsedBoat.objects.filter(slug__in=valid_slugs)
-            .values_list('slug', 'preview_cdn_url')
+            .select_related('charter')
+            .values_list('slug', 'preview_cdn_url', 'charter__commission',
+                         'charter__name')
         )
         logger.info(f'[Offers] DB lookup for slugs {valid_slugs[:3]}: {existing[:3]}')
-        preview_map = {slug: url for slug, url in existing if url}
+        preview_map = {slug: url for slug, url, _, _ in existing if url}
+        commission_map = {
+            slug: {'commission': comm, 'charter_name': cname}
+            for slug, _, comm, cname in existing if comm
+        }
         logger.info(f'[Offers] Preview found: {len(preview_map)}/{len(valid_slugs)}')
+
+    # Комиссия: вычисляем для тех, кому видна
+    vis_flags = _price_visibility_flags(request.user)
+    show_commission = (
+        vis_flags['show_full_price_breakdown']
+        or vis_flags['show_charter_commission_only']
+    )
+    agent_pct = 0.0
+    if show_commission:
+        from boats.models import PriceSettings
+        cfg = PriceSettings.get_settings()
+        agent_pct = float(cfg.agent_commission_pct) / 100.0
 
     offers_with_data = []
     for offer, slug in zip(page_obj, offer_slugs):
@@ -1815,6 +1834,20 @@ def offers_list(request):
         offer.guests = guests
         offer.title_display = title
 
+        # Комиссия для текущего оффера
+        if show_commission and slug and slug in commission_map:
+            cc = float(commission_map[slug]['commission'])
+            cc_amount = round(float(offer.total_price or 0) * cc / 100, 2)
+            offer.agent_commission = round(cc_amount * agent_pct, 2)
+            offer.charter_commission = cc
+            offer.charter_commission_amount = cc_amount
+            offer.charter_name = commission_map[slug]['charter_name'] or ''
+        else:
+            offer.agent_commission = 0
+            offer.charter_commission = 0
+            offer.charter_commission_amount = 0
+            offer.charter_name = ''
+
         offers_with_data.append(offer)
 
     context = {
@@ -1823,6 +1856,8 @@ def offers_list(request):
         'total_views': total_views,
         'active_offers': active_offers,
         'search_query': search_query,
+        'show_full_price_breakdown': vis_flags['show_full_price_breakdown'],
+        'show_charter_commission_only': vis_flags['show_charter_commission_only'],
     }
     return render(request, 'boats/offers_list.html', context)
 
@@ -2267,6 +2302,12 @@ def offer_detail(request, uuid):
         'data_error': data_error,
     }
 
+    # Комиссия: видна капитану и пользователям с полным доступом к ценам
+    vis_flags = _price_visibility_flags(request.user)
+    if vis_flags['show_full_price_breakdown'] or vis_flags['show_charter_commission_only']:
+        context['commission'] = _compute_offer_commission(offer)
+        context.update(vis_flags)
+
     if request.user.is_authenticated and request.user.profile.can_view_price_breakdown():
         context['price_debug'] = _build_price_debug(offer)
 
@@ -2287,30 +2328,57 @@ def _strip_last_sentence(text: str) -> str:
     return text[:last.end()].rstrip()
 
 
+def _compute_offer_commission(offer):
+    """Вычислить комиссию чартера и агента для оффера."""
+    from boats.models import PriceSettings, ParsedBoat
+    import re
+
+    cfg = PriceSettings.get_settings()
+    agent_pct = float(cfg.agent_commission_pct) / 100.0
+    result = {
+        'charter_commission': 0.0,
+        'charter_commission_amount': 0.0,
+        'agent_commission': 0.0,
+        'charter_name': '',
+    }
+    try:
+        slug_match = re.search(
+            r'/(?:boat|yachta)/([^/?#]+)', offer.source_url or ''
+        )
+        if slug_match:
+            pb = ParsedBoat.objects.select_related('charter').filter(
+                slug=slug_match.group(1).rstrip('/')
+            ).first()
+            if pb and pb.charter and pb.charter.commission:
+                cc = float(pb.charter.commission)
+                cc_amount = round(
+                    float(offer.total_price) * cc / 100, 2
+                )
+                result['charter_commission'] = cc
+                result['charter_commission_amount'] = cc_amount
+                result['agent_commission'] = round(
+                    cc_amount * agent_pct, 2
+                )
+                result['charter_name'] = pb.charter.name or ''
+    except Exception:
+        logger.exception(
+            '[Commission] Failed to resolve for offer=%s', offer.pk
+        )
+    return result
+
+
 def _build_price_debug(offer):
     """Разбивка формулы цены для отладки."""
-    from boats.models import PriceSettings, ParsedBoat
+    from boats.models import PriceSettings
 
     cfg = PriceSettings.get_settings()
     bd = offer.boat_data
     adjustment = float(offer.price_adjustment or 0)
 
-    # Комиссия чартера и агентская комиссия
-    charter_commission = 0.0
-    charter_commission_amount = 0.0
-    agent_commission = 0.0
-    agent_pct = float(cfg.agent_commission_pct) / 100.0
-    try:
-        import re
-        slug_match = re.search(r'/(?:boat|yachta)/([^/?#]+)', offer.source_url or '')
-        if slug_match:
-            pb = ParsedBoat.objects.select_related('charter').filter(slug=slug_match.group(1).rstrip('/')).first()
-            if pb and pb.charter and pb.charter.commission:
-                charter_commission = float(pb.charter.commission)
-                charter_commission_amount = round(float(offer.total_price) * charter_commission / 100, 2)
-                agent_commission = round(charter_commission_amount * agent_pct, 2)
-    except Exception:
-        logger.exception('[Price Debug] Failed to resolve charter commission for offer=%s', offer.pk)
+    comm = _compute_offer_commission(offer)
+    charter_commission = comm['charter_commission']
+    charter_commission_amount = comm['charter_commission_amount']
+    agent_commission = comm['agent_commission']
 
     if offer.is_captain_offer():
         api_price = float(bd.get('price', 0))

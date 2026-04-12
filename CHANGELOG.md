@@ -2,6 +2,14 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.11.0-dev] - 2026-04-12
+
+### ✨ Added — Commission display on offer page & offers list
+- **`boats/views.py`**: Extracted `_compute_offer_commission(offer)` helper from `_build_price_debug` for reuse. `offer_detail` view now injects `commission` dict and visibility flags into context. `offers_list` view computes commission per offer via bulk DB query (`select_related('charter')`, single query for all slugs on the page).
+- **`templates/boats/offer_captain.html`**: Commission block inside the price card — captain sees agent commission amount (€), manager/admin sees charter commission % + amount + agent commission + charter name.
+- **`templates/boats/offers_list.html`**: New «Комиссия» column in desktop table and commission line in mobile cards. Captain sees agent commission, manager/admin sees full breakdown. Column hidden for users without commission visibility.
+- **Visibility rules**: Reuses existing `_price_visibility_flags()` — `show_charter_commission_only` (captain) shows agent commission only; `show_full_price_breakdown` (manager/admin) shows full breakdown; anonymous/tourist sees nothing.
+
 ## [0.10.0-dev] - 2026-04-11
 
 ### ✨ Added — Quick offer modal: countdown timer & force-refresh flags

@@ -1,6 +1,12 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-11 (Europe/Moscow)
+Last updated: 2026-04-12 (Europe/Moscow)
+
+## DR-038: Commission visibility on offer pages reuses existing price visibility flags
+- Date: 2026-04-12
+- Context: Commission was visible in search and detail pages via `_price_visibility_flags()` (`show_full_price_breakdown` for manager/admin, `show_charter_commission_only` for captain). Offer detail and offers list lacked commission display.
+- Decision: Reuse `_price_visibility_flags()` to gate commission on offer pages. Extract `_compute_offer_commission(offer)` from `_build_price_debug()` for independent reuse. For offers list, compute commission in bulk via single DB query with `select_related('charter')` instead of per-offer helper calls. Commission is never shown to tourists/anonymous — the `commission` context variable is only set when visibility flags are true.
+- Consequence: Consistent commission visibility rules across all pages (search, detail, offer, offers list). No new permissions needed. Offers list uses optimized bulk query (one SELECT for all offers on the page).
 
 ## DR-037: Permission-gated countdown & force-refresh in quick offer modal
 - Date: 2026-04-11

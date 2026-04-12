@@ -103,6 +103,9 @@
                             <th>{% trans "Даты" %}</th>
                             <th>{% trans "Статус" %}</th>
                             <th class="text-right">{% trans "Цена" %}</th>
+                            {% if show_full_price_breakdown or show_charter_commission_only %}
+                            <th class="text-right">{% trans "Комиссия" %}</th>
+                            {% endif %}
                             <th class="text-right">{% trans "Действия" %}</th>
                         </tr>
                     </thead>
@@ -159,6 +162,20 @@
                                     <span class="badge badge-warning badge-xs ml-1">-{{ offer.discount|floatformat:0 }}%</span>
                                 {% endif %}
                             </td>
+                            {% if show_full_price_breakdown or show_charter_commission_only %}
+                            <td class="text-right">
+                                {% if offer.agent_commission %}
+                                    {% if show_charter_commission_only %}
+                                        <span class="text-success font-semibold text-sm whitespace-nowrap">{{ offer.agent_commission|floatformat:0 }} €</span>
+                                    {% else %}
+                                        <div class="text-xs text-base-content/60 whitespace-nowrap">{{ offer.charter_commission|floatformat:0 }}% ({{ offer.charter_commission_amount|floatformat:0 }} €)</div>
+                                        <span class="text-success font-semibold text-sm whitespace-nowrap">{{ offer.agent_commission|floatformat:0 }} €</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-xs text-base-content/40">—</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
                             <td>
                                 <div class="flex items-center justify-end gap-1" x-data="offerActions('{% url 'offer_view' offer.uuid %}', '{{ offer.uuid }}')">
                                     <button @click="copy($el)" class="btn btn-ghost btn-xs">{% trans "Ссылка" %}</button>
@@ -198,6 +215,15 @@
                             </div>
                             <div class="text-right flex-shrink-0">
                                 <div class="font-bold text-sm text-primary">{{ offer.total_price|floatformat:0 }} {{ offer.currency }}</div>
+                                {% if show_full_price_breakdown or show_charter_commission_only %}
+                                    {% if offer.agent_commission %}
+                                        {% if show_charter_commission_only %}
+                                            <div class="text-success text-xs font-semibold">{{ offer.agent_commission|floatformat:0 }} €</div>
+                                        {% else %}
+                                            <div class="text-success text-xs font-semibold">{{ offer.agent_commission|floatformat:0 }} € ({{ offer.charter_commission|floatformat:0 }}%)</div>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
                                 {% if offer.is_active %}
                                     <span class="badge badge-xs badge-success">{% trans "Активен" %}</span>
                                 {% else %}

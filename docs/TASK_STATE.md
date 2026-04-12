@@ -1,8 +1,15 @@
 # TASK STATE
 
-Last updated: 2026-04-11 (Europe/Moscow)
+Last updated: 2026-04-12 (Europe/Moscow)
 
 ## Current priorities
+
+### P0.9: Commission display on offer page & offers list
+- Status: **DONE (2026-04-12)**
+- Captain sees agent commission on offer detail page (inside price card) and in offers list table.
+- Manager/admin sees full breakdown (charter % + amount + agent commission + charter name).
+- Tourist/anonymous sees nothing — commission block hidden entirely.
+- Files: `boats/views.py`, `templates/boats/offer_captain.html`, `templates/boats/offers_list.html`.
 
 ### P0.8: Quick offer modal — countdown & force-refresh flags
 - Status: **DONE (2026-04-11)**
