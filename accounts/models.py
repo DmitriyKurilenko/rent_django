@@ -236,6 +236,12 @@ class UserProfile(models.Model):
     def can_view_all_clients(self):
         return self.has_perm('view_all_clients')
 
+    def can_use_countdown(self):
+        return self.has_perm('use_countdown')
+
+    def can_use_force_refresh(self):
+        return self.has_perm('use_force_refresh')
+
     def can_use_no_branding(self):
         return self.subscription_plan == 'advanced' or self.has_perm('no_branding')
 

@@ -1,6 +1,12 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-10 (Europe/Moscow)
+Last updated: 2026-04-11 (Europe/Moscow)
+
+## DR-037: Permission-gated countdown & force-refresh in quick offer modal
+- Date: 2026-04-11
+- Context: Quick offer creation modal on boat detail page lacked «Обратный отсчёт» and «Обновить данные» checkboxes present in the full create_offer form. Task requirement: countdown visible to captain/assistant/manager/admin; force-refresh visible to manager/assistant/admin only.
+- Decision: New permissions `use_countdown` and `use_force_refresh` in the existing Role/Permission system. Template uses `{% if user.profile.can_use_countdown %}` / `{% if user.profile.can_use_force_refresh %}` for conditional rendering. Backend enforces same permission before applying values — if user lacks permission, flag is silently ignored (countdown defaults to False, force_refresh has no effect).
+- Consequence: Feature parity between quick and full offer creation. Permission checks on both frontend (visibility) and backend (enforcement) prevent privilege escalation via crafted POST requests.
 
 ## DR-036: Comprehensive search filters with comma-separated multi-values
 - Date: 2026-04-10

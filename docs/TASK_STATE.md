@@ -1,8 +1,16 @@
 # TASK STATE
 
-Last updated: 2026-04-10 (Europe/Moscow)
+Last updated: 2026-04-11 (Europe/Moscow)
 
 ## Current priorities
+
+### P0.8: Quick offer modal — countdown & force-refresh flags
+- Status: **DONE (2026-04-11)**
+- Added "Обратный отсчёт" and "Обновить данные" checkboxes to quick offer creation modals on boat detail page.
+- Permission-based visibility: countdown for captain/assistant/manager/admin, force-refresh for assistant/manager/admin.
+- New migration 0009, new permissions `use_countdown`/`use_force_refresh`, new methods `can_use_countdown()`/`can_use_force_refresh()`.
+- Backend `quick_create_offer` view reads and applies both flags with permission enforcement.
+- Files: `accounts/models.py`, `accounts/migrations/0009_add_countdown_refresh_permissions.py`, `boats/views.py`, `templates/boats/detail.html`.
 
 ### P0.7: Comprehensive search filters from Boataround API
 - Status: **DONE (2026-04-10) — Testing complete**

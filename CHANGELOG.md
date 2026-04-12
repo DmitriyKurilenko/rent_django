@@ -2,6 +2,14 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.10.0-dev] - 2026-04-11
+
+### ✨ Added — Quick offer modal: countdown timer & force-refresh flags
+- **`templates/boats/detail.html`**: Both quick offer forms (manager/admin type-choice and captain-only) now include «Таймер обратного отсчета» (`show_countdown`) and «Обновить данные» (`force_refresh`) checkboxes. Rendered conditionally via `{% if user.profile.can_use_countdown %}` / `{% if user.profile.can_use_force_refresh %}`.
+- **`boats/views.py`** (`quick_create_offer`): Reads `force_refresh` POST param with `can_use_force_refresh()` permission guard, passes to `_ensure_boat_data_for_critical_flow`. Reads `show_countdown` POST param with `can_use_countdown()` permission guard, sets on `Offer` model.
+- **`accounts/models.py`**: New methods `can_use_countdown()` and `can_use_force_refresh()` delegating to permission system.
+- **`accounts/migrations/0009_add_countdown_refresh_permissions.py`**: New permissions `use_countdown` (captain, assistant, manager, admin, superadmin) and `use_force_refresh` (assistant, manager, admin, superadmin).
+
 ## [0.9.0-dev] - 2026-04-10
 
 ### ✨ Added — Comprehensive search filters from Boataround API

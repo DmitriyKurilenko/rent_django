@@ -798,6 +798,22 @@
                     </label>
                 </div>
 
+                <!-- Дополнительные опции -->
+                <div class="flex flex-col gap-3 mb-4">
+                    {% if user.profile.can_use_countdown %}
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" name="show_countdown" class="checkbox checkbox-xs checkbox-primary" checked />
+                        <span class="text-sm">{% trans "Таймер обратного отсчета" %}</span>
+                    </label>
+                    {% endif %}
+                    {% if user.profile.can_use_force_refresh %}
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" name="force_refresh" class="checkbox checkbox-xs checkbox-warning" />
+                        <span class="text-sm">{% trans "Обновить данные" %}</span>
+                    </label>
+                    {% endif %}
+                </div>
+
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" @click="$el.closest('dialog').close()">Отмена</button>
                     <button type="submit" class="btn btn-primary" :disabled="!datesValid">
@@ -840,6 +856,22 @@
                 <div class="alert alert-info mb-4">
                     <i class="fas fa-info-circle"></i>
                     <span>Будет создан агентский оффер</span>
+                </div>
+
+                <!-- Дополнительные опции -->
+                <div class="flex flex-col gap-3 mb-4">
+                    {% if user.profile.can_use_countdown %}
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" name="show_countdown" class="checkbox checkbox-xs checkbox-primary" checked />
+                        <span class="text-sm">{% trans "Таймер обратного отсчета" %}</span>
+                    </label>
+                    {% endif %}
+                    {% if user.profile.can_use_force_refresh %}
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input type="checkbox" name="force_refresh" class="checkbox checkbox-xs checkbox-warning" />
+                        <span class="text-sm">{% trans "Обновить данные" %}</span>
+                    </label>
+                    {% endif %}
                 </div>
 
                 <div class="modal-action">

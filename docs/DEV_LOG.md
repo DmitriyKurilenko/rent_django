@@ -2,6 +2,16 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-11 — Quick offer modal: countdown & force-refresh flags
+- Problem: Quick offer creation modal (boat detail page) lacked "Обратный отсчет" (show_countdown) and "Обновить данные" (force_refresh) checkboxes that exist in the full create_offer form.
+- Fix:
+  - `accounts/migrations/0009_add_countdown_refresh_permissions.py`: new permissions `use_countdown` (captain, assistant, manager, admin, superadmin) and `use_force_refresh` (assistant, manager, admin, superadmin).
+  - `accounts/models.py`: added `can_use_countdown()` and `can_use_force_refresh()` methods.
+  - `templates/boats/detail.html`: added checkboxes to both quick offer form variants (manager/admin type-choice form and captain-only form). Conditional rendering via `{% if user.profile.can_use_countdown %}` / `{% if user.profile.can_use_force_refresh %}`.
+  - `boats/views.py`: `quick_create_offer` — reads `force_refresh` from POST with `can_use_force_refresh()` guard, passes to `_ensure_boat_data_for_critical_flow`. Reads `show_countdown` from POST with `can_use_countdown()` guard, sets on Offer model.
+- Validation: `manage.py check` — 0 issues. Template compilation OK. HTTP 200 for detail page. Verified: manager sees both checkboxes, captain sees only countdown.
+- Risks: None. Purely additive feature. No changes to existing create_offer flow.
+
 ## 2026-04-10 — Search filters: bug fixes from deep testing
 - Bugs found & fixed:
   1. **Checkbox `checked` substring matching** (HIGH): `{% if item.id in active_sail %}` did string containment on comma-joined string. If one ID were a substring of another, both would show checked. Fixed by passing lists instead of strings for `active_sail`, `active_engine_type`, `active_cockpit`, `active_entertainment`, `active_equipment`.

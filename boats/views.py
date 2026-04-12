@@ -2563,7 +2563,15 @@ def quick_create_offer(request, boat_slug):
             f'?checkIn={check_in}&checkOut={check_out}&currency=EUR'
         )
 
-        parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(boat_slug, 'ru_RU')
+        # Флаг обновления данных (с проверкой прав)
+        force_refresh = (
+            request.POST.get('force_refresh') == 'on'
+            and request.user.profile.can_use_force_refresh()
+        )
+
+        parsed_boat, parse_error = _ensure_boat_data_for_critical_flow(
+            boat_slug, 'ru_RU', force_refresh=force_refresh,
+        )
         if parse_error:
             logger.error(f"[Quick Offer] {parse_error} slug={boat_slug}")
             messages.error(request, parse_error)
@@ -2620,6 +2628,12 @@ def quick_create_offer(request, boat_slug):
         offer.branding_mode = requested_branding_mode
         offer.check_in = datetime.strptime(check_in, '%Y-%m-%d').date()
         offer.check_out = datetime.strptime(check_out, '%Y-%m-%d').date()
+
+        # Таймер обратного отсчёта (с проверкой прав)
+        if request.user.profile.can_use_countdown():
+            offer.show_countdown = request.POST.get('show_countdown') == 'on'
+        else:
+            offer.show_countdown = False
 
         # Конвертируем Decimal в float
         from decimal import Decimal
