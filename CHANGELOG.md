@@ -2,6 +2,15 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.13.1-dev] - 2026-04-13
+
+### 🐛 Fixed — Countdown timer missing in public offer view
+- **`boats/views.py`** (`offer_view`): Added countdown timer calculation (same logic as `offer_detail`). Previously `show_countdown` was passed as raw boolean but `countdown_end_iso` was missing — template condition `{% if show_countdown and countdown_end_iso %}` always failed, timer never rendered for clients viewing the public link.
+
+### 🐛 Fixed — OOM kill (SIGKILL) in Celery page-range tasks (v4)
+- **`boats/tasks.py`**: `PAGES_PER_RANGE: 5 → 3` — reduces memory footprint per task (3 pages × 5 languages instead of 5×5). Added `db.reset_queries()` + `db.close_old_connections()` + `gc.collect()` at end of both `process_api_page_range` and `process_html_batch` to clear Django query log and free ORM objects.
+- **`docker-compose.prod.yml`**: `--max-tasks-per-child: 100 → 20` — worker fork recycled 5× more frequently, preventing Python arena fragmentation from accumulating to OOM on 1 GB VPS.
+
 ## [0.13.0-dev] - 2026-04-12
 
 ### ✨ Added — Strip charter company name from boat descriptions

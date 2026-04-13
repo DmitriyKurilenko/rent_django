@@ -2533,6 +2533,21 @@ def offer_view(request, uuid):
     # Формируем полные URL для картинок
     full_images = [get_full_image_url(pic) for pic in pictures]
 
+    # Данные таймера
+    countdown_end_at = offer.expires_at
+    if offer.show_countdown and not countdown_end_at:
+        created_local = timezone.localtime(offer.created_at)
+        next_day = created_local.date() + timedelta(days=1)
+        countdown_end_at = timezone.make_aware(
+            datetime.combine(next_day, datetime.max.time().replace(microsecond=0))
+        )
+
+    show_countdown = bool(
+        offer.show_countdown
+        and countdown_end_at
+        and countdown_end_at > timezone.now()
+    )
+
     context = {
         'offer': offer,
         'boat_info': boat_info,
@@ -2544,7 +2559,8 @@ def offer_view(request, uuid):
         'original_price': offer.original_price,
         'discount': offer.discount,
         'currency': offer.currency,
-        'show_countdown': offer.show_countdown,
+        'show_countdown': show_countdown,
+        'countdown_end_iso': countdown_end_at.isoformat() if countdown_end_at else '',
         'notifications': offer.notifications,
         # Дополнительно для капитанского оффера
         'extras': extras,

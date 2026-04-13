@@ -1,8 +1,19 @@
 # TASK STATE
 
-Last updated: 2026-04-12 (Europe/Moscow)
+Last updated: 2026-04-13 (Europe/Moscow)
 
 ## Current priorities
+
+### P1.2: Countdown timer missing in public offer view
+- Status: **DONE (2026-04-13)**
+- `offer_view` (public link `/offer/<uuid>/`) passed `show_countdown` but not `countdown_end_iso` — timer never rendered.
+- Added same countdown calculation logic as `offer_detail`.
+- Files: `boats/views.py`.
+
+### P1.2b: OOM kill in Celery page-range tasks (v4)
+- Status: **DONE (2026-04-13)**
+- Worker SIGKILL at Job:30 on 1 GB VPS. Reduced `PAGES_PER_RANGE` 5→3, `--max-tasks-per-child` 100→20, added `db.reset_queries()` + `gc.collect()` cleanup.
+- Files: `boats/tasks.py`, `docker-compose.prod.yml`.
 
 ### P1.1: Strip charter company name from boat descriptions
 - Status: **DONE (2026-04-12)**

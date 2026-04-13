@@ -706,6 +706,12 @@ def process_api_page_range(self, job_id_hex, destination, start_page, end_page):
         del page_api_meta, page_api_meta_by_lang, boats_by_lang, results
         gc.collect()
 
+    # Clear Django's internal query log and close stale DB connections
+    from django import db
+    db.reset_queries()
+    db.close_old_connections()
+    gc.collect()
+
     # Increment batches_done
     try:
         ParseJob.objects.filter(job_id=job_id_hex).update(
@@ -777,6 +783,14 @@ def process_html_batch(self, job_id_hex, batch_slugs, thumb_map_subset):
         f'HTML batch OK: {batch_success}/{len(batch_slugs)} '
         f'(failed: {batch_failed})'
     )
+
+    # Free memory: clear query log and close stale connections
+    import gc
+    from django import db
+    db.reset_queries()
+    db.close_old_connections()
+    gc.collect()
+
     return {
         'status': 'ok',
         'success': batch_success,
@@ -894,7 +908,7 @@ def run_parse_job(self, job_id_hex, no_cache=False):
     from boats.models import ParseJob, ParsedBoat
     from django.utils import timezone
 
-    PAGES_PER_RANGE = 5
+    PAGES_PER_RANGE = 3
 
     job_id_hex = str(job_id_hex)
 

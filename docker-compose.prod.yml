@@ -87,7 +87,7 @@ services:
   celery_worker:
     image: rent_django-web
     restart: always
-    command: celery -A boat_rental worker -l info --concurrency=1 --max-tasks-per-child=100
+    command: celery -A boat_rental worker -l info --concurrency=1 --max-tasks-per-child=20
     healthcheck:
       disable: true
     volumes:

@@ -20,6 +20,7 @@ Last updated: 2026-04-12 (Europe/Moscow)
 - Root cause (v2): ORM operations in a single long-running task fragment Python's memory arena. RSS grows unboundedly over 155+ pages.
 - Fix (v2): Disposable Celery tasks architecture. Orchestrator only collects slugs (EN-only, ~11 MB). All heavy work in short-lived `process_api_page_range` tasks. Worker recycled by `--max-tasks-per-child=100`.
 - Fix (v3, 2026-04-09): `PAGES_PER_RANGE: 20 → 5` (v2 still OOM at Job:16). Fixed `totalPages` inflation in `boataround_api.py`. See DR-034.
+- Fix (v4, 2026-04-13): `PAGES_PER_RANGE: 5 → 3`, `--max-tasks-per-child: 100 → 20`, added `db.reset_queries()` + `db.close_old_connections()` + `gc.collect()` after each task. v3 still OOM at Job:30 with 5 languages per page.
 
 ## KI-001: Upstream price jitter for identical requests
 - Severity: medium (PARTIALLY RESOLVED 2026-04-02)

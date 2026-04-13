@@ -2,6 +2,26 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-13 — Countdown timer missing in public offer view
+- Bug: `offer_view` (`/offer/<uuid>/`) passed `show_countdown: offer.show_countdown` (raw bool) but did NOT pass `countdown_end_iso`. Template `offer_captain.html` checks `{% if show_countdown and countdown_end_iso %}` — without the ISO date, timer block never rendered.
+- `offer_detail` (`/offers/<uuid>/`) had full countdown logic (expires_at → fallback created_at+1day → ISO string). `offer_view` lacked it.
+- Fix: copied countdown calculation logic from `offer_detail` into `offer_view` (15 lines). Now `show_countdown` is computed bool (respects expiry) and `countdown_end_iso` is passed.
+- Validation: `manage.py check` — 0 issues.
+- Files: `boats/views.py`
+- Risk: None. Same logic already battle-tested in `offer_detail`.
+
+## 2026-04-13 — OOM kill in Celery page-range tasks (v4)
+- Symptom: `WorkerLostError: Worker exited prematurely: signal 9 (SIGKILL) Job: 30` during `process_api_page_range` chord. `ForkPoolWorker-113` (113th recycled fork, 30 tasks into current fork).
+- Diagnosis: 1 GB VPS, postgres+redis(256MB)+web+celery = ~800MB base. Worker fork gets ~200MB. Each `process_api_page_range` (5 pages × 5 languages = 25 API calls + ORM writes) leaks ~5-7MB via Python arena fragmentation + Django query log. After 30 tasks → ~200MB exhausted → OOM.
+- Fix:
+  1. `PAGES_PER_RANGE: 5 → 3` — less data per task
+  2. `--max-tasks-per-child: 100 → 20` (prod only) — fork recycled 5× more often
+  3. `db.reset_queries()` + `db.close_old_connections()` + `gc.collect()` after each task (both `process_api_page_range` and `process_html_batch`)
+- Trade-off: more tasks dispatched (497 vs 297 for 1486 pages), but each lives shorter. Net throughput stays similar because recycle overhead is small.
+- Validation: `manage.py check` — 0 issues.
+- Files: `boats/tasks.py`, `docker-compose.prod.yml`
+- Risk: More chord tasks may slightly increase Redis memory for result tracking.
+
 ## 2026-04-12 — Strip charter company name from boat descriptions
 - Problem: Every boat description from boataround.com ends with a sentence naming the charter company (e.g., "This motor yacht is operated by the charter company X."). This appears on the detail page across all 5 languages.
 - Approach: Presentation-layer filter — database data is NOT modified. Template filter `strip_charter_company` in `boats/templatetags/boat_filters.py` detects and removes the charter sentence using 17 regex patterns (per language × per boat type).
