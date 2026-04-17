@@ -110,10 +110,6 @@ def download_and_save_image(image_path: str) -> Optional[str]:
         boat_id = parts[1]
         filename = parts[-1]
 
-        # Создаем локальный путь
-        local_path = Path(MEDIA_ROOT) / image_path
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-
         # ⭐ ГЛАВНОЕ: CDN URL
         cdn_url = f"https://cdn2.prvms.ru/yachts/{boat_id}/{filename}"
         s3_key = f"{boat_id}/{filename}"
@@ -123,12 +119,20 @@ def download_and_save_image(image_path: str) -> Optional[str]:
             logger.info(f"Изображение уже в S3: {s3_key} - используем CDN URL")
             return cdn_url
 
+        # Создаем локальный путь только когда нужно скачивать
+        local_path = Path(MEDIA_ROOT) / image_path
+
         # Если файл уже существует локально — требуем успешную загрузку в S3.
         if local_path.exists():
             logger.info(f"Изображение уже существует локально: {image_path}")
             try:
                 uploaded = upload_file_to_s3(local_path, s3_key, skip_existing=True)
                 if uploaded or check_s3_exists(s3_key):
+                    # Удаляем локальный файл после успешной загрузки
+                    try:
+                        local_path.unlink()
+                    except OSError:
+                        pass
                     return cdn_url
             except Exception as e:
                 logger.error(f"Ошибка загрузки локального файла в S3: {e}")
@@ -139,6 +143,9 @@ def download_and_save_image(image_path: str) -> Optional[str]:
         logger.info(f"Скачивание изображения: {source_url}")
         response = requests.get(source_url, timeout=30, stream=True)
         response.raise_for_status()
+
+        # Создаём директорию только перед скачиванием
+        local_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Сохраняем
         with open(local_path, 'wb') as f:
@@ -153,6 +160,11 @@ def download_and_save_image(image_path: str) -> Optional[str]:
             uploaded = upload_file_to_s3(local_path, s3_key, skip_existing=True)
             if uploaded or check_s3_exists(s3_key):
                 logger.info(f"Изображение загружено в S3: {s3_key}")
+                # Удаляем локальный файл — он уже в S3
+                try:
+                    local_path.unlink()
+                except OSError:
+                    pass
                 return cdn_url
         except Exception as e:
             logger.error(f"Ошибка при загрузке в S3: {e}")
@@ -1199,7 +1211,11 @@ def _build_fallback_boat_id(slug: str) -> str:
 # ОСНОВНЫЕ ФУНКЦИИ
 # =============================================================================
 
-def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
+def parse_boataround_url(
+    url: str,
+    save_to_db: bool = True,
+    html_mode: str = 'services_only',
+) -> Optional[dict]:
     """
     Парсит URL с boataround.com и возвращает данные о лодке.
     Главная функция для Django.
@@ -1207,11 +1223,24 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     Args:
         url: URL с boataround.com
         save_to_db: Сохранить в ParsedBoat
+        html_mode:
+            - 'services_only': из HTML сохраняем только фото + 4 сервисных списка
+            - 'all_html': сохраняем все доступные HTML-данные (legacy full HTML mode)
 
     Returns:
         dict: Полные данные о лодке
     """
     from urllib.parse import urlparse, parse_qs
+
+    # Нормализуем режим HTML-парсинга.
+    # По умолчанию используем services_only, чтобы не смешивать source-of-truth.
+    if html_mode not in ('services_only', 'all_html'):
+        logger.warning(f"[parser] Unknown html_mode={html_mode}, fallback to services_only")
+        html_mode = 'services_only'
+
+    save_html_descriptions = html_mode == 'all_html'
+    # Amenities (cockpit/entertainment/equipment) — HTML-owned.
+    # Сохраняются в обоих режимах (services_only и all_html).
 
     # ⭐ ГЛАВНОЕ: Добавляем параметр currency=EUR чтобы получить цены в евро
     url = add_currency_param(url, 'EUR')
@@ -1250,7 +1279,8 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
     SUPPORTED_LANGUAGES = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR', 'es_ES']
     all_lang_data = _fetch_all_languages_data(slug, SUPPORTED_LANGUAGES)
 
-    # Оборудование русской версии для основного результата
+    # Оборудование из HTML — source-of-truth для cockpit/entertainment/equipment.
+    # Сохраняется в обоих режимах (services_only и all_html).
     ru_amenities = all_lang_data.get('ru_RU', {}).get('amenities', {})
     cockpit = ru_amenities.get('cockpit', [])
     entertainment = ru_amenities.get('entertainment', [])
@@ -1301,10 +1331,10 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
         'delivery_extras': delivery_extras,         # Услуги доставки
         'not_included': not_included,               # Что не включено в стоимость
 
-        # Оборудование (основной язык - русский)
-        'cockpit': cockpit,                         # Оборудование кокпита
-        'entertainment': entertainment,             # Развлечения
-        'equipment': equipment,                     # Оборудование
+        # Оборудование (только для html_mode=all_html)
+        'cockpit': cockpit,
+        'entertainment': entertainment,
+        'equipment': equipment,
 
     }
     # Краткое структурированное логирование результата парсинга
@@ -1317,7 +1347,8 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
         f"[parser-summary] title='{boat_info.get('title', '')}', boat_id={boat_id}, "
         f"price={price_val}, images={len(downloaded_pics)}, extras={len(extras)}, "
         f"adds={len(additional_services)}, delivery={len(delivery_extras)}, not_included={len(not_included)}, "
-        f"cockpit={len(cockpit)}, entertainment={len(entertainment)}, equipment={len(equipment)}"
+        f"cockpit={len(cockpit)}, entertainment={len(entertainment)}, equipment={len(equipment)}, "
+        f"html_mode={html_mode}"
     )
 
     # Сохраняем в базу
@@ -1392,76 +1423,106 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
                     order=idx
                 )
 
-            # Из HTML сохраняем сервисные списки + amenities (BoatDetails)
-            # + локализованные описания (BoatDescription) — title/country/marina/location
+            # Из HTML сохраняем:
+            # - всегда: фото + 4 сервисных списка
+            # - только для all_html: amenities + локализованные описания
             for language in SUPPORTED_LANGUAGES:
-                lang_equipment = all_lang_data.get(language, {}).get('amenities', {})
-                lang_services = all_lang_data.get(language, {}).get('services', {})
+                lang_data = all_lang_data.get(language, {})
+                lang_equipment = lang_data.get('amenities', {})
+                lang_services = lang_data.get('services', {})
                 lang_desc = all_lang_data.get(language, {}).get('descriptions', {})
+                lang_fetch_ok = bool(lang_data.get('_fetch_ok'))
+
+                service_extras = lang_services.get('extras', [])
+                service_additional = lang_services.get('additional_services', [])
+                service_delivery = lang_services.get('delivery_extras', [])
+                service_not_included = lang_services.get('not_included', [])
+
+                # Если языковая страница не загрузилась или сервисные списки пустые,
+                # используем базовые списки из уже загруженной основной HTML-страницы.
+                services_empty = not (
+                    service_extras or service_additional or service_delivery or service_not_included
+                )
+                has_base_services = bool(
+                    extras or additional_services or delivery_extras or not_included
+                )
+                if (not lang_fetch_ok or services_empty) and has_base_services:
+                    service_extras = extras
+                    service_additional = additional_services
+                    service_delivery = delivery_extras
+                    service_not_included = not_included
+
+                details_defaults = {
+                    # Локализованные услуги для каждого языка.
+                    'extras': service_extras,
+                    'additional_services': service_additional,
+                    'delivery_extras': service_delivery,
+                    'not_included': service_not_included,
+                    # Amenities — HTML-owned, сохраняются всегда.
+                    'cockpit': lang_equipment.get('cockpit', []),
+                    'entertainment': lang_equipment.get('entertainment', []),
+                    'equipment': lang_equipment.get('equipment', []),
+                }
 
                 BoatDetails.objects.update_or_create(
                     boat=parsed_boat,
                     language=language,
-                    defaults={
-                        # Локализованные услуги для каждого языка
-                        'extras': lang_services.get('extras', []),
-                        'additional_services': lang_services.get('additional_services', []),
-                        'delivery_extras': lang_services.get('delivery_extras', []),
-                        'not_included': lang_services.get('not_included', []),
-                        # Локализованное оборудование (по лодке) берём из HTML amenities
-                        'cockpit': lang_equipment.get('cockpit', []),
-                        'entertainment': lang_equipment.get('entertainment', []),
-                        'equipment': lang_equipment.get('equipment', []),
-                    }
+                    defaults=details_defaults,
                 )
 
-                # Сохраняем локализованные текстовые поля из HTML в BoatDescription.
-                # HTML-страница каждого языка содержит country/marina/location на нужном языке.
-                desc_update = {}
-                if lang_desc.get('title'):
-                    desc_update['title'] = lang_desc['title']
-                if lang_desc.get('country'):
-                    desc_update['country'] = lang_desc['country']
-                if lang_desc.get('marina'):
-                    desc_update['marina'] = lang_desc['marina']
-                if lang_desc.get('location'):
-                    desc_update['location'] = lang_desc['location']
-                if lang_desc.get('description'):
-                    desc_update['description'] = lang_desc['description']
+                if save_html_descriptions:
+                    # Локализованные текстовые поля из HTML в BoatDescription (только all_html).
+                    desc_update = {}
+                    if lang_desc.get('title'):
+                        desc_update['title'] = lang_desc['title']
+                    if lang_desc.get('country'):
+                        desc_update['country'] = lang_desc['country']
+                    if lang_desc.get('marina'):
+                        desc_update['marina'] = lang_desc['marina']
+                    if lang_desc.get('location'):
+                        desc_update['location'] = lang_desc['location']
+                    if lang_desc.get('description'):
+                        desc_update['description'] = lang_desc['description']
 
-                if desc_update:
-                    boat_title = desc_update.get('title') or boat_info.get('title', '') or parsed_boat.slug
-                    BoatDescription.objects.update_or_create(
-                        boat=parsed_boat,
-                        language=language,
-                        defaults={
-                            'title': boat_title,
-                            'description': desc_update.get('description', ''),
-                            'country': desc_update.get('country', ''),
-                            'marina': desc_update.get('marina', ''),
-                            'location': desc_update.get('location', ''),
-                        }
-                    )
-                    logger.info(
-                        f"[parser] ✅ BoatDescription обновлён для {language}: "
-                        f"country='{desc_update.get('country', '')}', "
-                        f"marina='{desc_update.get('marina', '')}'"
-                    )
+                    if desc_update:
+                        boat_title = desc_update.get('title') or boat_info.get('title', '') or parsed_boat.slug
+                        BoatDescription.objects.update_or_create(
+                            boat=parsed_boat,
+                            language=language,
+                            defaults={
+                                'title': boat_title,
+                                'description': desc_update.get('description', ''),
+                                'country': desc_update.get('country', ''),
+                                'marina': desc_update.get('marina', ''),
+                                'location': desc_update.get('location', ''),
+                            }
+                        )
+                        logger.info(
+                            f"[parser] ✅ BoatDescription обновлён для {language}: "
+                            f"country='{desc_update.get('country', '')}', "
+                            f"marina='{desc_update.get('marina', '')}'"
+                        )
                 logger.info(
                     f"[parser] ✅ BoatDetails services сохранены для {language}: "
-                    f"extras={len(lang_services.get('extras', []))}, "
-                    f"adds={len(lang_services.get('additional_services', []))}, "
-                    f"delivery={len(lang_services.get('delivery_extras', []))}, "
-                    f"not_included={len(lang_services.get('not_included', []))}, "
+                    f"extras={len(service_extras)}, "
+                    f"adds={len(service_additional)}, "
+                    f"delivery={len(service_delivery)}, "
+                    f"not_included={len(service_not_included)}, "
                     f"cockpit={len(lang_equipment.get('cockpit', []))}, "
                     f"entertainment={len(lang_equipment.get('entertainment', []))}, "
-                    f"equipment={len(lang_equipment.get('equipment', []))}"
+                    f"equipment={len(lang_equipment.get('equipment', []))}, "
+                    f"html_mode={html_mode}"
                 )
 
-            # Увеличиваем счетчик парсингов
+            # Увеличиваем счетчик парсингов и обновляем last_parsed
+            from django.utils import timezone
+            parsed_boat.last_parsed = timezone.now()
+            parsed_boat.last_parse_success = True
             if not created:
                 parsed_boat.parse_count += 1
-                parsed_boat.save(update_fields=['parse_count'])
+                parsed_boat.save(update_fields=['parse_count', 'last_parsed', 'last_parse_success'])
+            else:
+                parsed_boat.save(update_fields=['last_parsed', 'last_parse_success'])
 
             action = "создан" if created else "обновлен"
             logger.info(f"ParsedBoat {action}: {slug} (ID: {effective_boat_id})")
@@ -1469,6 +1530,13 @@ def parse_boataround_url(url: str, save_to_db: bool = True) -> Optional[dict]:
         except Exception as e:
             import traceback
             logger.error(f"Ошибка сохранения в ParsedBoat: {e}\n{traceback.format_exc()}")
+            # Отмечаем неуспешный парсинг, если ParsedBoat уже существует
+            if parsed_boat and parsed_boat.pk:
+                try:
+                    parsed_boat.last_parse_success = False
+                    parsed_boat.save(update_fields=['last_parse_success'])
+                except Exception:
+                    pass
 
     return result
 

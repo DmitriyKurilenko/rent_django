@@ -825,9 +825,13 @@ def _ensure_boat_data_for_critical_flow(boat_slug, lang_code='ru_RU', force_refr
         )
         _ensure_api_metadata_for_boat(parsed_boat, raw_boat)
 
-    # --- Фаза 2: HTML parsing (gallery, services, amenities, geo) ---
+    # --- Фаза 2: HTML parsing (только фото + сервисные списки) ---
     boat_url = f'https://www.boataround.com/ru/yachta/{boat_slug}/'
-    parsed_result = parse_boataround_url(boat_url, save_to_db=True)
+    parsed_result = parse_boataround_url(
+        boat_url,
+        save_to_db=True,
+        html_mode='services_only',
+    )
     if not parsed_result:
         return None, (
             f"Критическая ошибка данных лодки {boat_slug}: "

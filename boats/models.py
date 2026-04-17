@@ -1347,9 +1347,9 @@ class ParseJob(models.Model):
     """Задание на парсинг лодок. Хранит параметры запуска и отчёт о выполнении."""
 
     MODE_CHOICES = [
-        ('api', 'Только API-метаданные'),
-        ('html', 'Только HTML-парсинг'),
-        ('full', 'Полный (API + HTML)'),
+        ('api', 'API source-of-truth'),
+        ('html', 'HTML: фото + сервисы'),
+        ('full', 'HTML: полный профиль'),
     ]
 
     STATUS_CHOICES = [

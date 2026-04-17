@@ -60,7 +60,7 @@ services:
 
   celery_worker:
     build: .
-    command: celery -A boat_rental worker -l info --concurrency=2
+    command: celery -A boat_rental worker -l info --concurrency=${CELERY_CONCURRENCY:-2}
     volumes:
       - .:/app
       - media_volume:/app/mediafiles

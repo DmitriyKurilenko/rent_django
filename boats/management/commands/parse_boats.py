@@ -2,23 +2,47 @@
 Management command для парсинга лодок через Celery.
 
 Три режима:
-    --mode api    — только API-метаданные (country, region, charter, specs)
-    --mode html   — только HTML-парсинг (фото, extras, описания, amenities)
-    --mode full   — оба (сначала API, потом HTML)
+    --mode api    — API source-of-truth (все API-данные; HTML поля не трогаются)
+    --mode html   — только HTML: фото + extras/additional_services/delivery_extras/not_included
+                    + cockpit/entertainment/equipment (amenities — HTML-owned)
+    --mode full   — полностью HTML (legacy full HTML profile)
 
-Выполнение — батчами через Celery, не блокирует сервер.
-Отчёт сохраняется в модели ParseJob: краткий + подробный лог.
+Без --workers — батчами через Celery chord (не блокирует, проверять через --status).
+С --workers N — быстрый Celery task с N параллельными потоками, live-прогресс.
 
 Примеры:
-    python manage.py parse_boats --mode api
+    # Базовый HTML-парсинг 8 потоками
+    python manage.py parse_boats --mode html --workers 8
+
+    # Конкретное направление
+    python manage.py parse_boats --mode html --workers 8 --destination turkey
+
+    # Пропустить лодки, пропарсенные менее 24ч назад (default)
+    python manage.py parse_boats --mode html --workers 8 --skip-fresh
+
+    # Пропустить лодки, пропарсенные менее 12ч назад
+    python manage.py parse_boats --mode html --workers 8 --skip-fresh 12
+
+    # API-парсинг
+    python manage.py parse_boats --mode api --workers 4
+
+    # Повтор ошибок из последнего задания
+    python manage.py parse_boats --retry-errors --mode html --workers 8
+
+    # Батчевый режим (без live-прогресса)
     python manage.py parse_boats --mode html --destination turkey --batch-size 30
+
+    # Ограничение страниц (тест)
     python manage.py parse_boats --mode full --max-pages 10
-    python manage.py parse_boats --mode api --destination croatia --skip-existing
-    python manage.py parse_boats --status                         # Показать статусы
-    python manage.py parse_boats --status <job_id>                # Детали по заданию
+
+    # Статусы заданий
+    python manage.py parse_boats --status
+    python manage.py parse_boats --status <job_id>
 """
 
 import logging
+import sys
+import time
 
 from django.core.management.base import BaseCommand
 
@@ -27,8 +51,9 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = (
-        'Запуск парсинга лодок через Celery батчами. '
-        'Режимы: api (метаданные), html (полный парсинг), full (оба).'
+        'Парсинг лодок через Celery. '
+        '--workers N для быстрого параллельного режима. '
+        'Режимы: api, html, full.'
     )
 
     def add_arguments(self, parser):
@@ -37,7 +62,7 @@ class Command(BaseCommand):
             type=str,
             choices=['api', 'html', 'full'],
             default='full',
-            help='Режим: api | html | full (default: full)',
+            help='Режим: api (API), html (HTML: фото+сервисы), full (всё из HTML)',
         )
         parser.add_argument(
             '--destination',
@@ -60,12 +85,32 @@ class Command(BaseCommand):
         parser.add_argument(
             '--skip-existing',
             action='store_true',
-            help='Пропускать лодки, уже существующие в БД (только для mode=html)',
+            help='Пропускать лодки, уже существующие в БД (для mode=html/full)',
+        )
+        parser.add_argument(
+            '--skip-fresh',
+            type=int,
+            nargs='?',
+            const=24,
+            default=None,
+            metavar='HOURS',
+            help='Пропускать лодки, пропарсенные менее N часов назад (default: 24ч).',
         )
         parser.add_argument(
             '--no-cache',
             action='store_true',
             help='Сбросить кэш slug\'ов и собрать заново.',
+        )
+        parser.add_argument(
+            '--workers',
+            type=int,
+            default=None,
+            help='Быстрый режим: число параллельных потоков в Celery task.',
+        )
+        parser.add_argument(
+            '--retry-errors',
+            action='store_true',
+            help='Повторить ошибочные slug\'ы из последнего задания (требует --workers).',
         )
         parser.add_argument(
             '--status',
@@ -80,10 +125,23 @@ class Command(BaseCommand):
         if options['status'] is not None:
             return self._show_status(options['status'])
 
+        if options.get('retry_errors') and not options.get('workers'):
+            self.stdout.write(self.style.ERROR(
+                '--retry-errors требует --workers N'
+            ))
+            return
+
+        if options.get('workers'):
+            return self._dispatch_workers_job(options)
+
         return self._dispatch_job(options)
 
+    # ------------------------------------------------------------------
+    # CELERY CHORD DISPATCH (standard batch mode)
+    # ------------------------------------------------------------------
+
     def _dispatch_job(self, options):
-        """Создаёт ParseJob и отправляет в Celery."""
+        """Создаёт ParseJob и отправляет batch'и в Celery chord."""
         from boats.models import ParseJob
         from boats.tasks import run_parse_job
 
@@ -93,17 +151,15 @@ class Command(BaseCommand):
         batch_size = options['batch_size']
         skip_existing = options['skip_existing']
 
-        # Проверка: skip-existing имеет смысл только для html/full
         if skip_existing and mode == 'api':
             self.stdout.write(self.style.WARNING(
                 '--skip-existing игнорируется для mode=api (API всегда обновляет)'
             ))
             skip_existing = False
 
-        # Проверяем доступность Celery
         if not self._check_celery():
             self.stdout.write(self.style.ERROR(
-                'Celery worker не обнаружен. Запустите worker перед использованием.'
+                'Celery worker не обнаружен. Запустите worker.'
             ))
             return
 
@@ -115,7 +171,6 @@ class Command(BaseCommand):
             skip_existing=skip_existing,
         )
 
-        # Запускаем оркестратор
         no_cache = options.get('no_cache', False)
         task = run_parse_job.delay(str(job.job_id), no_cache=no_cache)
         job.celery_task_id = task.id
@@ -137,6 +192,187 @@ class Command(BaseCommand):
         self.stdout.write(f'  python manage.py parse_boats --status {job.job_id}')
         self.stdout.write(self.style.SUCCESS('═' * 60))
 
+    # ------------------------------------------------------------------
+    # FAST PARALLEL DISPATCH (--workers N)
+    # ------------------------------------------------------------------
+
+    def _dispatch_workers_job(self, options):
+        """Быстрый режим: один Celery task с ThreadPoolExecutor внутри."""
+        from boats.models import ParseJob
+        from boats.tasks import run_parse_workers
+
+        mode = options['mode']
+        workers = options['workers']
+        destination = options['destination']
+        retry_errors = options.get('retry_errors', False)
+        skip_existing = options['skip_existing']
+
+        if skip_existing and mode == 'api':
+            self.stdout.write(self.style.WARNING(
+                '--skip-existing игнорируется для mode=api'
+            ))
+            skip_existing = False
+
+        if not self._check_celery():
+            self.stdout.write(self.style.ERROR(
+                'Celery worker не обнаружен. Запустите worker.'
+            ))
+            return
+
+        # --retry-errors: slug'и из последнего задания с ошибками
+        retry_slugs = None
+        if retry_errors:
+            last_job = ParseJob.objects.filter(
+                mode=mode,
+                status__in=['partial', 'failed', 'completed'],
+            ).exclude(errors=[]).order_by('-created_at').first()
+
+            if not last_job or not last_job.errors:
+                self.stdout.write(self.style.ERROR(
+                    f'Нет завершённых заданий с ошибками для mode={mode}'
+                ))
+                return
+
+            retry_slugs = [
+                err['slug'] for err in last_job.errors
+                if isinstance(err, dict) and err.get('slug')
+            ]
+            if not retry_slugs:
+                self.stdout.write(self.style.ERROR('Ошибочные slug\'ы не найдены'))
+                return
+
+        job = ParseJob.objects.create(
+            mode=mode,
+            destination=destination,
+            max_pages=options.get('max_pages'),
+            batch_size=options.get('batch_size', 50),
+            skip_existing=skip_existing,
+        )
+
+        task = run_parse_workers.delay(
+            str(job.job_id),
+            workers=workers,
+            retry_slugs=retry_slugs,
+            no_cache=options.get('no_cache', False),
+            skip_fresh_hours=options.get('skip_fresh'),
+        )
+        job.celery_task_id = task.id
+        job.save(update_fields=['celery_task_id'])
+
+        self.stdout.write('')
+        self.stdout.write(self.style.SUCCESS('═' * 60))
+        self.stdout.write(self.style.SUCCESS('  PARSE BOATS — быстрый режим'))
+        self.stdout.write(self.style.SUCCESS('═' * 60))
+        self.stdout.write(f'  Job ID:       {job.job_id}')
+        self.stdout.write(f'  Режим:        {job.get_mode_display()}')
+        self.stdout.write(f'  Workers:      {workers}')
+        self.stdout.write(f'  Направление:  {destination or "все"}')
+        if retry_errors:
+            self.stdout.write(f'  Retry:        {len(retry_slugs)} slug\'ов')
+        self.stdout.write(f'  Skip exist:   {skip_existing}')
+        if options.get('skip_fresh'):
+            self.stdout.write(f'  Skip fresh:   < {options["skip_fresh"]}ч')
+        self.stdout.write(self.style.SUCCESS('═' * 60))
+        self.stdout.write('')
+
+        # Live-прогресс (Ctrl+C не убивает задание)
+        self._poll_progress(job)
+
+    def _poll_progress(self, job):
+        """Опрашивает ParseJob и рисует live-прогресс."""
+        is_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+
+        try:
+            while True:
+                time.sleep(2)
+                job.refresh_from_db()
+
+                if job.status in ('completed', 'failed', 'partial', 'cancelled'):
+                    break
+
+                total = job.total_slugs or 0
+                done = job.processed or 0
+
+                if total == 0:
+                    status_text = (
+                        'сбор slug\'ов' if job.status == 'collecting'
+                        else job.status
+                    )
+                    line = f'\r  ⏳ {status_text}...'
+                else:
+                    pct = done * 100 // total if total else 0
+                    bar_len = 30
+                    filled = bar_len * done // total if total else 0
+                    bar = '█' * filled + '░' * (bar_len - filled)
+                    line = (
+                        f'\r  [{bar}] {pct}% '
+                        f'({done}/{total}) '
+                        f'ok={job.success} '
+                        f'err={job.failed}'
+                    )
+
+                if is_tty:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+
+        except KeyboardInterrupt:
+            if is_tty:
+                sys.stdout.write('\n')
+            self.stdout.write(self.style.WARNING(
+                '  Ctrl+C — задание продолжает работать в Celery.'
+            ))
+            self.stdout.write(
+                f'  Проверить: python manage.py parse_boats --status {job.job_id}'
+            )
+            return
+
+        if is_tty:
+            sys.stdout.write('\n')
+            sys.stdout.flush()
+
+        # Итоговый отчёт
+        job.refresh_from_db()
+        self.stdout.write('')
+        self.stdout.write(self.style.SUCCESS('═' * 60))
+        self.stdout.write(self.style.SUCCESS('  ИТОГО'))
+        self.stdout.write(self.style.SUCCESS('═' * 60))
+        self.stdout.write(f'  Статус:       {job.get_status_display()}')
+        self.stdout.write(f'  Обработано:   {job.processed}/{job.total_slugs}')
+        self.stdout.write(f'  Успешно:      {job.success}')
+        self.stdout.write(f'  Ошибки:       {job.failed}')
+
+        if job.duration_seconds:
+            d = job.duration_seconds
+            rate = job.processed / d if d > 0 else 0
+            self.stdout.write(f'  Время:        {int(d)}с ({d / 60:.1f} мин)')
+            self.stdout.write(f'  Скорость:     {rate:.2f}/с')
+
+        errors = job.errors if isinstance(job.errors, list) else []
+        if errors:
+            shown = errors[:20]
+            self.stdout.write('')
+            self.stdout.write(
+                f'  --- Ошибки (первые {len(shown)} из {len(errors)}) ---'
+            )
+            for err in shown:
+                if isinstance(err, dict):
+                    self.stdout.write(
+                        f'  ❌ {err.get("slug", "?")}: {err.get("error", "?")[:80]}'
+                    )
+
+        self.stdout.write(self.style.SUCCESS('═' * 60))
+
+        if errors:
+            self.stdout.write(
+                f'\n  Повтор ошибок:\n'
+                f'  python manage.py parse_boats --retry-errors'
+                f' --mode {job.mode} --workers N'
+            )
+
+    # ------------------------------------------------------------------
+    # STATUS
+    # ------------------------------------------------------------------
+
     def _show_status(self, job_id_or_list):
         """Показывает статус заданий парсинга."""
         from boats.models import ParseJob
@@ -144,14 +380,12 @@ class Command(BaseCommand):
         if job_id_or_list == '__list__':
             return self._show_status_list()
 
-        # Показ конкретного задания
         try:
             job = ParseJob.objects.get(job_id=job_id_or_list)
         except ParseJob.DoesNotExist:
             self.stdout.write(self.style.ERROR(f'Задание {job_id_or_list} не найдено'))
             return
         except Exception:
-            # Попробуем по частичному ID
             jobs = ParseJob.objects.filter(job_id__startswith=job_id_or_list)
             if jobs.count() == 1:
                 job = jobs.first()
@@ -173,7 +407,6 @@ class Command(BaseCommand):
         self.stdout.write(f'  Режим:        {job.get_mode_display()}')
         self.stdout.write(f'  Направление:  {job.destination or "все"}')
 
-        # Цвет статуса
         status_str = job.get_status_display()
         if job.status == 'completed':
             self.stdout.write(f'  Статус:       {self.style.SUCCESS(status_str)}')

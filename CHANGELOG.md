@@ -2,6 +2,29 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.14.0-dev] - 2026-04-17
+
+### ✨ Added — Fast Celery workers mode for catalog parsing
+- **`boats/management/commands/parse_boats.py`**: added `--workers N` mode (single Celery task with internal parallel workers) and live progress polling in command output.
+- **`boats/management/commands/parse_boats.py`** + **`boats/tasks.py`**: `--retry-errors` now reads failed slug list from `ParseJob.errors` (DB), no file-based retry source.
+- **`boats/management/commands/parse_boats.py`** + **`boats/tasks.py`**: added `--skip-fresh [HOURS]` (default 24h when value omitted) to skip recently successful parses via `last_parsed` + `last_parse_success`.
+
+### 🐛 Fixed — Parsing freshness and ParseJob completion metadata
+- **`boats/parser.py`**: HTML save flow now updates `ParsedBoat.last_parsed` and `last_parse_success` (success and failure paths).
+- **`boats/tasks.py`**: `finalize_parse_job` no longer loses `finished_at` after `refresh_from_db()`.
+
+### 🔧 Changed — Parse mode boundaries and deprecated amenities refresh flow
+- **`boats/parser.py`**, **`boats/tasks.py`**, **`boats/views.py`**, **`boats/helpers.py`**, **`boats/boataround_api.py`**, **`boats/management/commands/parse_all_boats.py`**, **`boats/management/commands/parse_boats_parallel.py`**: explicit `html_mode` routing is used across entry points; `services_only` is the default profile for critical flows.
+- **`boats/management/commands/refresh_amenities.py`** and related Celery tasks in **`boats/tasks.py`** are now deprecated and return guidance to use `parse_boats --mode api|html|full`.
+- **`boats/migrations/0035_alter_parsejob_mode.py`**: updated ParseJob mode labels to reflect source-of-truth semantics.
+- **`docker-compose.yml`**: Celery worker concurrency is now configurable via `CELERY_CONCURRENCY`.
+- **`.dockerignore`**: expanded build-context excludes (`media`, `mediafiles`, `.parse_cache`, `db.sqlite3`, backups/celery artifacts).
+
+### 🧪 Tests
+- Added **`boats/tests/test_parse_boats_api_mode.py`** (API mode behavior + cache invalidation checks).
+- Extended **`boats/tests/test_parser_persistence.py`** with `services_only` / `all_html` persistence coverage.
+- Updated **`boats/tests/test_refresh_amenities_tasks.py`** for deprecated-task semantics (`skipped` behavior).
+
 ## [0.13.1-dev] - 2026-04-13
 
 ### 🐛 Fixed — Countdown timer missing in public offer view

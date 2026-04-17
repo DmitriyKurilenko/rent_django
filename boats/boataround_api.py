@@ -799,8 +799,8 @@ class BoataroundAPI:
 
     def get_boat_detail(boat_id_or_slug: str) -> Dict:
         """
-        Получение полной детальной информации о лодке.
-        Использует парсер для получения фото, услуг и дополнительной информации.
+        Получение детальной информации о лодке.
+        Для HTML используем services_only профиль (фото + 4 сервисных списка).
 
         Args:
             boat_id_or_slug: ID или slug лодки
@@ -811,12 +811,16 @@ class BoataroundAPI:
         try:
             logger.info(f"[Boat Detail] Looking up boat: {boat_id_or_slug}")
 
-            # Используем парсер для получения полных данных
+            # Используем HTML parser только для фото + сервисных списков.
             boat_url = f"https://www.boataround.com/ru/yachta/{boat_id_or_slug}/"
             logger.info(f"[Boat Detail] Parser URL: {boat_url}")
 
             from boats.parser import parse_boataround_url
-            parsed_data = parse_boataround_url(boat_url, save_to_db=True)
+            parsed_data = parse_boataround_url(
+                boat_url,
+                save_to_db=True,
+                html_mode='services_only',
+            )
 
             if parsed_data:
                 logger.info(f"[Boat Detail] Successfully parsed boat: {parsed_data.get('slug')}")

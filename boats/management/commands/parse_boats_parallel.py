@@ -223,7 +223,11 @@ class Command(BaseCommand):
         def parse_one(slug):
             try:
                 url = f'https://www.boataround.com/ru/yachta/{slug}/'
-                result = parse_boataround_url(url, save_to_db=True)
+                result = parse_boataround_url(
+                    url,
+                    save_to_db=True,
+                    html_mode='services_only',
+                )
                 if result:
                     # Загружаем превью из thumb API на CDN
                     thumb_url = thumb_map.get(slug)

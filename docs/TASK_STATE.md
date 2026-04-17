@@ -1,8 +1,54 @@
 # TASK STATE
 
-Last updated: 2026-04-13 (Europe/Moscow)
+Last updated: 2026-04-17 (Europe/Moscow)
 
 ## Current priorities
+
+### P1.9: --skip-fresh flag + finalize_parse_job finished_at fix
+- Status: **DONE (2026-04-15)**
+- Feature: `--skip-fresh [HOURS]` пропускает лодки, успешно пропарсенные менее N часов назад.
+- Bug fix: `finalize_parse_job` затирал `finished_at` через `refresh_from_db()`. Переставлен порядок.
+- Files: `boats/management/commands/parse_boats.py`, `boats/tasks.py`.
+
+### P1.8: HTML parser not updating last_parsed / last_parse_success
+- Status: **DONE (2026-04-15)**
+- Bug: `parse_boataround_url()` never set `last_parsed` or `last_parse_success` on ParsedBoat.
+- Fix: Added both fields to the save flow in parser.py (success + failure paths).
+- Files: `boats/parser.py`.
+
+### P1.7: All parsing through Celery (--workers N → Celery task)
+- Status: **DONE (2026-04-15)**
+- Removed `--local` flag. `--workers N` now dispatches `run_parse_workers` Celery task.
+- `--retry-errors` reads from `ParseJob.errors` in DB (no more file-based tracking).
+- Live progress bar via ParseJob polling (Ctrl+C doesn't kill task).
+- Files: `boats/tasks.py`, `boats/management/commands/parse_boats.py`.
+
+### P1.6: --retry-errors for local parse
+- Status: **DONE (2026-04-15), superseded by P1.7**
+- Originally file-based, now DB-based via ParseJob.errors.
+
+### P1.5: Local parallel parsing mode
+- Status: **DONE (2026-04-14), superseded by P1.7**
+- `parse_boats --local --workers N` — ThreadPoolExecutor-based parallel parsing without Celery.
+- All 3 modes (api/html/full), live progress bar, auto-defaults workers to `cpu_count*2`.
+- Files: `boats/management/commands/parse_boats.py`.
+
+### P1.4: Amenities lost after parsing (cockpit/entertainment/equipment)
+- Status: **DONE (2026-04-14)**
+- Root cause: DR-041 changes incorrectly made `services_only` skip amenities and `mode=api` clear them. Both violated the IRON RULE (HTML owns amenities).
+- Fix: Amenities saved in both `services_only` and `all_html` modes. API mode no longer touches BoatDetails amenity fields.
+- Files: `boats/parser.py`, `boats/tasks.py`, `boats/tests/test_parser_persistence.py`, `boats/tests/test_parse_boats_api_mode.py`.
+
+### P1.3: Parse mode boundaries (API vs HTML) to stop source-of-truth confusion
+- Status: **DONE (2026-04-14), corrected by P1.4**
+- `parse_boats` modes now have strict semantics:
+  - `api`: API source-of-truth only. Does NOT touch HTML-owned fields (amenities).
+  - `html`: photos + extras/additional_services/delivery_extras/not_included + cockpit/entertainment/equipment from HTML.
+  - `full`: full HTML profile (legacy full HTML mode) — also saves descriptions.
+- `parse_boataround_url` now receives explicit `html_mode`; task entry points pass mode intentionally.
+- `run_parse_job` now dispatches API tasks only for `mode=api`; `mode=full` no longer mixes API stage.
+- `refresh_amenities` command/tasks are deprecated to prevent accidental HTML amenities writes in API-first flows.
+- Files: `boats/parser.py`, `boats/tasks.py`, `boats/management/commands/parse_boats.py`, `boats/models.py`, `boats/management/commands/refresh_amenities.py`.
 
 ### P1.2: Countdown timer missing in public offer view
 - Status: **DONE (2026-04-13)**

@@ -2,6 +2,111 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-17 — Commit prep + documentation sync for parse mode hardening
+- Release prep: bumped `VERSION` to `0.14.0-dev`, added top release section in `CHANGELOG.md`.
+- Docs sync:
+  - `docs/DECISIONS.md`: added DR-043 (Celery-first `parse_boats`, DB-based retries, `--skip-fresh` policy).
+  - `docs/TASK_STATE.md`: refreshed status metadata and marked local worker mode as superseded.
+  - `docs/KNOWN_ISSUES.md`: added KI-013 (resolved `finished_at` loss in finalize flow), updated timestamp.
+  - `docs/RELEASE_NOTES.md`: added user-facing notes for 15 Apr 2026; corrected 14 Apr wording to match final amenities/source-of-truth behavior.
+- Additional session files included in commit scope: `docker-compose.yml` (`CELERY_CONCURRENCY`), `.dockerignore` context cleanup, migration `boats/migrations/0035_alter_parsejob_mode.py`, new regression test `boats/tests/test_parse_boats_api_mode.py`.
+- Validation:
+  - `docker compose down` — OK.
+  - `docker compose up -d --build` — OK.
+  - `docker compose run --rm web python manage.py check` failed due env value `DEBUG=release`; rerun with `DEBUG=False docker compose run --rm web python manage.py check` — OK.
+  - Targeted tests: `DEBUG=False docker compose run --rm web python manage.py test boats.tests.test_parser_persistence boats.tests.test_parse_boats_api_mode boats.tests.test_refresh_amenities_tasks boats.tests.test_refresh_amenities_command --verbosity 2` — **13 passed**.
+  - HTTP render check: `curl -I http://localhost:8000/ru/`, `curl -I http://localhost:8000/ru/boats/search/`, `curl -I http://localhost:8000/ru/accounts/login/`, `curl -I http://localhost:8000/health/` — all **200**.
+- Risks: no new functional blockers found; deprecated `refresh_amenities` wrappers are kept intentionally for backward-compat guidance.
+
+## 2026-04-15 — --skip-fresh flag + finalize_parse_job finished_at bug
+- Feature: `parse_boats --skip-fresh [HOURS]` — пропускает лодки с `last_parsed` < N часов и `last_parse_success=True`. Default 24ч.
+- Bug fix: `finalize_parse_job` did `refresh_from_db()` AFTER setting `finished_at`, wiping it back to None. Reordered: refresh first, then set finished_at.
+- Backfilled `finished_at` for 18 existing completed jobs from detailed_log timestamps.
+- Files: `boats/management/commands/parse_boats.py`, `boats/tasks.py`.
+- Docs: Updated command docstring, copilot-instructions, DEV_LOG, TASK_STATE.
+- Validation: `manage.py check` — 0 issues. `--help` shows `--skip-fresh`.
+
+## 2026-04-15 — Fix: HTML parser not updating last_parsed / last_parse_success
+- Bug: `parse_boataround_url()` saved BoatDetails/BoatGallery correctly but never updated `ParsedBoat.last_parsed` or `last_parse_success`.
+- Root cause: HTML parser had its own save logic (not using `save_to_cache()` from helpers.py). `update_fields` list on ParsedBoat.save() lacked `last_parsed`.
+- Symptom: Seychelles job c07bb1e6 reported 171/171 success, data was correct, but `last_parsed` stayed at February dates. `is_cache_fresh()` couldn't detect fresh parses.
+- Fix: Added `last_parsed=timezone.now()` and `last_parse_success=True` after successful save in parser.py. Added `last_parse_success=False` in exception handler.
+- Verified: single-boat test confirmed `last_parsed` now updates correctly.
+- Files: `boats/parser.py`.
+- Validation: `docker compose up -d --build` + `manage.py check` — 0 issues. Single boat re-parse confirmed fix.
+
+## 2026-04-15 — All parsing through Celery (remove --local, add run_parse_workers)
+- Architecture change: removed `--local` flag. ALL parsing now goes through Celery.
+- `--workers N` dispatches a single Celery task (`run_parse_workers`) that uses ThreadPoolExecutor internally.
+- Without `--workers` — existing chord-based batch flow (unchanged).
+- `--retry-errors` now reads errors from `ParseJob.errors` in DB (not file-based).
+- Command shows live progress bar by polling ParseJob every 2s. Ctrl+C doesn't kill Celery task.
+- New task: `run_parse_workers(job_id_hex, workers, retry_slugs, no_cache)` in tasks.py.
+- Helpers: `_run_workers_html`, `_run_workers_api`, `_flush_workers_progress`, `_fetch_and_save_api_page`.
+- Fixed: `finalize_parse_job` called via `.apply()` (bind=True task requires proper invocation).
+- Files: `boats/tasks.py`, `boats/management/commands/parse_boats.py`.
+- Validation: `docker compose up -d --build` + `manage.py check` — 0 issues.
+
+## 2026-04-15 — --retry-errors for local parse mode
+- Feature: `parse_boats --local --retry-errors --mode html --workers 8` — повтор только ошибочных slug'ов.
+- After each `--local` run, failed slugs are saved to `.parse_cache/failed_slugs_{mode}.json` с thumb_map.
+- `--retry-errors` загружает этот файл и парсит только ошибочные лодки, без повторного сбора slug'ов из API.
+- Use case: длинный парсинг прерван (гибернация, сбой сети) — повтор ~4600 ошибок вместо 27000.
+- Можно запускать многократно: каждый retry перезаписывает файл с оставшимися ошибками.
+- Files: `boats/management/commands/parse_boats.py`.
+- Validation: `manage.py check` — 0 issues.
+
+## 2026-04-14 — Local parallel parsing mode (--local --workers N)
+- Feature: `parse_boats --local --workers N` — параллельный парсинг в текущем процессе без Celery.
+- Uses `ThreadPoolExecutor` (I/O-bound HTTP requests). Live progress bar в терминале.
+- Works for all 3 modes: api, html, full.
+- Default workers: `cpu_count * 2` (max 20). Reuses existing slug collection and DB-save logic.
+- API mode: параллелизирует по страницам (каждая страница = 5 API-запросов по языкам).
+- HTML mode: параллелизирует по slug'ам (каждый slug = полный HTML-парсинг).
+- Smoke test: `--mode api --destination turkey --max-pages 1` — 18 boats, 2с. `--mode html` — 18 boats, 1.7 мин (4 workers).
+- Files: `boats/management/commands/parse_boats.py`.
+- Validation: `manage.py check` — 0 issues. HTTP 200.
+- Risk: При большом кол-ве workers может упереться в rate-limiting boataround.com. 4-8 workers — безопасно.
+
+## 2026-04-14 — Fix: amenities (cockpit/entertainment/equipment) lost after parsing
+- Symptom: After running `parse_boats --mode api` followed by `--mode html`, cockpit/entertainment/equipment completely disappeared from all boats.
+- Root cause: Two bugs introduced in earlier 2026-04-14 changes violated the IRON RULE (HTML parser owns cockpit/entertainment/equipment):
+  1. `_clear_api_unavailable_amenities()` in API tasks wiped HTML-owned amenity fields — API does NOT own these.
+  2. `services_only` html_mode skipped saving amenities (`save_html_amenities = html_mode == 'all_html'`) — but these ARE HTML-owned fields that must be saved in all HTML modes.
+- Fix:
+  - `boats/parser.py`: Removed `save_html_amenities` flag. Amenities are now saved in both `services_only` and `all_html` modes (HTML is source-of-truth for these fields).
+  - `boats/tasks.py`: Removed calls to `_clear_api_unavailable_amenities()` from `process_api_batch` and `process_api_page_range`. API mode no longer touches HTML-owned fields.
+  - Tests updated: `test_parser_persistence.py` and `test_parse_boats_api_mode.py` assertions corrected.
+- Validation: `manage.py check` — 0 issues. 6 targeted tests pass (test_parser_persistence + test_parse_boats_api_mode). HTTP 200 for home page.
+- Files: `boats/parser.py`, `boats/tasks.py`, `boats/tests/test_parser_persistence.py`, `boats/tests/test_parse_boats_api_mode.py`.
+
+## 2026-04-14 — API mode now clears stale amenities and invalidates detail cache
+- Symptom: `parse_boats --mode api` completed successfully but boat detail still showed old cockpit/entertainment/equipment values. Root cause: API mode updated only API metadata and left historical HTML amenities in `BoatDetails`; page-level cache (`boat_data:<slug>:<lang>`) also preserved stale snapshot.
+- Fix:
+  - `boats/tasks.py`: added API-mode normalization in `process_api_page_range` and `process_api_batch`:
+    - clear `BoatDetails.cockpit/entertainment/equipment` for processed slugs,
+    - invalidate detail cache keys `boat_data:<slug>:<lang>` for all supported languages.
+  - Added helpers `_clear_api_unavailable_amenities()` and `_invalidate_boat_detail_cache()`.
+  - Added regression test `boats/tests/test_parse_boats_api_mode.py` to assert amenities reset + cache invalidation in API batch task.
+- Validation:
+  - Targeted tests: `boats.tests.test_parse_boats_api_mode`, `boats.tests.test_parser_persistence`, `boats.tests.test_refresh_amenities_tasks`, `boats.tests.test_refresh_amenities_command` — **OK (13 tests)**.
+  - Live check on slug `jeanneau-sun-odyssey-440-bonbon` after `parse_boats --mode api --destination turkey --max-pages 1`:
+    - DB amenities: `cockpit=0`, `entertainment=0`, `equipment=0`,
+    - detail cache key removed,
+    - page `/ru/boat/jeanneau-sun-odyssey-440-bonbon/?check_in=2026-04-18&check_out=2026-04-25` returns HTTP 200 without amenities blocks.
+
+## 2026-04-14 — Parse mode separation hardened (api/html/full)
+- Problem: Runtime behavior still mixed mode responsibilities: `mode=full` triggered API stage in orchestrator, and `services_only` rewrote amenities fields in `BoatDetails` (set to empty), which is outside declared scope ("photo + 4 service lists only").
+- Fix:
+  - `boats/tasks.py`: `run_parse_job` now dispatches API tasks only for `mode=api`; `mode=html` and `mode=full` run only HTML batches. Also fixed summary template bug in finalize report (`Slug'ов: {job.total_slugs}` → actual value).
+  - `boats/parser.py`: in `html_mode='services_only'`, parser now updates only `extras/additional_services/delivery_extras/not_included`; it no longer overwrites `cockpit/entertainment/equipment`.
+  - `boats/tests/test_parser_persistence.py`: added regression test to ensure existing amenities are preserved in `services_only`.
+- Validation:
+  - `docker compose run --rm --no-deps web python -m compileall boats` — OK.
+  - Targeted Django tests could not be executed in this environment: one-off web container cannot resolve host `db` (`OperationalError: could not translate host name "db"`), and full compose run is blocked by local Redis port conflict (`0.0.0.0:6379 already allocated`).
+- Files: `boats/tasks.py`, `boats/parser.py`, `boats/tests/test_parser_persistence.py`, `docs/DECISIONS.md`, `docs/TASK_STATE.md`.
+- Risk: Functional behavior is stricter by design; legacy stale amenities remain unchanged until explicit `mode=full`/targeted data refresh is run on affected boats.
+
 ## 2026-04-13 — Countdown timer missing in public offer view
 - Bug: `offer_view` (`/offer/<uuid>/`) passed `show_countdown: offer.show_countdown` (raw bool) but did NOT pass `countdown_end_iso`. Template `offer_captain.html` checks `{% if show_countdown and countdown_end_iso %}` — without the ISO date, timer block never rendered.
 - `offer_detail` (`/offers/<uuid>/`) had full countdown logic (expires_at → fallback created_at+1day → ISO string). `offer_view` lacked it.

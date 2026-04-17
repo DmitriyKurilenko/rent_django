@@ -1,6 +1,20 @@
 # KNOWN ISSUES
 
-Last updated: 2026-04-12 (Europe/Moscow)
+Last updated: 2026-04-17 (Europe/Moscow)
+
+## KI-012: HTML parser not updating last_parsed (RESOLVED 2026-04-15)
+- Severity: medium (RESOLVED)
+- Area: boats/parser.py — parse_boataround_url save_to_db block
+- Symptom: HTML parsing jobs (mode=html/full) reported success but `ParsedBoat.last_parsed` was never updated. `is_cache_fresh()` could not detect fresh HTML parses. `last_parse_success` also never set.
+- Root cause: HTML parser had its own DB save logic without `last_parsed`/`last_parse_success`. Only the API flow (via `save_to_cache()` in helpers.py) updated these fields.
+- Fix: Added `last_parsed=timezone.now()` and `last_parse_success=True/False` to the save_to_db block in `parse_boataround_url()`.
+
+## KI-013: ParseJob.finished_at lost after finalize (RESOLVED 2026-04-15)
+- Severity: medium (RESOLVED)
+- Area: boats/tasks.py — finalize_parse_job
+- Symptom: completed ParseJob rows occasionally had empty `finished_at`, which broke accurate duration/completion reporting in status views.
+- Root cause: `finalize_parse_job` set `finished_at`, then called `refresh_from_db()`, which reloaded old `None` from DB and overwrote the in-memory value.
+- Fix: reordered finalize flow — `refresh_from_db()` first, then set/save `finished_at`.
 
 ## KI-011: DaisyUI 5 fieldset/fieldset-legend CSS not generated in current build
 - Severity: low (downgraded from medium — all templates migrated away from affected classes)

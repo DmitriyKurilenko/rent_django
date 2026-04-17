@@ -1,15 +1,10 @@
 """
-Management command для обновления cockpit/entertainment/equipment у всех лодок в БД.
-Используется для восстановления данных после очистки или добавления новой логики извлечения.
+DEPRECATED: historical command that used to refresh cockpit/entertainment/equipment.
 
-Использование:
-    python manage.py refresh_amenities --async                          # все лодки через Celery
-    python manage.py refresh_amenities --sync                           # все лодки синхронно
-    python manage.py refresh_amenities --sync --limit 10               # первые 10 лодок
-    python manage.py refresh_amenities --sync --slug bali-42-zephyr    # одна лодка
-    python manage.py refresh_amenities --async --destination turkey     # только лодки из направления
-    python manage.py refresh_amenities --async --batch-size 20         # батчи по 20
-    python manage.py refresh_amenities --async --destination turkey --no-wait
+Current source-of-truth policy:
+- api mode: all API data
+- html mode: only photos + extras/additional_services/delivery_extras/not_included
+- full mode: full HTML profile (legacy)
 """
 
 import logging
@@ -21,7 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Обновляет cockpit/entertainment/equipment для лодок в БД (из HTML boataround.com)'
+    help = (
+        'DEPRECATED: refresh_amenities отключен. '
+        'Используйте parse_boats --mode api|html|full.'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -79,11 +77,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         async_mode = options['async']
         sync_mode = options['sync']
-        limit = options['limit']
-        slug = options['slug']
-        destination = options['destination']
         batch_size = options['batch_size']
-        no_wait = options['no_wait']
         wait_timeout = options['wait_timeout']
         poll_interval = options['poll_interval']
 
@@ -98,33 +92,16 @@ class Command(BaseCommand):
         if poll_interval <= 0:
             raise CommandError('--poll-interval должен быть > 0')
 
-        if slug:
-            slugs = [slug]
-        elif destination:
-            slugs = self._get_slugs_by_destination(destination, limit)
-        else:
-            qs = ParsedBoat.objects.values_list('slug', flat=True).order_by('id')
-            if limit:
-                qs = qs[:limit]
-            slugs = list(qs)
-
-        slugs = self._normalize_and_dedupe_slugs(slugs)
-
-        self.stdout.write(f'Лодок для обработки: {len(slugs)}')
-        if not slugs:
-            self.stdout.write(self.style.WARNING('Нет лодок для обработки.'))
-            return
-
-        if sync_mode:
-            self._run_sync(slugs)
-        else:
-            self._run_async(
-                slugs=slugs,
-                batch_size=batch_size,
-                wait_for_completion=not no_wait,
-                wait_timeout=wait_timeout,
-                poll_interval=poll_interval,
-            )
+        self.stdout.write(self.style.WARNING(
+            'Команда refresh_amenities отключена, чтобы избежать путаницы source-of-truth.'
+        ))
+        self.stdout.write(
+            'Используйте: '
+            '`python manage.py parse_boats --mode api` (API source-of-truth), '
+            '`--mode html` (только фото+4 сервисных списка), '
+            '`--mode full` (полный HTML).'
+        )
+        return
 
     @staticmethod
     def _normalize_slug(slug):

@@ -1,6 +1,40 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-12 (Europe/Moscow)
+Last updated: 2026-04-15 (Europe/Moscow)
+
+## DR-043: parse_boats is Celery-first; retries and freshness are tracked in ParseJob/ParsedBoat
+- Date: 2026-04-15
+- Context: local parsing mode and file-based retry lists diverged from real ParseJob state in DB. Operators needed reliable restart semantics and a way to skip recently parsed boats in long-running jobs.
+- Decision:
+  - `parse_boats --workers N` always dispatches Celery task `run_parse_workers` (local process mode removed).
+  - `--retry-errors` reads failed slugs from latest `ParseJob.errors` for selected mode (DB is single source of truth for retries).
+  - `--skip-fresh [HOURS]` skips boats only when `last_parse_success=True` and `last_parsed` is inside freshness window (default 24h when value is omitted).
+  - Command polls ParseJob for live progress; Ctrl+C only stops local polling and does not cancel Celery execution.
+- Consequence: retries are reproducible across restarts/hosts, progress is observable from DB state, and repeated runs can safely avoid reprocessing fresh boats.
+
+## DR-042: Amenities (cockpit/entertainment/equipment) are HTML-owned — saved in all HTML modes, untouched by API mode
+- Date: 2026-04-14
+- Context: DR-041 incorrectly classified cockpit/entertainment/equipment as API-owned, causing `services_only` to skip them and `mode=api` to clear them. This violated the IRON RULE: HTML parser is the source of truth for all BoatDetails fields including amenities. After running `mode=api` + `mode=html`, all amenity data was lost.
+- Decision:
+  - Both `services_only` and `all_html` modes save amenities from HTML.
+  - API mode does NOT touch BoatDetails amenity fields (cockpit/entertainment/equipment).
+  - `_clear_api_unavailable_amenities()` removed from API task pipeline.
+  - Only `BoatDescription` and `BoatTechnicalSpecs` ownership differs between modes: descriptions are HTML-only in `all_html`, specs are API-only.
+- Consequence: Running `mode=api` → `mode=html` no longer wipes amenities. HTML remains sole source of truth for all BoatDetails fields.
+
+## DR-041: Parse modes are strictly separated to prevent HTML/API source-of-truth mixing
+- Date: 2026-04-14
+- Context: Team requirement: HTML must be used only in explicitly selected modes. Recurrent confusion came from mixed behavior where HTML parsing could overwrite fields that should come from API.
+- Decision:
+  - `parse_boats --mode api`: API source-of-truth only (HTML fields are not touched).
+  - `parse_boats --mode html`: HTML updates `photos` + `extras` + `additional_services` + `delivery_extras` + `not_included` + `cockpit` + `entertainment` + `equipment`.
+  - `parse_boats --mode full`: full HTML profile (legacy behavior), including HTML descriptions/amenities.
+  - `parse_boataround_url` now accepts explicit `html_mode` (`services_only` / `all_html`) and all task entry points pass mode explicitly.
+  - `run_parse_job` dispatches API page-range tasks only for `mode=api`; `mode=html/full` run only HTML batch tasks.
+  - In `services_only`, parser updates photos + 4 service lists + 3 amenity lists (cockpit/entertainment/equipment). Descriptions are NOT saved.
+  - API mode does not touch BoatDetails amenity fields. Detail cache keys `boat_data:<slug>:<lang>` are invalidated for touched slugs.
+  - `refresh_amenities` command/tasks are deprecated to avoid accidental reintroduction of HTML-derived amenities in API-first flows.
+- Consequence: Mode behavior is explicit and deterministic; no hidden cross-mode overwrites. Existing historical data is not globally cleaned automatically; new/updated batches follow the selected mode policy.
 
 ## DR-040: Charter company name stripped at presentation layer, not in database
 - Date: 2026-04-12

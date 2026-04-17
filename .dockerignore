@@ -16,6 +16,12 @@ htmlcov
 backups
 nginx/logs
 logs
-boats/fixtures
+boats/fixtures/split
 *.json.bak
 .claude
+media
+mediafiles
+.parse_cache
+db.sqlite3
+*.bak
+celerybeat-schedule

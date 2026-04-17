@@ -198,7 +198,11 @@ class Command(BaseCommand):
                 url = f'https://www.boataround.com/ru/yachta/{slug}/'
                 
                 # Парсим и сохраняем
-                result = parse_boataround_url(url, save_to_db=True)
+                result = parse_boataround_url(
+                    url,
+                    save_to_db=True,
+                    html_mode='services_only',
+                )
                 
                 if result:
                     success += 1

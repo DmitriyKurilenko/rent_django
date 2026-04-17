@@ -285,7 +285,11 @@ def get_boat_data_from_cache_or_parse(url, boat_id=None, slug=None, force_refres
             return boat_data
 
     # Парсим заново
-    boat_data = parse_boataround_url(url, save_to_db=False)
+    boat_data = parse_boataround_url(
+        url,
+        save_to_db=False,
+        html_mode='services_only',
+    )
 
     if boat_data:
         # Извлекаем boat_id и slug из URL

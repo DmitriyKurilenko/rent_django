@@ -50,7 +50,7 @@ def parse_boat_detail(self, boat_slug):
         logger.info(f"[Celery] Парсю лодку: {boat_slug}")
 
         url = f'https://www.boataround.com/ru/yachta/{boat_slug}/'
-        result = parse_boataround_url(url, save_to_db=True)
+        result = parse_boataround_url(url, save_to_db=True, html_mode='services_only')
 
         if result:
             logger.info(f"[Celery] ✅ Успешно спарсена: {boat_slug}")
@@ -135,100 +135,35 @@ def parse_boats_batch(self, boat_slugs):
 @shared_task(bind=True, max_retries=2)
 def refresh_boat_amenities(self, boat_slug):
     """
-    Обновляет только cockpit/entertainment/equipment для одной лодки на всех языках.
-    Каждая языковая страница тянется один раз.
+    Deprecated.
+    Ранее обновляла cockpit/entertainment/equipment из HTML, но это больше не
+    соответствует source-of-truth политике проекта.
     """
-    SUPPORTED_LANGUAGES = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR', 'es_ES']
-    try:
-        from boats.models import ParsedBoat, BoatDetails
-        from boats.parser import _fetch_language_page_data
-
-        boat = ParsedBoat.objects.filter(slug=boat_slug).first()
-        if not boat:
-            logger.warning(f'[Celery] refresh_amenities: лодка не найдена {boat_slug}')
-            return {'status': 'skipped', 'slug': boat_slug, 'reason': 'not found'}
-
-        updated = 0
-        failed_languages = []
-        for lang in SUPPORTED_LANGUAGES:
-            lang_data = _fetch_language_page_data(boat_slug, lang)
-            if not lang_data.get('_fetch_ok'):
-                failed_languages.append(lang)
-                logger.warning(f'[Celery] refresh_amenities {boat_slug}: пропуск {lang}, страница не загружена')
-                continue
-            amenities = lang_data['amenities']
-            rows = BoatDetails.objects.filter(boat=boat, language=lang)
-            if rows.exists():
-                rows.update(
-                    cockpit=amenities['cockpit'],
-                    entertainment=amenities['entertainment'],
-                    equipment=amenities['equipment'],
-                )
-                updated += 1
-            else:
-                BoatDetails.objects.create(
-                    boat=boat,
-                    language=lang,
-                    cockpit=amenities['cockpit'],
-                    entertainment=amenities['entertainment'],
-                    equipment=amenities['equipment'],
-                    extras=[], additional_services=[], delivery_extras=[], not_included=[],
-                )
-                updated += 1
-
-        if updated == 0:
-            logger.error(
-                f'[Celery] ❌ refresh_amenities {boat_slug}: не удалось загрузить ни один язык '
-                f'({", ".join(failed_languages) if failed_languages else "unknown"})'
-            )
-            return {
-                'status': 'failed',
-                'slug': boat_slug,
-                'languages_updated': 0,
-                'failed_languages': failed_languages,
-                'reason': 'all language pages failed',
-            }
-
-        if failed_languages:
-            logger.warning(
-                f'[Celery] ⚠️ refresh_amenities {boat_slug}: частично, обновлено {updated}, '
-                f'ошибки языков: {", ".join(failed_languages)}'
-            )
-            return {
-                'status': 'partial',
-                'slug': boat_slug,
-                'languages_updated': updated,
-                'failed_languages': failed_languages,
-            }
-
-        logger.info(f'[Celery] ✅ refresh_amenities {boat_slug}: обновлено {updated} языков')
-        return {'status': 'success', 'slug': boat_slug, 'languages_updated': updated}
-
-    except Exception as exc:
-        logger.error(f'[Celery] ❌ refresh_amenities {boat_slug}: {exc}')
-        try:
-            raise self.retry(exc=exc, countdown=30)
-        except self.MaxRetriesExceededError:
-            return {'status': 'failed', 'slug': boat_slug, 'reason': str(exc)}
+    logger.warning(
+        '[Celery] refresh_boat_amenities is deprecated and skipped for slug=%s '
+        '(use parse_boats modes api/html/full instead)',
+        boat_slug,
+    )
+    return {'status': 'skipped', 'slug': boat_slug, 'reason': 'deprecated'}
 
 
 @shared_task(bind=True)
 def refresh_amenities_batch(self, boat_slugs):
-    """Обновляет amenities для батча лодок."""
+    """Deprecated batch wrapper for refresh_boat_amenities."""
     total = len(boat_slugs)
-    success = 0
-    failed = 0
-    logger.info(f'[Celery] 📦 refresh_amenities батч: {total} лодок')
-    for idx, slug in enumerate(boat_slugs, 1):
+    skipped = 0
+    logger.warning('[Celery] refresh_amenities_batch is deprecated, skipping %s лодок', total)
+    for slug in boat_slugs:
         result = refresh_boat_amenities(slug)
-        if result.get('status') == 'success':
-            success += 1
-        else:
-            failed += 1
-        if idx % 50 == 0:
-            logger.info(f'[Celery] 🔄 {idx}/{total} (успешно: {success}, ошибок: {failed})')
-    logger.info(f'[Celery] ✅ Батч завершен: успешно {success}, ошибок {failed}')
-    return {'status': 'completed', 'total': total, 'success': success, 'failed': failed}
+        if result.get('status') == 'skipped':
+            skipped += 1
+    return {
+        'status': 'completed',
+        'total': total,
+        'success': 0,
+        'failed': 0,
+        'skipped': skipped,
+    }
 
 
 @shared_task
@@ -309,6 +244,50 @@ NETWORK_ERRORS = (
     __import__('requests').exceptions.Timeout,
     OSError,
 )
+DETAIL_CACHE_LANGS = ['ru_RU', 'en_EN', 'de_DE', 'fr_FR', 'es_ES']
+
+
+def _invalidate_boat_detail_cache(slugs):
+    """Инвалидирует detail-кэш для набора slug по всем поддерживаемым языкам."""
+    if not slugs:
+        return
+    try:
+        from django.core.cache import cache
+
+        keys = [
+            f'boat_data:{slug}:{lang}'
+            for slug in slugs
+            for lang in DETAIL_CACHE_LANGS
+            if slug
+        ]
+        if keys:
+            cache.delete_many(keys)
+    except Exception as e:
+        logger.warning(f'[cache] failed to invalidate boat detail cache: {e}')
+
+
+def _clear_api_unavailable_amenities(slugs):
+    """
+    API source-of-truth normalization.
+
+    В API-поиске нет достоверных per-boat cockpit/entertainment/equipment,
+    поэтому в mode=api эти поля должны быть очищены, чтобы не оставался
+    исторический HTML-мусор в BoatDetails.
+    """
+    if not slugs:
+        return 0
+
+    try:
+        from boats.models import BoatDetails
+
+        return BoatDetails.objects.filter(boat__slug__in=slugs).update(
+            cockpit=[],
+            entertainment=[],
+            equipment=[],
+        )
+    except Exception as e:
+        logger.warning(f'[api-normalize] failed to clear amenities for api mode: {e}')
+        return 0
 
 
 def _job_log(job_id, message):
@@ -549,6 +528,7 @@ def process_api_batch(self, job_id_hex, batch_slugs, api_meta_subset, api_meta_b
     try:
         from boats.management.commands.parse_boats_parallel import Command as PBPCommand
         updated = PBPCommand._update_api_metadata(api_meta_subset, api_meta_by_lang_subset)
+        _invalidate_boat_detail_cache(batch_slugs)
 
         ParseJob.objects.filter(job_id=job_id_hex).update(
             processed=F('processed') + len(batch_slugs),
@@ -556,7 +536,10 @@ def process_api_batch(self, job_id_hex, batch_slugs, api_meta_subset, api_meta_b
             skipped=F('skipped') + (len(batch_slugs) - updated),
             batches_done=F('batches_done') + 1,
         )
-        _job_log(job_id_hex, f'API batch OK: {len(batch_slugs)} slug, {updated} updated')
+        _job_log(
+            job_id_hex,
+            f'API batch OK: {len(batch_slugs)} slug, {updated} updated',
+        )
         return {'status': 'ok', 'updated': updated, 'total': len(batch_slugs)}
 
     except Exception as exc:
@@ -687,6 +670,8 @@ def process_api_page_range(self, job_id_hex, destination, start_page, end_page):
                 page_updated = PBPCommand._update_api_metadata(
                     page_api_meta, page_api_meta_by_lang,
                 )
+                page_slugs = list(page_api_meta.keys())
+                _invalidate_boat_detail_cache(page_slugs)
                 total_updated += page_updated
             except Exception as e:
                 logger.error(f'[process_api_page_range] Page {page} flush error: {e}')
@@ -734,7 +719,7 @@ def process_api_page_range(self, job_id_hex, destination, start_page, end_page):
 
 
 @shared_task(bind=True, max_retries=1)
-def process_html_batch(self, job_id_hex, batch_slugs, thumb_map_subset):
+def process_html_batch(self, job_id_hex, batch_slugs, thumb_map_subset, html_mode='services_only'):
     """Парсит батч лодок через HTML. Обновляет ParseJob атомарно."""
     from boats.models import ParseJob
     from django.db.models import F
@@ -747,7 +732,7 @@ def process_html_batch(self, job_id_hex, batch_slugs, thumb_map_subset):
     for slug in batch_slugs:
         try:
             url = f'https://www.boataround.com/ru/yachta/{slug}/'
-            result = parse_boataround_url(url, save_to_db=True)
+            result = parse_boataround_url(url, save_to_db=True, html_mode=html_mode)
             if result:
                 # Загружаем превью
                 thumb_url = thumb_map_subset.get(slug)
@@ -781,7 +766,7 @@ def process_html_batch(self, job_id_hex, batch_slugs, thumb_map_subset):
     _job_log(
         job_id_hex,
         f'HTML batch OK: {batch_success}/{len(batch_slugs)} '
-        f'(failed: {batch_failed})'
+        f'(failed: {batch_failed}, html_mode={html_mode})'
     )
 
     # Free memory: clear query log and close stale connections
@@ -830,10 +815,10 @@ def finalize_parse_job(self, results, job_id_hex):
         logger.error(f'[finalize] ParseJob {job_id_hex} not found')
         return
 
-    job.finished_at = timezone.now()
-
     # Обновляем счётчики из актуальных данных БД
     job.refresh_from_db()
+
+    job.finished_at = timezone.now()
 
     duration = job.duration_seconds or 0
     rate = job.processed / duration if duration > 0 else 0
@@ -853,7 +838,7 @@ def finalize_parse_job(self, results, job_id_hex):
         f'Задание: {job.get_mode_display()}',
         f'Направление: {job.destination or "все"}',
         '---',
-        'Slug\'ов: {job.total_slugs}',
+        f'Slug\'ов: {job.total_slugs}',
         f'Обработано: {job.processed}',
         f'Успешно: {job.success}',
         f'Ошибок: {job.failed}',
@@ -895,14 +880,409 @@ def finalize_parse_job(self, results, job_id_hex):
     logger.info(f'[finalize] ParseJob {job_id_hex}: {job.status}')
 
 
+# ------------------------------------------------------------------
+# FAST PARALLEL PARSE (--workers N)
+# ------------------------------------------------------------------
+
+@shared_task(bind=True, max_retries=0)
+def run_parse_workers(self, job_id_hex, workers=8, retry_slugs=None, no_cache=False,
+                      skip_fresh_hours=None):
+    """Быстрый параллельный парсинг: сбор slug'ов + ThreadPoolExecutor.
+
+    Один Celery task, N параллельных потоков для I/O-bound HTTP.
+    Обновляет ParseJob атомарно каждые FLUSH_EVERY slug'ов.
+    """
+    import gc
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from boats.models import ParseJob, ParsedBoat
+    from django.db.models import F
+    from django.utils import timezone
+
+    FLUSH_EVERY = 10  # обновлять ParseJob каждые N slug'ов
+
+    job_id_hex = str(job_id_hex)
+    try:
+        job = ParseJob.objects.get(job_id=job_id_hex)
+    except ParseJob.DoesNotExist:
+        logger.error(f'[run_parse_workers] ParseJob {job_id_hex} not found')
+        return
+
+    job.status = 'collecting'
+    job.started_at = timezone.now()
+    job.celery_task_id = self.request.id or ''
+    job.save(update_fields=['status', 'started_at', 'celery_task_id'])
+
+    # Глушим спам
+    logging.getLogger('boats.parser').setLevel(logging.WARNING)
+    logging.getLogger('boats.boataround_api').setLevel(logging.WARNING)
+
+    # --- Фаза 1: Slug'и ---
+    if retry_slugs:
+        all_slugs = retry_slugs
+        # thumb_map из кэша slug'ов (если есть)
+        cached = _load_slug_cache(job.destination or None, job.max_pages)
+        thumb_map = cached.get('thumb_map', {}) if cached else {}
+        _job_log(job_id_hex, f'Retry mode: {len(all_slugs)} slug\'ов')
+    else:
+        try:
+            collected = _collect_slugs_from_api(
+                destination=job.destination or None,
+                max_pages=job.max_pages,
+                job_id=job_id_hex,
+                no_cache=no_cache,
+            )
+        except Exception as e:
+            job.status = 'failed'
+            job.finished_at = timezone.now()
+            job.summary = f'Ошибка сбора slug\'ов: {e}'
+            job.save(update_fields=['status', 'finished_at', 'summary'])
+            _job_log(job_id_hex, f'FAIL: сбор slug\'ов: {e}')
+            return
+
+        all_slugs = collected['slugs']
+        thumb_map = collected['thumb_map']
+
+    if not all_slugs:
+        job.status = 'completed'
+        job.finished_at = timezone.now()
+        job.summary = 'Нет slug\'ов для обработки'
+        job.save(update_fields=['status', 'finished_at', 'summary'])
+        return
+
+    # --- Фаза 2: Подготовка ---
+    if job.mode in ('html', 'full'):
+        html_mode = 'all_html' if job.mode == 'full' else 'services_only'
+        slugs = list(all_slugs)
+
+        if job.skip_existing:
+            existing = set(ParsedBoat.objects.values_list('slug', flat=True))
+            before = len(slugs)
+            slugs = [s for s in slugs if s not in existing]
+            skipped = before - len(slugs)
+            if skipped:
+                job.skipped = skipped
+                _job_log(job_id_hex, f'Пропущено существующих: {skipped}')
+
+        if skip_fresh_hours:
+            cutoff = timezone.now() - timezone.timedelta(hours=skip_fresh_hours)
+            fresh_slugs = set(
+                ParsedBoat.objects.filter(
+                    slug__in=slugs,
+                    last_parsed__gte=cutoff,
+                    last_parse_success=True,
+                ).values_list('slug', flat=True)
+            )
+            if fresh_slugs:
+                before = len(slugs)
+                slugs = [s for s in slugs if s not in fresh_slugs]
+                skipped_fresh = before - len(slugs)
+                job.skipped = (job.skipped or 0) + skipped_fresh
+                _job_log(job_id_hex, f'Пропущено свежих (<{skip_fresh_hours}ч): {skipped_fresh}')
+
+        job.total_slugs = len(slugs) + (job.skipped or 0)
+        job.status = 'running'
+        job.save(update_fields=['total_slugs', 'status', 'skipped'])
+        _job_log(
+            job_id_hex,
+            f'HTML-парсинг: {len(slugs)} slug, {workers} workers, html_mode={html_mode}',
+        )
+
+        _run_workers_html(job_id_hex, slugs, thumb_map, html_mode, workers, FLUSH_EVERY)
+
+    elif job.mode == 'api':
+        effective_pages = (
+            0 if retry_slugs
+            else collected.get('effective_pages', 0)
+        )
+        if not effective_pages:
+            job.status = 'completed'
+            job.finished_at = timezone.now()
+            job.summary = 'Нет страниц для API-обработки'
+            job.save(update_fields=['status', 'finished_at', 'summary'])
+            return
+
+        job.total_slugs = len(all_slugs)
+        job.status = 'running'
+        job.save(update_fields=['total_slugs', 'status'])
+        _job_log(
+            job_id_hex,
+            f'API-парсинг: {effective_pages} стр., {workers} workers',
+        )
+
+        _run_workers_api(
+            job_id_hex, all_slugs, thumb_map,
+            effective_pages, job.destination, workers, FLUSH_EVERY,
+        )
+
+    # --- Фаза 3: Финализация ---
+    # Инвалидируем кэш для обработанных slug'ов
+    try:
+        _invalidate_boat_detail_cache(all_slugs)
+    except Exception:
+        pass
+
+    # Финализируем через стандартный finalize (синхронно)
+    finalize_parse_job.apply(args=[[], job_id_hex])
+
+    # Очистка
+    from django import db
+    db.reset_queries()
+    db.close_old_connections()
+    gc.collect()
+
+
+def _run_workers_html(job_id_hex, slugs, thumb_map, html_mode, workers, flush_every):
+    """Параллельный HTML-парсинг через ThreadPoolExecutor."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from boats.models import ParseJob
+    from boats.parser import parse_boataround_url
+    from django.db.models import F
+
+    lock = threading.Lock()
+    counters = {'success': 0, 'failed': 0}
+    errors_batch = []
+
+    def _parse_one(slug):
+        try:
+            url = f'https://www.boataround.com/ru/yachta/{slug}/'
+            result = parse_boataround_url(url, save_to_db=True, html_mode=html_mode)
+            if result:
+                thumb_url = thumb_map.get(slug)
+                if thumb_url:
+                    _save_preview_for_slug(slug, thumb_url)
+                with lock:
+                    counters['success'] += 1
+            else:
+                with lock:
+                    counters['failed'] += 1
+                    errors_batch.append({'slug': slug, 'error': 'Parser returned None'})
+        except Exception as e:
+            with lock:
+                counters['failed'] += 1
+                errors_batch.append({'slug': slug, 'error': str(e)[:200]})
+
+    done = 0
+    last_flushed = 0
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_parse_one, s): s for s in slugs}
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception:
+                pass
+            done += 1
+
+            if done - last_flushed >= flush_every:
+                _flush_workers_progress(
+                    job_id_hex, done - last_flushed,
+                    counters, errors_batch, lock,
+                )
+                last_flushed = done
+
+    # Финальный flush
+    if done > last_flushed:
+        _flush_workers_progress(
+            job_id_hex, done - last_flushed,
+            counters, errors_batch, lock,
+        )
+
+
+def _run_workers_api(job_id_hex, all_slugs, thumb_map, effective_pages,
+                     destination, workers, flush_every):
+    """Параллельный API-парсинг через ThreadPoolExecutor."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from boats.boataround_api import BoataroundAPI
+    from boats.models import ParseJob
+    from django.db.models import F
+
+    lock = threading.Lock()
+    counters = {'success': 0, 'failed': 0}
+    errors_batch = []
+
+    def _process_page(page):
+        try:
+            updated, errs = _fetch_and_save_api_page(
+                page, destination, BoataroundAPI, SUPPORTED_API_LANGS,
+            )
+            with lock:
+                counters['success'] += updated
+                if errs:
+                    counters['failed'] += len(errs)
+                    errors_batch.extend(
+                        {'slug': slug, 'error': err} for slug, err in errs
+                    )
+        except Exception as e:
+            with lock:
+                counters['failed'] += 1
+                errors_batch.append({'slug': f'page-{page}', 'error': str(e)[:200]})
+
+    pages = list(range(1, effective_pages + 1))
+    done = 0
+    last_flushed = 0
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_process_page, p): p for p in pages}
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception:
+                pass
+            done += 1
+
+            if done - last_flushed >= flush_every:
+                _flush_workers_progress(
+                    job_id_hex, done - last_flushed,
+                    counters, errors_batch, lock,
+                )
+                last_flushed = done
+
+    if done > last_flushed:
+        _flush_workers_progress(
+            job_id_hex, done - last_flushed,
+            counters, errors_batch, lock,
+        )
+
+
+def _flush_workers_progress(job_id_hex, processed_delta, counters, errors_batch, lock):
+    """Сбрасывает накопленный прогресс в ParseJob."""
+    from boats.models import ParseJob
+    from django.db.models import F
+
+    with lock:
+        s = counters['success']
+        f = counters['failed']
+        errs = list(errors_batch)
+        counters['success'] = 0
+        counters['failed'] = 0
+        errors_batch.clear()
+
+    ParseJob.objects.filter(job_id=job_id_hex).update(
+        processed=F('processed') + processed_delta,
+        success=F('success') + s,
+        failed=F('failed') + f,
+    )
+
+    if errs:
+        try:
+            job_obj = ParseJob.objects.get(job_id=job_id_hex)
+            for err in errs:
+                job_obj.append_error(err['slug'], err['error'])
+        except Exception:
+            pass
+
+
+def _fetch_and_save_api_page(page, destination, BoataroundAPI, supported_langs):
+    """Обрабатывает одну API-страницу: 5 языков, сохранение в БД."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results = BoataroundAPI.search(
+        destination=destination or None,
+        page=page, limit=18, lang='en_EN',
+    )
+    if not results or not results.get('boats'):
+        return 0, []
+
+    other_langs = [lang for lang in supported_langs if lang != 'en_EN']
+    boats_by_lang = {'en_EN': results.get('boats', [])}
+
+    def _fetch_lang(api_lang):
+        r = BoataroundAPI.search(
+            destination=destination or None,
+            page=page, limit=18, lang=api_lang,
+        )
+        return api_lang, (r or {}).get('boats', [])
+
+    with ThreadPoolExecutor(max_workers=len(other_langs)) as executor:
+        futs = {executor.submit(_fetch_lang, lang): lang for lang in other_langs}
+        for fut in as_completed(futs):
+            try:
+                lang, boats = fut.result(timeout=60)
+                boats_by_lang[lang] = boats
+            except Exception:
+                boats_by_lang[futs[fut]] = []
+
+    page_api_meta = {}
+    page_api_meta_by_lang = {}
+
+    for api_lang, boats_lang in boats_by_lang.items():
+        for boat_lang in boats_lang:
+            lang_slug = boat_lang.get('slug')
+            if not lang_slug:
+                continue
+            page_api_meta_by_lang.setdefault(api_lang, {})[lang_slug] = {
+                'title': boat_lang.get('title', ''),
+                'location': (
+                    boat_lang.get('location', '')
+                    or boat_lang.get('region', '')
+                    or boat_lang.get('country', '')
+                ),
+                'marina': boat_lang.get('marina', ''),
+                'country': boat_lang.get('country', ''),
+                'region': boat_lang.get('region', ''),
+                'city': boat_lang.get('city', ''),
+            }
+
+    for boat in results['boats']:
+        boat_slug = boat.get('slug')
+        if not boat_slug:
+            continue
+        page_api_meta[boat_slug] = {
+            'country': boat.get('country', ''),
+            'region': boat.get('region', ''),
+            'city': boat.get('city', ''),
+            'marina': boat.get('marina', ''),
+            'title': boat.get('title', ''),
+            'location': (
+                boat.get('location', '')
+                or boat.get('region', '')
+                or boat.get('country', '')
+            ),
+            'flag': boat.get('flag', ''),
+            'coordinates': boat.get('coordinates', []),
+            'category': boat.get('category', ''),
+            'category_slug': boat.get('category_slug', ''),
+            'engine_type': boat.get('engineType', ''),
+            'sail': boat.get('sail', ''),
+            'newboat': boat.get('newboat', False),
+            'reviews_score': boat.get('reviewsScore'),
+            'total_reviews': boat.get('totalReviews'),
+            'prepayment': boat.get('prepayment'),
+            'usp': boat.get('usp', []),
+            'parameters': boat.get('parameters', {}),
+            'charter_name': boat.get('charter', ''),
+            'charter_id': boat.get('charter_id', ''),
+            'charter_logo': boat.get('charter_logo', ''),
+            'charter_rank': boat.get('charter_rank', {}),
+        }
+
+    if page_api_meta:
+        from boats.management.commands.parse_boats_parallel import (
+            Command as PBPCommand,
+        )
+        updated = PBPCommand._update_api_metadata(
+            page_api_meta, page_api_meta_by_lang,
+        )
+        page_slugs = list(page_api_meta.keys())
+        _invalidate_boat_detail_cache(page_slugs)
+        return updated, []
+    return 0, []
+
+
 @shared_task(bind=True, max_retries=0)
 def run_parse_job(self, job_id_hex, no_cache=False):
     """Оркестратор: собирает slug'и (легковесно, EN-only), затем
     диспатчит disposable tasks для тяжёлой работы.
 
-    Для mode=api: dispatch process_api_page_range tasks (20 стр. каждый).
-    Для mode=html: dispatch process_html_batch tasks.
-    Для mode=full: dispatch оба типа task'ов.
+    Для mode=api: API source-of-truth (без HTML этапа).
+    Для mode=html: HTML только фото + extras/additional_services/delivery_extras/not_included.
+    Для mode=full: полностью HTML (legacy full HTML profile).
     Все tasks → chord → finalize_parse_job.
     """
     from boats.models import ParseJob, ParsedBoat
@@ -966,8 +1346,9 @@ def run_parse_job(self, job_id_hex, no_cache=False):
     # --- Фаза 2: Формируем tasks ---
     tasks_list = []
 
-    # API page-range tasks (для mode=api или mode=full)
-    if job.mode in ('api', 'full') and effective_pages > 0:
+    # API page-range tasks только для mode=api.
+    # mode=html/full не должны трогать API-пайплайн.
+    if job.mode == 'api' and effective_pages > 0:
         for start in range(1, effective_pages + 1, PAGES_PER_RANGE):
             end = min(start + PAGES_PER_RANGE - 1, effective_pages)
             tasks_list.append(
@@ -983,6 +1364,7 @@ def run_parse_job(self, job_id_hex, no_cache=False):
 
     # HTML batch tasks (для mode=html или mode=full)
     if job.mode in ('html', 'full'):
+        html_mode = 'all_html' if job.mode == 'full' else 'services_only'
         html_slugs = list(all_slugs)
 
         # Фильтрация существующих
@@ -1003,12 +1385,12 @@ def run_parse_job(self, job_id_hex, no_cache=False):
         for batch_slugs in slug_batches:
             thumb_subset = {s: thumb_map[s] for s in batch_slugs if s in thumb_map}
             tasks_list.append(
-                process_html_batch.s(job_id_hex, batch_slugs, thumb_subset)
+                process_html_batch.s(job_id_hex, batch_slugs, thumb_subset, html_mode)
             )
         _job_log(
             job_id_hex,
             f'HTML: {len(slug_batches)} batch(ей) '
-            f'(batch_size={batch_size}, slug={len(html_slugs)})',
+            f'(batch_size={batch_size}, slug={len(html_slugs)}, html_mode={html_mode})',
         )
 
     if not tasks_list:
