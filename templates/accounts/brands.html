@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Мои бренды" %} - Ахой!Rent{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <div class="flex flex-col md:flex-row gap-4">
+        {% include 'includes/lk_sidebar.html' with active_page='brands' %}
+
+        <div class="flex-1 min-w-0 space-y-6">
+            <h1 class="text-xl font-bold">{% trans "Мои бренды" %}</h1>
+
+            <!-- Список существующих брендов -->
+            {% if brands %}
+            <div class="space-y-3">
+                {% for brand in brands %}
+                <div class="card bg-base-100 shadow-sm" x-data="{ open: {% if editing and editing.pk == brand.pk %}true{% else %}false{% endif %} }">
+                    <div class="card-body p-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <!-- Превью бренда -->
+                            <div class="flex items-center gap-3 flex-1 min-w-0">
+                                {% if brand.logo %}
+                                <img src="{{ brand.logo.url }}" alt="{{ brand.name }}" class="h-10 w-16 object-contain rounded border border-base-300">
+                                {% else %}
+                                <div class="h-10 w-16 rounded flex items-center justify-center text-white text-xs font-bold"
+                                     style="background-color: {{ brand.primary_color }};">
+                                    {{ brand.name|slice:":3"|upper }}
+                                </div>
+                                {% endif %}
+                                <div class="min-w-0">
+                                    <div class="font-semibold truncate">{{ brand.name }}</div>
+                                    {% if brand.tagline %}
+                                    <div class="text-xs opacity-60 truncate">{{ brand.tagline }}</div>
+                                    {% endif %}
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="inline-block w-3 h-3 rounded-full border border-base-300" style="background-color: {{ brand.primary_color }};"></span>
+                                        <span class="text-xs opacity-50">{{ brand.primary_color }}</span>
+                                        {% if brand.is_default %}
+                                        <span class="badge badge-xs badge-primary">{% trans "по умолчанию" %}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Кнопки -->
+                            <div class="flex gap-2 flex-shrink-0">
+                                <button type="button" class="btn btn-sm btn-ghost" @click="open = !open">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form method="post" action="{% url 'brand_delete' brand.pk %}" onsubmit="return confirm('Удалить бренд «{{ brand.name }}»?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-ghost text-error">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Форма редактирования (раскрывается по клику) -->
+                        <div x-show="open" x-cloak class="mt-4 border-t border-base-200 pt-4">
+                            <form method="post" action="{% url 'brand_edit' brand.pk %}" enctype="multipart/form-data"
+                                  x-data="brandPreview()" x-init="init($el)">
+                                {% csrf_token %}
+                                {% include 'accounts/includes/brand_form_fields.html' with brand=brand %}
+                                <div class="flex gap-2 mt-4">
+                                    <button type="submit" class="btn btn-primary btn-sm">{% trans "Сохранить" %}</button>
+                                    <button type="button" class="btn btn-ghost btn-sm" @click="open = false">{% trans "Отмена" %}</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert">
+                <i class="fas fa-info-circle"></i>
+                <span>{% trans "У вас пока нет брендов. Создайте первый ниже." %}</span>
+            </div>
+            {% endif %}
+
+            <!-- Форма создания нового бренда -->
+            <div class="card bg-base-100 shadow-sm" x-data="{ open: {% if not brands %}true{% else %}false{% endif %} }">
+                <div class="card-body p-4">
+                    <button type="button" class="flex items-center gap-2 font-semibold text-sm text-left w-full" @click="open = !open">
+                        <i class="fas fa-plus-circle text-primary"></i>
+                        {% trans "Добавить новый бренд" %}
+                        <i class="fas fa-chevron-down ml-auto transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                    </button>
+                    <div x-show="open" x-cloak class="mt-4 border-t border-base-200 pt-4">
+                        <form method="post" action="{% url 'brand_create' %}" enctype="multipart/form-data"
+                              x-data="brandPreview()" x-init="init($el)">
+                            {% csrf_token %}
+                            {% include 'accounts/includes/brand_form_fields.html' %}
+
+                            <!-- Живое превью -->
+                            <div class="mt-4">
+                                <div class="text-sm font-semibold mb-2">{% trans "Превью в оффере" %}</div>
+                                <div class="rounded-xl p-4 flex items-center justify-between border-2 transition-all"
+                                     :style="`background: ${color}22; border-color: ${color};`">
+                                    <div class="flex items-center gap-3">
+                                        <template x-if="logoUrl">
+                                            <img :src="logoUrl" class="h-10 object-contain max-w-[80px]">
+                                        </template>
+                                        <template x-if="!logoUrl">
+                                            <div class="h-10 w-16 rounded flex items-center justify-center text-white text-xs font-bold"
+                                                 :style="`background-color: ${color};`" x-text="nameShort"></div>
+                                        </template>
+                                        <div>
+                                            <div class="font-bold" x-text="name || '—'"></div>
+                                            <div class="text-xs opacity-60" x-text="tagline"></div>
+                                        </div>
+                                    </div>
+                                    <div class="text-xs text-right space-y-0.5 opacity-70">
+                                        <div x-show="phone"><i class="fas fa-phone mr-1"></i><span x-text="phone"></span></div>
+                                        <div x-show="email"><i class="fas fa-envelope mr-1"></i><span x-text="email"></span></div>
+                                        <div x-show="telegram"><i class="fa-brands fa-telegram mr-1"></i><span x-text="telegram"></span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-primary btn-sm">{% trans "Создать бренд" %}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function brandPreview() {
+    return {
+        name: '',
+        tagline: '',
+        color: '#3B82F6',
+        phone: '',
+        email: '',
+        telegram: '',
+        logoUrl: null,
+        get nameShort() {
+            return this.name ? this.name.slice(0, 3).toUpperCase() : '???';
+        },
+        init(el) {
+            const nameInput = el.querySelector('[name="name"]');
+            const taglineInput = el.querySelector('[name="tagline"]');
+            const colorInput = el.querySelector('[name="primary_color"]');
+            const phoneInput = el.querySelector('[name="phone"]');
+            const emailInput = el.querySelector('[name="email"]');
+            const telegramInput = el.querySelector('[name="telegram"]');
+            const logoInput = el.querySelector('[name="logo"]');
+
+            if (nameInput) { this.name = nameInput.value; nameInput.addEventListener('input', e => this.name = e.target.value); }
+            if (taglineInput) { this.tagline = taglineInput.value; taglineInput.addEventListener('input', e => this.tagline = e.target.value); }
+            if (colorInput) { this.color = colorInput.value; colorInput.addEventListener('input', e => this.color = e.target.value); }
+            if (phoneInput) { this.phone = phoneInput.value; phoneInput.addEventListener('input', e => this.phone = e.target.value); }
+            if (emailInput) { this.email = emailInput.value; emailInput.addEventListener('input', e => this.email = e.target.value); }
+            if (telegramInput) { this.telegram = telegramInput.value; telegramInput.addEventListener('input', e => this.telegram = e.target.value); }
+            if (logoInput) {
+                logoInput.addEventListener('change', e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = ev => this.logoUrl = ev.target.result;
+                        reader.readAsDataURL(file);
+                    } else {
+                        this.logoUrl = null;
+                    }
+                });
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

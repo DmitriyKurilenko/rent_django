@@ -1154,6 +1154,9 @@ def boat_detail_api(request, boat_id):
                 user=request.user,
                 boat_slug=boat_static['slug']
             ).exists()
+            if request.user.profile.can_use_custom_branding():
+                from accounts.models import CaptainBrand
+                context['user_brands'] = list(CaptainBrand.objects.filter(owner=request.user))
         else:
             context['is_favorite'] = False
 
@@ -2099,6 +2102,15 @@ def create_offer(request):
                 requested_branding_mode = 'default'
             offer.branding_mode = requested_branding_mode
 
+            if requested_branding_mode == 'custom_branding':
+                from accounts.models import CaptainBrand
+                brand_id = request.POST.get('brand_id')
+                if brand_id:
+                    try:
+                        offer.brand = CaptainBrand.objects.get(pk=brand_id, owner=request.user)
+                    except CaptainBrand.DoesNotExist:
+                        pass
+
             # Конвертируем Decimal в float для JSON сохранения
             from decimal import Decimal
 
@@ -2234,8 +2246,10 @@ def create_offer(request):
 
         form = OfferForm(user=request.user, initial=initial_data)
 
+    from accounts.models import CaptainBrand
     context = {
         'form': form,
+        'user_brands': CaptainBrand.objects.filter(owner=request.user) if request.user.profile.can_use_custom_branding() else [],
     }
     return render(request, 'boats/create_offer.html', context)
 
@@ -2301,6 +2315,7 @@ def offer_detail(request, uuid):
         'countdown_end_iso': countdown_end_at.isoformat() if countdown_end_at else '',
         'hide_site_branding': hide_site_branding,
         'is_custom_branding': is_custom_branding,
+        'brand': offer.brand if is_custom_branding else None,
         'can_view_internal_notes': can_view_internal_notes,
         'can_book_from_offer': can_book_from_offer,
         'data_error': data_error,
@@ -2573,6 +2588,7 @@ def offer_view(request, uuid):
         'delivery_extras': delivery_extras,
         'hide_site_branding': offer.branding_mode in ['no_branding', 'custom_branding'],
         'is_custom_branding': offer.branding_mode == 'custom_branding',
+        'brand': offer.brand if offer.branding_mode == 'custom_branding' else None,
         'can_view_internal_notes': request.user == offer.created_by,
         'can_book_from_offer': request.user == offer.created_by or request.user.profile.can_see_all_bookings(),
     }
@@ -2714,6 +2730,19 @@ def quick_create_offer(request, boat_slug):
         if requested_branding_mode == 'custom_branding' and not request.user.profile.can_use_custom_branding():
             requested_branding_mode = 'default'
         offer.branding_mode = requested_branding_mode
+
+        if requested_branding_mode == 'custom_branding':
+            from accounts.models import CaptainBrand
+            brand_id = request.POST.get('brand_id')
+            if brand_id:
+                try:
+                    offer.brand = CaptainBrand.objects.get(pk=brand_id, owner=request.user)
+                except CaptainBrand.DoesNotExist:
+                    pass
+            else:
+                default_brand = CaptainBrand.objects.filter(owner=request.user, is_default=True).first()
+                offer.brand = default_brand
+
         offer.check_in = datetime.strptime(check_in, '%Y-%m-%d').date()
         offer.check_out = datetime.strptime(check_out, '%Y-%m-%d').date()
 

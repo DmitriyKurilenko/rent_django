@@ -2,6 +2,33 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.15.0-dev] - 2026-04-19
+
+### ✨ Added — Полноценный кастомный брендинг офферов (CaptainBrand)
+- **`accounts/models.py`**: новая модель `CaptainBrand` (owner, name, logo, primary_color, tagline, phone, email, website, telegram, whatsapp, footer_text, is_default). `save()` гарантирует единственный `is_default` на пользователя. Migration: `accounts/migrations/0010_captainbrand.py`.
+- **`boats/models.py`**: FK `brand` (SET_NULL, nullable) на `Offer → CaptainBrand`. Migration: `boats/migrations/0036_offer_brand.py`. Убрана пометка «(заглушка)» из `BRANDING_MODE_CHOICES`.
+- **`accounts/views.py`** + **`accounts/urls.py`**: CRUD брендов (`brand_list`, `brand_create`, `brand_edit`, `brand_delete`). Доступ ограничен `owner=request.user`.
+- **`accounts/forms.py`**: `CaptainBrandForm` с color picker для `primary_color`.
+- **`boat_rental/settings.py`**: условный `S3Boto3Storage` — активируется только при наличии реальных env-переменных (не `replace-me`). Логотипы в `brands/logos/`.
+- **`requirements.txt`**: `django-storages[s3]==1.14.4`.
+- **`boats/forms.py`**: динамическое поле `brand` в `OfferForm` (только при `can_use_custom_branding()`).
+- **`boats/views.py`**: `create_offer` читает `brand_id` из POST (ручной FormData); `quick_create_offer` автоматически подставляет default-бренд; `offer_view`/`offer_detail` передают `brand` в контекст.
+- **`templates/accounts/brands.html`**: страница управления брендами с Alpine.js live preview.
+- **`templates/boats/create_offer.html`**: brand selector при `branding_mode=custom_branding`; `brand_id` явно добавлен в `submitForm()` FormData.
+- **`templates/base.html`**: блоки `{% block brand_header %}` (до `<main>`) и `{% block brand_footer %}` (после `</main>`).
+- **`templates/boats/includes/offer_brand_header.html`**: полноэкранная sticky шапка — градиент бренда, логотип, название, слоган, кнопки контактов (phone, Telegram, WhatsApp, email, website).
+- **`templates/boats/includes/offer_brand_footer.html`**: брендированный подвал — логотип, слоган, footer_text, контакты с цветными иконками.
+- **`templates/boats/includes/offer_brand_contacts.html`**: блок крупных кнопок мессенджеров внизу страницы (WhatsApp #25D366, Telegram #2AABEE, phone/email в цвете бренда).
+- **`templates/boats/includes/quick_offer_branding.html`**: branding_mode radios + brand select для quick create modal.
+- **`templates/includes/lk_sidebar.html`**: ссылка «Бренды» при `can_use_custom_branding`.
+
+### 🐛 Fixed — Font Awesome brand icons not rendering
+- **`templates/boats/includes/offer_brand_contacts.html`**, **`offer_brand_footer.html`**, **`templates/accounts/brands.html`**, **`templates/boats/contacts.html`**: `fab fa-telegram` / `fab fa-whatsapp` → `fa-brands fa-telegram` / `fa-brands fa-whatsapp` (Font Awesome 6 требует явный префикс `fa-brands`).
+
+### 🔧 Changed — Дизайн брендированного оффера
+- **`templates/boats/offer_tourist.html`**, **`offer_captain.html`**: inline brand card удалён; шапка/подвал рендерятся через `{% block brand_header/footer %}`. Блок цены (`card bg-primary`) использует `background-color: {{ brand.primary_color }}` для брендированных офферов.
+- **`templates/boats/detail.html`**: `brandingMode` добавлен в Alpine x-data; quick_offer_branding.html подключён к обоим modal forms.
+
 ## [0.14.0-dev] - 2026-04-17
 
 ### ✨ Added — Fast Celery workers mode for catalog parsing

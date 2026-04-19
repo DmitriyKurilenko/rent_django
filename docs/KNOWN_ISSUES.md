@@ -1,6 +1,13 @@
 # KNOWN ISSUES
 
-Last updated: 2026-04-17 (Europe/Moscow)
+Last updated: 2026-04-19 (Europe/Moscow)
+
+## KI-014: Font Awesome brand icons (fab) not rendering (RESOLVED 2026-04-19)
+- Severity: low (RESOLVED)
+- Area: templates — offer_brand_contacts.html, offer_brand_footer.html, brands.html, contacts.html
+- Symptom: иконки `fa-telegram` и `fa-whatsapp` отображались как пустые круги; `fas fa-phone` / `fas fa-envelope` рендерились корректно.
+- Root cause: Font Awesome 6 рекомендует явный класс `fa-brands` для брендовых иконок; `fab` (shorthand) не резолвился корректно при lazy-load через `<link rel="preload" ... onload>`.
+- Fix: заменено `fab fa-telegram` → `fa-brands fa-telegram`, `fab fa-whatsapp` → `fa-brands fa-whatsapp` во всех четырёх шаблонах.
 
 ## KI-012: HTML parser not updating last_parsed (RESOLVED 2026-04-15)
 - Severity: medium (RESOLVED)

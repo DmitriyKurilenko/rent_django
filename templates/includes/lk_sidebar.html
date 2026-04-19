@@ -42,6 +42,13 @@
                 </a>
                 {% endif %}
 
+                {# Бренды (для custom_branding) #}
+                {% if user.profile.can_use_custom_branding %}
+                <a href="{% url 'brand_list' %}" class="btn btn-sm {% if active_page == 'brands' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
+                    <i class="fas fa-paint-brush"></i> {% trans "Бренды" %}
+                </a>
+                {% endif %}
+
                 {# Бронирования #}
                 <a href="{% url 'my_bookings' %}" class="btn btn-sm {% if active_page == 'bookings' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">
                     <i class="fas fa-calendar-check"></i> {% trans "Бронирования" %}

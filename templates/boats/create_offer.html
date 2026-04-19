@@ -75,10 +75,37 @@
                                 {% if user.profile.can_use_custom_branding %}
                                 <label class="cursor-pointer flex items-center justify-start gap-2 border border-base-300 rounded p-2">
                                     <input type="radio" name="branding_mode" value="custom_branding" x-model="form.branding_mode" class="radio radio-xs radio-primary">
-                                    <span class="text-sm">{% trans "Кастом (заглушка)" %}</span>
+                                    <span class="text-sm">{% trans "Мой бренд" %}</span>
                                 </label>
                                 {% endif %}
                             </div>
+
+                            <!-- Выбор бренда (показывается при custom_branding) -->
+                            {% if user.profile.can_use_custom_branding %}
+                            <div x-show="form.branding_mode === 'custom_branding'" x-cloak class="mt-2">
+                                {% if user_brands %}
+                                <select name="brand_id" class="select select-sm w-full">
+                                    <option value="">— {% trans "Выберите бренд" %} —</option>
+                                    {% for brand in user_brands %}
+                                    <option value="{{ brand.pk }}" {% if brand.is_default %}selected{% endif %}>
+                                        {{ brand.name }}{% if brand.is_default %} ({% trans "по умолчанию" %}){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <a href="{% url 'brand_list' %}" class="text-xs text-primary mt-1 inline-block">
+                                    <i class="fas fa-plus mr-1"></i>{% trans "Управление брендами" %}
+                                </a>
+                                {% else %}
+                                <div class="alert alert-warning py-2 text-sm mt-1">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>{% trans "У вас нет брендов." %}
+                                        <a href="{% url 'brand_list' %}" class="link font-semibold">{% trans "Создайте бренд" %}</a>
+                                        {% trans "перед созданием оффера." %}
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                         </div>
 
                         <!-- Title -->
@@ -359,6 +386,12 @@ function offerForm() {
                 formData.append('title', this.form.title);
                 formData.append('offer_type', this.form.offer_type);
                 formData.append('branding_mode', this.form.branding_mode);
+                if (this.form.branding_mode === 'custom_branding') {
+                    const brandSelect = document.querySelector('select[name="brand_id"]');
+                    if (brandSelect && brandSelect.value) {
+                        formData.append('brand_id', brandSelect.value);
+                    }
+                }
                 formData.append('check_in', this.formatDateForInput(this.urlInfo.checkIn));
                 formData.append('check_out', this.formatDateForInput(this.urlInfo.checkOut));
                 formData.append('show_countdown', this.form.show_countdown ? 'on' : '');

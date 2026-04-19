@@ -2,6 +2,28 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-19 — Улучшения брендированного оффера (визуал, контакты, иконки)
+- Feature: полноэкранная шапка и подвал — добавлены `{% block brand_header %}` и `{% block brand_footer %}` в base.html; каждый переопределяется в offer_tourist.html и offer_captain.html через `{% include 'boats/includes/offer_brand_header/footer.html' %}`.
+- Header: sticky, gradient `primary_color → primary_colorbb`, логотип с drop-shadow, название, слоган, кнопки контактов (phone, Telegram, WhatsApp, email, website) с `bg-white/10 hover:bg-white/25`.
+- Footer: border-top 4px в цвете бренда, контакты с цветными round иконками (`primary_color22` фон).
+- Contacts block: новый include `offer_brand_contacts.html` — крупные кнопки WhatsApp (#25D366), Telegram (#2AABEE), phone/email в цвете бренда; размещён в нижней части контента (перед brand_footer).
+- Price card: `bg-primary text-primary-content` → inline `background-color: brand.primary_color; color: white` при `is_custom_branding and brand`. Разделитель: `border-white/20` вместо `border-primary-content/20`.
+- Bug fix: `fab fa-telegram` / `fab fa-whatsapp` не рендерились в FA6 — заменено на `fa-brands fa-*` в 4 файлах: offer_brand_contacts.html, offer_brand_footer.html, accounts/brands.html, boats/contacts.html.
+- Old inline brand card удалён из offer_tourist.html и offer_captain.html (заменён полноэкранными блоками).
+- Files: `templates/base.html`, `templates/boats/offer_tourist.html`, `templates/boats/offer_captain.html`, `templates/boats/includes/offer_brand_header.html`, `templates/boats/includes/offer_brand_footer.html`, `templates/boats/includes/offer_brand_contacts.html`, `templates/accounts/brands.html`, `templates/boats/contacts.html`.
+- Validation: `manage.py check` — 0 issues. CSS rebuild OK (tailwindcss v4.2.2, daisyUI 5.5.19).
+- Risks: brand color contrast — белый текст на шапке читается через `text-shadow 0 1px 3px rgba(0,0,0,0.4)`; пользователи с очень светлыми цветами бренда могут получить слабый контраст. Решение на будущее — анализ яркости цвета в JS или на сервере.
+
+## 2026-04-19 — Кастомный брендинг офферов (CaptainBrand)
+- Feature: полная реализация custom_branding — модель CaptainBrand, CRUD, S3-хранилище, brand selector в offer creation, реальный brand header в публичных офферах.
+- S3: django-storages добавлен в requirements.txt; settings.py — условный S3Boto3Storage по env-переменным (при `replace-me` → FileSystemStorage).
+- Model: `CaptainBrand` (owner, name, logo, primary_color, tagline, phone, email, website, telegram, whatsapp, footer_text, is_default). `save()` гарантирует один is_default на пользователя. Migration accounts/0010.
+- Offer: добавлен FK `brand` (SET_NULL, nullable). Migration boats/0036. `BRANDING_MODE_CHOICES` — убрана пометка «(заглушка)».
+- Views: brand_list / brand_create / brand_edit / brand_delete в accounts/views.py. В create_offer — brand_id из POST + передача user_brands в context. В quick_create_offer — auto-select default brand. В offer_view и offer_detail — `brand` добавлен в context.
+- Templates: brands.html с Alpine.js превью; brand_form_fields.html include; lk_sidebar.html — ссылка Бренды; create_offer.html — select бренда при custom_branding; offer_tourist.html и offer_captain.html — реальный brand block с лого/цветом/контактами.
+- Validation: `manage.py check` 0 issues; миграции применены; HTTP 200 для /, /login/, /search/; 302 для /brands/ (correct auth redirect); CSS rebuild OK.
+- Risks: S3 в локальной среде не активен (env = replace-me) — это ожидаемо; logo upload сохраняется локально в dev.
+
 ## 2026-04-17 — Commit prep + documentation sync for parse mode hardening
 - Release prep: bumped `VERSION` to `0.14.0-dev`, added top release section in `CHANGELOG.md`.
 - Docs sync:

@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Role, UserProfile
+from .models import CaptainBrand, Role, UserProfile
 from boats.forms import DaisyUIMixin
 
 
@@ -61,3 +61,30 @@ class ProfileUpdateForm(DaisyUIMixin, forms.ModelForm):
             user.save(update_fields=['first_name', 'last_name'])
             profile.save(update_fields=['phone'])
         return profile
+
+
+class CaptainBrandForm(DaisyUIMixin, forms.ModelForm):
+    class Meta:
+        model = CaptainBrand
+        fields = [
+            'name', 'logo', 'primary_color', 'tagline',
+            'phone', 'email', 'website', 'telegram', 'whatsapp',
+            'footer_text', 'is_default',
+        ]
+        widgets = {
+            'primary_color': forms.TextInput(attrs={'type': 'color', 'class': 'h-10 w-20 cursor-pointer rounded border border-base-300 p-1'}),
+            'footer_text': forms.Textarea(attrs={'rows': 3}),
+        }
+        labels = {
+            'name': 'Название компании',
+            'logo': 'Логотип',
+            'primary_color': 'Основной цвет',
+            'tagline': 'Слоган',
+            'phone': 'Телефон',
+            'email': 'Email',
+            'website': 'Сайт',
+            'telegram': 'Telegram',
+            'whatsapp': 'WhatsApp',
+            'footer_text': 'Текст в подвале оффера',
+            'is_default': 'Использовать по умолчанию',
+        }

@@ -1,0 +1,81 @@
+{% load i18n %}
+{% if is_custom_branding and brand %}
+<footer class="w-full border-t-4 mt-auto" style="border-color: {{ brand.primary_color }}; background: {{ brand.primary_color }}0d;">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+        <div class="flex flex-col sm:flex-row items-start justify-between gap-8">
+            <div class="flex items-start gap-4">
+                {% if brand.logo %}
+                <img src="{{ brand.logo.url }}" alt="{{ brand.name }}"
+                     class="h-14 w-auto object-contain flex-shrink-0">
+                {% endif %}
+                <div>
+                    <div class="font-bold text-2xl leading-tight" style="color: {{ brand.primary_color }};">
+                        {{ brand.name }}
+                    </div>
+                    {% if brand.tagline %}
+                    <div class="text-sm text-base-content/60 mt-1">{{ brand.tagline }}</div>
+                    {% endif %}
+                    {% if brand.footer_text %}
+                    <div class="text-xs text-base-content/50 mt-3 max-w-sm leading-relaxed">
+                        {{ brand.footer_text }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 min-w-max">
+                {% if brand.phone %}
+                <a href="tel:{{ brand.phone }}"
+                   class="flex items-center gap-3 text-sm text-base-content/75 hover:text-base-content transition-colors">
+                    <span class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style="background: {{ brand.primary_color }}22;">
+                        <i class="fas fa-phone text-xs" style="color: {{ brand.primary_color }};"></i>
+                    </span>
+                    {{ brand.phone }}
+                </a>
+                {% endif %}
+                {% if brand.email %}
+                <a href="mailto:{{ brand.email }}"
+                   class="flex items-center gap-3 text-sm text-base-content/75 hover:text-base-content transition-colors">
+                    <span class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style="background: {{ brand.primary_color }}22;">
+                        <i class="fas fa-envelope text-xs" style="color: {{ brand.primary_color }};"></i>
+                    </span>
+                    {{ brand.email }}
+                </a>
+                {% endif %}
+                {% if brand.telegram %}
+                <a href="https://t.me/{{ brand.telegram|cut:'@' }}" target="_blank" rel="noopener"
+                   class="flex items-center gap-3 text-sm text-base-content/75 hover:text-base-content transition-colors">
+                    <span class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style="background: {{ brand.primary_color }}22;">
+                        <i class="fa-brands fa-telegram text-sm" style="color: {{ brand.primary_color }};"></i>
+                    </span>
+                    {{ brand.telegram }}
+                </a>
+                {% endif %}
+                {% if brand.whatsapp %}
+                <a href="https://wa.me/{{ brand.whatsapp|cut:'+' }}" target="_blank" rel="noopener"
+                   class="flex items-center gap-3 text-sm text-base-content/75 hover:text-base-content transition-colors">
+                    <span class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style="background: {{ brand.primary_color }}22;">
+                        <i class="fa-brands fa-whatsapp text-sm" style="color: {{ brand.primary_color }};"></i>
+                    </span>
+                    {{ brand.whatsapp }}
+                </a>
+                {% endif %}
+                {% if brand.website %}
+                <a href="{{ brand.website }}" target="_blank" rel="noopener"
+                   class="flex items-center gap-3 text-sm text-base-content/75 hover:text-base-content transition-colors">
+                    <span class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style="background: {{ brand.primary_color }}22;">
+                        <i class="fas fa-globe text-xs" style="color: {{ brand.primary_color }};"></i>
+                    </span>
+                    {{ brand.website }}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</footer>
+{% endif %}

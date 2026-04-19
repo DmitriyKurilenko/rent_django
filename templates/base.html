@@ -116,11 +116,15 @@
         </div>
     </div>
     {% endif %}
-    
+
+    {% block brand_header %}{% endblock %}
+
     <main class="min-h-main">
         {% block content %}{% endblock %}
     </main>
-    
+
+    {% block brand_footer %}{% endblock %}
+
     <!-- Footer -->
     {% if not hide_site_branding %}
     <footer class="bg-base-200 text-base-content border-t border-base-300">

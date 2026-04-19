@@ -258,6 +258,40 @@ class UserProfile(models.Model):
         return allowed
 
 
+class CaptainBrand(models.Model):
+    """Брендинговый профиль капитана для кастомного оформления офферов"""
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='brands', verbose_name='Владелец')
+    name = models.CharField('Название компании', max_length=200)
+    logo = models.ImageField('Логотип', upload_to='brands/logos/', blank=True, null=True)
+    primary_color = models.CharField(
+        'Основной цвет (HEX)', max_length=7, default='#3B82F6',
+        help_text='Например: #3B82F6',
+    )
+    tagline = models.CharField('Слоган', max_length=300, blank=True)
+    phone = models.CharField('Телефон', max_length=30, blank=True)
+    email = models.EmailField('Email', blank=True)
+    website = models.URLField('Сайт', blank=True)
+    telegram = models.CharField('Telegram (username или ссылка)', max_length=100, blank=True)
+    whatsapp = models.CharField('WhatsApp (номер)', max_length=30, blank=True)
+    footer_text = models.TextField('Текст в подвале оффера', blank=True)
+    is_default = models.BooleanField('По умолчанию', default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Бренд капитана'
+        verbose_name_plural = 'Бренды капитанов'
+        ordering = ['-is_default', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.owner.username})"
+
+    def save(self, *args, **kwargs):
+        if self.is_default:
+            CaptainBrand.objects.filter(owner=self.owner, is_default=True).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     """Автоматическое создание профиля при создании пользователя"""

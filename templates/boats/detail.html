@@ -630,6 +630,7 @@
     checkOut: '{{ check_out|default:'' }}',
     rentalDays: {{ rental_days|default:0 }},
     offerType: 'captain',
+    brandingMode: 'default',
     priceAdjustment: 0,
     basePrice: {{ boat.total_price|default:"0"|unlocalize }},
     get adjustedPrice() {
@@ -806,6 +807,8 @@
                     {% endif %}
                 </div>
 
+                {% include 'boats/includes/quick_offer_branding.html' %}
+
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" @click="$el.closest('dialog').close()">Отмена</button>
                     <button type="submit" class="btn btn-primary" :disabled="!datesValid">
@@ -865,6 +868,8 @@
                     </label>
                     {% endif %}
                 </div>
+
+                {% include 'boats/includes/quick_offer_branding.html' %}
 
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" @click="$el.closest('dialog').close()">Отмена</button>

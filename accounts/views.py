@@ -8,7 +8,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.http import HttpResponseForbidden
-from .forms import RegisterForm, ProfileUpdateForm
+from .forms import CaptainBrandForm, RegisterForm, ProfileUpdateForm
+from .models import CaptainBrand
 
 
 def register_view(request):
@@ -317,3 +318,56 @@ def price_settings_view(request):
         'errors': errors,
     }
     return render(request, 'accounts/price_settings.html', context)
+
+
+# =============================================================================
+# Бренды капитана
+# =============================================================================
+
+@login_required
+def brand_list(request):
+    """Список брендов пользователя"""
+    brands = CaptainBrand.objects.filter(owner=request.user)
+    form = CaptainBrandForm()
+    return render(request, 'accounts/brands.html', {'brands': brands, 'form': form})
+
+
+@login_required
+def brand_create(request):
+    """Создание нового бренда (POST)"""
+    if request.method != 'POST':
+        return redirect('brand_list')
+    form = CaptainBrandForm(request.POST, request.FILES)
+    if form.is_valid():
+        brand = form.save(commit=False)
+        brand.owner = request.user
+        brand.save()
+    return redirect('brand_list')
+
+
+@login_required
+def brand_edit(request, pk):
+    """Редактирование бренда"""
+    brand = CaptainBrand.objects.filter(pk=pk, owner=request.user).first()
+    if brand is None:
+        return HttpResponseForbidden()
+    if request.method == 'POST':
+        form = CaptainBrandForm(request.POST, request.FILES, instance=brand)
+        if form.is_valid():
+            form.save()
+            return redirect('brand_list')
+    else:
+        form = CaptainBrandForm(instance=brand)
+    brands = CaptainBrand.objects.filter(owner=request.user)
+    return render(request, 'accounts/brands.html', {'brands': brands, 'form': form, 'editing': brand})
+
+
+@login_required
+def brand_delete(request, pk):
+    """Удаление бренда (POST)"""
+    brand = CaptainBrand.objects.filter(pk=pk, owner=request.user).first()
+    if brand is None:
+        return HttpResponseForbidden()
+    if request.method == 'POST':
+        brand.delete()
+    return redirect('brand_list')

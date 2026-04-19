@@ -1,8 +1,20 @@
 # TASK STATE
 
-Last updated: 2026-04-17 (Europe/Moscow)
+Last updated: 2026-04-19 (Europe/Moscow)
 
 ## Current priorities
+
+### P2.0: Кастомный брендинг офферов
+- Status: **DONE (2026-04-19)**
+- Модель `CaptainBrand` (accounts/models.py), миграция accounts/0010.
+- FK `brand` на Offer (boats/models.py), миграция boats/0036.
+- CRUD брендов: accounts/views.py + accounts/urls.py + templates/accounts/brands.html.
+- S3-хранение логотипов: условный бэкенд в settings.py (django-storages).
+- Обновлены: OfferForm, create_offer view (brand_id), quick_create_offer (default brand), offer_view, offer_detail.
+- Полноэкранные шапка и подвал через `{% block brand_header/footer %}` в base.html; блок контактов (WhatsApp, Telegram, phone, email кнопки) в нижней части оффера; блок цены в цвете бренда.
+- Живое превью бренда через Alpine.js на странице управления брендами.
+- Фикс: `fab fa-telegram/whatsapp` → `fa-brands fa-telegram/whatsapp` в 4 шаблонах.
+- Files: `accounts/models.py`, `accounts/views.py`, `accounts/urls.py`, `accounts/forms.py`, `accounts/admin.py`, `accounts/migrations/0010_captainbrand.py`, `boats/models.py`, `boats/views.py`, `boats/forms.py`, `boats/migrations/0036_offer_brand.py`, `templates/accounts/brands.html`, `templates/accounts/includes/brand_form_fields.html`, `templates/includes/lk_sidebar.html`, `templates/boats/create_offer.html`, `templates/boats/offer_tourist.html`, `templates/boats/offer_captain.html`, `templates/boats/detail.html`, `templates/boats/contacts.html`, `templates/base.html`, `templates/boats/includes/offer_brand_header.html`, `templates/boats/includes/offer_brand_footer.html`, `templates/boats/includes/offer_brand_contacts.html`, `templates/boats/includes/quick_offer_branding.html`, `boat_rental/settings.py`, `requirements.txt`.
 
 ### P1.9: --skip-fresh flag + finalize_parse_job finished_at fix
 - Status: **DONE (2026-04-15)**

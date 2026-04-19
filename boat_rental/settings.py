@@ -124,18 +124,39 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 if (BASE_DIR / 'static').exists():
     STATICFILES_DIRS = [BASE_DIR / 'static']
 
-# Whitenoise для статики
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-    },
-}
+import os as _os
 
-# Media files
-MEDIA_URL = '/media/'
+_s3_configured = all([
+    _os.environ.get('AWS_ACCESS_KEY_ID') not in (None, '', 'replace-me'),
+    _os.environ.get('AWS_SECRET_ACCESS_KEY') not in (None, '', 'replace-me'),
+    _os.environ.get('S3_ENDPOINT_URL'),
+])
+
+if _s3_configured:
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "bucket_name": _os.environ.get('S3_BUCKET_NAME', 'yachts'),
+                "endpoint_url": _os.environ.get('S3_ENDPOINT_URL'),
+                "region_name": _os.environ.get('S3_REGION', 'ru-msk'),
+                "default_acl": "public-read",
+                "querystring_auth": False,
+                "file_overwrite": False,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
+    MEDIA_URL = _os.environ.get('S3_ENDPOINT_URL', '').rstrip('/') + '/' + _os.environ.get('S3_BUCKET_NAME', 'yachts') + '/'
+else:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+    }
+    MEDIA_URL = '/media/'
+
 MEDIA_ROOT = BASE_DIR / 'mediafiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

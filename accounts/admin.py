@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Permission, Role, UserProfile
+from .models import CaptainBrand, Permission, Role, UserProfile
 
 
 @admin.register(Permission)
@@ -81,3 +81,18 @@ class UserProfileAdmin(admin.ModelAdmin):
         if obj and obj.user == request.user:
             return self.readonly_fields + ['role_ref']
         return self.readonly_fields
+
+
+@admin.register(CaptainBrand)
+class CaptainBrandAdmin(admin.ModelAdmin):
+    list_display = ['name', 'owner', 'is_default', 'phone', 'email', 'created_at']
+    list_filter = ['is_default', 'created_at']
+    search_fields = ['name', 'owner__username', 'owner__email']
+    ordering = ['owner', '-is_default', 'name']
+    readonly_fields = ['created_at']
+
+    fieldsets = (
+        ('Основное', {'fields': ('owner', 'name', 'logo', 'primary_color', 'tagline', 'is_default')}),
+        ('Контакты', {'fields': ('phone', 'email', 'website', 'telegram', 'whatsapp')}),
+        ('Дополнительно', {'fields': ('footer_text', 'created_at')}),
+    )

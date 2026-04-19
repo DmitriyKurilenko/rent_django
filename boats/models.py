@@ -438,7 +438,7 @@ class Offer(models.Model):
     BRANDING_MODE_CHOICES = [
         ('default', 'Стандартный брендинг'),
         ('no_branding', 'Без брендинга'),
-        ('custom_branding', 'Кастомный брендинг (заглушка)'),
+        ('custom_branding', 'Кастомный брендинг'),
     ]
 
     # Идентификация
@@ -460,7 +460,14 @@ class Offer(models.Model):
         max_length=20,
         choices=BRANDING_MODE_CHOICES,
         default='default',
-        help_text='Стандартный, без брендинга, или кастомный брендинг (заглушка)'
+        help_text='Стандартный, без брендинга, или кастомный брендинг капитана'
+    )
+    brand = models.ForeignKey(
+        'accounts.CaptainBrand',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='offers',
+        verbose_name='Бренд',
     )
 
     # Клиент

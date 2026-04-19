@@ -3,6 +3,9 @@
 
 {% block title %}{{ offer.title }} - {% trans "Агентское предложение" %}{% endblock %}
 
+{% block brand_header %}{% include 'boats/includes/offer_brand_header.html' %}{% endblock %}
+{% block brand_footer %}{% include 'boats/includes/offer_brand_footer.html' %}{% endblock %}
+
 {% block content %}
 
 <div class="max-w-5xl mx-auto px-4 py-6">
@@ -10,13 +13,6 @@
     <div class="alert alert-error mb-4">
         <i class="fas fa-triangle-exclamation"></i>
         <span>{{ data_error }}</span>
-    </div>
-    {% endif %}
-
-    {% if is_custom_branding %}
-    <div class="alert alert-info mb-4">
-        <i class="fas fa-paint-brush"></i>
-        <span>{% trans "Кастомный брендинг (заглушка): здесь будет ваш логотип, фирменные цвета и контакты." %}</span>
     </div>
     {% endif %}
 
@@ -178,7 +174,8 @@
                 </div>
 
                 <!-- Цена (правая колонка) -->
-                <div class="card bg-primary text-primary-content shadow h-full">
+                <div class="card shadow h-full {% if not is_custom_branding or not brand %}bg-primary text-primary-content{% else %}text-white{% endif %}"
+                     {% if is_custom_branding and brand %}style="background-color: {{ brand.primary_color }};"{% endif %}>
                     <div class="card-body p-6 flex flex-col gap-4">
                         <div>
                             <div class="text-sm opacity-75 mb-1">{% trans "Период аренды" %}</div>
@@ -195,7 +192,7 @@
                             <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>
                         </div>
                         {% if commission.agent_commission %}
-                        <div class="border-t border-primary-content/20 pt-2">
+                        <div class="border-t {% if is_custom_branding and brand %}border-white/20{% else %}border-primary-content/20{% endif %} pt-2">
                             {% if show_charter_commission_only %}
                                 <div class="text-sm font-semibold text-success-content bg-success/30 rounded px-2 py-1">
                                     <i class="fas fa-coins"></i> {% trans "Комиссия" %} {{ commission.agent_commission|floatformat:0 }} €
@@ -451,5 +448,9 @@
     </div>
 </div>
 {% endif %}
+
+<div class="max-w-5xl mx-auto px-4 pb-8">
+    {% include 'boats/includes/offer_brand_contacts.html' %}
+</div>
 
 {% endblock %}

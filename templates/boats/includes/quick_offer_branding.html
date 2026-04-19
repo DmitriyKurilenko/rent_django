@@ -1,0 +1,45 @@
+{% load i18n %}
+{# Блок брендинга для быстрого создания оффера. Требует brandingMode в Alpine state родителя. #}
+{% if user.profile.can_use_custom_branding or user.profile.can_use_no_branding %}
+<div class="mb-4">
+    <div class="text-sm font-semibold mb-1.5">{% trans "Брендинг" %}</div>
+    <div class="grid grid-cols-{% if user.profile.can_use_custom_branding and user.profile.can_use_no_branding %}3{% else %}2{% endif %} gap-2">
+        <label class="cursor-pointer flex items-center gap-1 border border-base-300 rounded p-2">
+            <input type="radio" name="branding_mode" value="default" x-model="brandingMode" class="radio radio-xs radio-primary">
+            <span class="text-xs">{% trans "Стандарт" %}</span>
+        </label>
+        {% if user.profile.can_use_no_branding %}
+        <label class="cursor-pointer flex items-center gap-1 border border-base-300 rounded p-2">
+            <input type="radio" name="branding_mode" value="no_branding" x-model="brandingMode" class="radio radio-xs radio-primary">
+            <span class="text-xs">{% trans "Без бренд." %}</span>
+        </label>
+        {% endif %}
+        {% if user.profile.can_use_custom_branding %}
+        <label class="cursor-pointer flex items-center gap-1 border border-base-300 rounded p-2">
+            <input type="radio" name="branding_mode" value="custom_branding" x-model="brandingMode" class="radio radio-xs radio-primary">
+            <span class="text-xs">{% trans "Мой бренд" %}</span>
+        </label>
+        {% endif %}
+    </div>
+
+    {% if user.profile.can_use_custom_branding %}
+    <div x-show="brandingMode === 'custom_branding'" x-cloak class="mt-2">
+        {% if user_brands %}
+        <select name="brand_id" class="select select-sm w-full">
+            <option value="">— {% trans "Выберите бренд" %} —</option>
+            {% for brand in user_brands %}
+            <option value="{{ brand.pk }}" {% if brand.is_default %}selected{% endif %}>
+                {{ brand.name }}{% if brand.is_default %} ({% trans "по умолч." %}){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        {% else %}
+        <div class="text-xs text-warning mt-1">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            <a href="{% url 'brand_list' %}" class="link">{% trans "Создайте бренд" %}</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}

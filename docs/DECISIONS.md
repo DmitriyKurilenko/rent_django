@@ -1,6 +1,20 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-15 (Europe/Moscow)
+Last updated: 2026-04-19 (Europe/Moscow)
+
+## DR-044: CaptainBrand — кастомный брендинг офферов + S3 для медиа
+- Date: 2026-04-19
+- Context: Капитаны хотят отправлять клиентам офферы под своим брендом (логотип, название, контакты) вместо Ахой!Rent. Скелет (`branding_mode` на Offer, `can_use_custom_branding()`) существовал как заглушка.
+- Decision:
+  - Новая модель `CaptainBrand` в `accounts/models.py` (owner FK → User, logo ImageField, primary_color, tagline, phone, email, website, telegram, whatsapp, footer_text, is_default). `save()` обеспечивает единственный is_default на пользователя.
+  - FK `brand` (nullable, SET_NULL) на модели `Offer` → `CaptainBrand`.
+  - CRUD брендов: `/ru/accounts/brands/` (brand_list, brand_create, brand_edit, brand_delete). Доступ только owner.
+  - Живое превью бренда в UI — Alpine.js без серверного рендеринга (watch полей → обновляет mock-заголовок оффера).
+  - При создании оффера с `branding_mode=custom_branding` отображается select бренда; default-бренд пользователя подставляется в quick_create_offer автоматически.
+  - Оба шаблона (offer_tourist.html, offer_captain.html) рендерят брендинг через два блока в base.html: `{% block brand_header %}` (sticky шапка на всю ширину — градиент бренда, логотип, слоган, кнопки контактов) и `{% block brand_footer %}` (подвал с логотипом, слоганом, footer_text и контактами). Блок цены использует `primary_color` бренда вместо DaisyUI `bg-primary`. В нижней части страницы — крупные кнопки мессенджеров (WhatsApp, Telegram, phone, email). При отсутствии бренда — предупреждение только для создателя.
+  - S3 (VK Cloud) подключается условно через env-переменные (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL`); при отсутствии — FileSystemStorage. Логотипы загружаются в `brands/logos/`.
+  - Sidebar LK: ссылка «Бренды» для пользователей с `can_use_custom_branding`.
+- Consequence: Капитаны с подпиской advanced или разрешением `custom_branding` могут создавать несколько брендов и выбирать нужный при создании каждого оффера. Публичный оффер отображает лого и контакты вместо Ахой!Rent. S3-хранение логотипов прозрачно — без изменения кода при переключении окружений.
 
 ## DR-043: parse_boats is Celery-first; retries and freshness are tracked in ParseJob/ParsedBoat
 - Date: 2026-04-15

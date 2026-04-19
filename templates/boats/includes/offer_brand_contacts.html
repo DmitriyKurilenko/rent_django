@@ -1,0 +1,51 @@
+{% load i18n %}
+{% if is_custom_branding and brand %}
+{% if brand.telegram or brand.whatsapp or brand.phone or brand.email %}
+<div class="card shadow-md overflow-hidden">
+    <div class="px-5 py-3 font-semibold text-sm text-white"
+         style="background: linear-gradient(135deg, {{ brand.primary_color }}, {{ brand.primary_color }}cc);">
+        <i class="fas fa-comments mr-2"></i>{% trans "Связаться с организатором" %}
+    </div>
+    <div class="card-body p-4 bg-base-100">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {% if brand.whatsapp %}
+            <a href="https://wa.me/{{ brand.whatsapp|cut:'+' }}" target="_blank" rel="noopener"
+               class="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl text-white font-semibold text-base
+                      transition-all hover:opacity-90 active:scale-95 shadow-sm"
+               style="background: #25D366;">
+                <i class="fa-brands fa-whatsapp text-2xl"></i>
+                <span>WhatsApp</span>
+            </a>
+            {% endif %}
+            {% if brand.telegram %}
+            <a href="https://t.me/{{ brand.telegram|cut:'@' }}" target="_blank" rel="noopener"
+               class="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl text-white font-semibold text-base
+                      transition-all hover:opacity-90 active:scale-95 shadow-sm"
+               style="background: #2AABEE;">
+                <i class="fa-brands fa-telegram text-2xl"></i>
+                <span>Telegram</span>
+            </a>
+            {% endif %}
+            {% if brand.phone %}
+            <a href="tel:{{ brand.phone }}"
+               class="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl text-white font-semibold text-base
+                      transition-all hover:opacity-90 active:scale-95 shadow-sm"
+               style="background-color: {{ brand.primary_color }};">
+                <i class="fas fa-phone text-xl"></i>
+                <span>{{ brand.phone }}</span>
+            </a>
+            {% endif %}
+            {% if brand.email %}
+            <a href="mailto:{{ brand.email }}"
+               class="flex items-center justify-center gap-3 py-3.5 px-5 rounded-xl font-semibold text-base
+                      transition-all hover:opacity-80 active:scale-95 shadow-sm border-2 bg-base-100"
+               style="color: {{ brand.primary_color }}; border-color: {{ brand.primary_color }};">
+                <i class="fas fa-envelope text-xl"></i>
+                <span>{{ brand.email }}</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}

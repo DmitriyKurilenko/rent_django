@@ -191,7 +191,7 @@ class OfferForm(DaisyUIMixin, forms.ModelForm):
             ),
             'branding_mode': (
                 'Без брендинга скрывает шапку и подвал. '
-                'Кастомный брендинг пока отображается как заглушка.'
+                'Кастомный брендинг отображает ваш логотип и контакты.'
             ),
             'check_in': 'Дата начала аренды',
             'check_out': 'Дата окончания аренды',
@@ -205,6 +205,8 @@ class OfferForm(DaisyUIMixin, forms.ModelForm):
 
         # Ограничиваем выбор типа оффера в зависимости от прав пользователя
         if user and hasattr(user, 'profile'):
+            from accounts.models import CaptainBrand
+
             allowed_types = user.profile.get_allowed_offer_types()
             self.fields['offer_type'].choices = [
                 choice for choice in Offer.OFFER_TYPE_CHOICES
@@ -221,6 +223,15 @@ class OfferForm(DaisyUIMixin, forms.ModelForm):
                 choice for choice in Offer.BRANDING_MODE_CHOICES
                 if choice[0] in allowed_branding_modes
             ]
+
+            # Поле выбора бренда (только для custom_branding)
+            if user.profile.can_use_custom_branding():
+                self.fields['brand'] = forms.ModelChoiceField(
+                    queryset=CaptainBrand.objects.filter(owner=user),
+                    required=False,
+                    empty_label='— Выберите бренд —',
+                    label='Бренд',
+                )
 
             # Если доступен только один тип - скрываем выбор
             if len(allowed_types) == 1:

@@ -1,0 +1,90 @@
+{% load i18n %}
+{# Поля формы бренда. Используется в brand_list (create + edit). #}
+{# При редактировании передавать brand=<obj> для предзаполнения. #}
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <!-- Название -->
+    <div class="md:col-span-2">
+        <div class="text-sm font-semibold mb-1">{% trans "Название компании" %} <span class="text-error">*</span></div>
+        <input type="text" name="name" value="{{ brand.name|default:'' }}"
+               class="input input-sm w-full" placeholder="Например: Яхт-клуб Ахой" required>
+    </div>
+
+    <!-- Слоган -->
+    <div class="md:col-span-2">
+        <div class="text-sm font-semibold mb-1">{% trans "Слоган" %}</div>
+        <input type="text" name="tagline" value="{{ brand.tagline|default:'' }}"
+               class="input input-sm w-full" placeholder="Ваш слоган в 1-2 слова">
+    </div>
+
+    <!-- Лого + Цвет -->
+    <div>
+        <div class="text-sm font-semibold mb-1">{% trans "Логотип" %}</div>
+        {% if brand.logo %}
+        <div class="mb-2">
+            <img src="{{ brand.logo.url }}" class="h-10 object-contain rounded border border-base-300">
+            <div class="text-xs opacity-50 mt-0.5">{% trans "Загрузите новый файл, чтобы заменить" %}</div>
+        </div>
+        {% endif %}
+        <input type="file" name="logo" accept="image/*" class="file-input file-input-sm w-full">
+        <div class="text-xs opacity-50 mt-0.5">PNG или SVG до 2 МБ, рекомендуется прозрачный фон</div>
+    </div>
+
+    <div>
+        <div class="text-sm font-semibold mb-1">{% trans "Основной цвет" %}</div>
+        <div class="flex items-center gap-2">
+            <input type="color" name="primary_color" value="{{ brand.primary_color|default:'#3B82F6' }}"
+                   class="h-9 w-14 cursor-pointer rounded border border-base-300 p-0.5">
+            <span class="text-xs opacity-50">HEX</span>
+        </div>
+    </div>
+
+    <!-- Контакты -->
+    <div>
+        <div class="text-sm font-semibold mb-1">{% trans "Телефон" %}</div>
+        <input type="text" name="phone" value="{{ brand.phone|default:'' }}"
+               class="input input-sm w-full" placeholder="+7 (999) 000-00-00">
+    </div>
+
+    <div>
+        <div class="text-sm font-semibold mb-1">{% trans "Email" %}</div>
+        <input type="email" name="email" value="{{ brand.email|default:'' }}"
+               class="input input-sm w-full" placeholder="info@example.com">
+    </div>
+
+    <div>
+        <div class="text-sm font-semibold mb-1">{% trans "Telegram" %}</div>
+        <input type="text" name="telegram" value="{{ brand.telegram|default:'' }}"
+               class="input input-sm w-full" placeholder="@username или t.me/username">
+    </div>
+
+    <div>
+        <div class="text-sm font-semibold mb-1">{% trans "WhatsApp" %}</div>
+        <input type="text" name="whatsapp" value="{{ brand.whatsapp|default:'' }}"
+               class="input input-sm w-full" placeholder="+7 (999) 000-00-00">
+    </div>
+
+    <div class="md:col-span-2">
+        <div class="text-sm font-semibold mb-1">{% trans "Сайт" %}</div>
+        <input type="url" name="website" value="{{ brand.website|default:'' }}"
+               class="input input-sm w-full" placeholder="https://example.com">
+    </div>
+
+    <!-- Подвал -->
+    <div class="md:col-span-2">
+        <div class="text-sm font-semibold mb-1">{% trans "Текст в подвале оффера" %}</div>
+        <textarea name="footer_text" rows="2" class="textarea textarea-sm w-full"
+                  placeholder="ИП Иванов И.И. · ИНН 123456789012 · Работаем с 2015 года">{{ brand.footer_text|default:'' }}</textarea>
+    </div>
+
+    <!-- По умолчанию -->
+    <div class="md:col-span-2">
+        <label class="cursor-pointer flex items-center gap-2">
+            <input type="checkbox" name="is_default" class="checkbox checkbox-sm checkbox-primary"
+                   {% if brand.is_default %}checked{% endif %}>
+            <span class="text-sm">{% trans "Использовать этот бренд по умолчанию для новых офферов" %}</span>
+        </label>
+    </div>
+
+</div>
