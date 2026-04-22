@@ -1,6 +1,18 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-19 (Europe/Moscow)
+Last updated: 2026-04-22 (Europe/Moscow)
+
+## DR-045: Feedback — форма обратной связи с нотификациями в Telegram и на email
+- Date: 2026-04-22 (дополнено: Telegram + email нотификации)
+- Context: Нужна форма обратной связи с полями телефон и email. SMTP изначально не был настроен — добавлен блок настроек с env-переменными.
+- Decision:
+  - Модель `Feedback` хранит обращения в PostgreSQL (надёжное хранение независимо от доступности Telegram/SMTP).
+  - `FeedbackForm(DaisyUIMixin)`: поля имя, телефон (необязательный), email, сообщение.
+  - Вью `contacts`: GET → форма, POST → `Feedback.objects.create()` + `send_feedback_notification.delay(fb.pk)` + redirect с success message.
+  - Celery-задача `send_feedback_notification` (max_retries=2, countdown=30): загружает `Feedback` по pk, отправляет Telegram через существующий `send_telegram_message`, отправляет email через `django.core.mail.send_mail`. Оба канала независимы — сбой одного не блокирует другой. Fail-silent когда токены/SMTP не сконфигурированы.
+  - Email settings в settings.py: dev-default = `ConsoleEmailBackend` (stdout, без SMTP). Prod: `EMAIL_BACKEND=smtp.EmailBackend` + SMTP vars через env. `FEEDBACK_EMAIL` — адрес получателя обращений.
+  - Admin: `FeedbackAdmin` с `list_editable=['is_processed']` для ручной обработки.
+- Consequence: Три уровня надёжности: 1) Обращение гарантированно сохранено в БД. 2) Telegram-нотификация доставляется немедленно (асинхронно). 3) Email дублирует Telegram и отправляется туда, где его удобно обработать. Конфигурация SMTP полностью через env-переменные без изменения кода.
 
 ## DR-044: CaptainBrand — кастомный брендинг офферов + S3 для медиа
 - Date: 2026-04-19

@@ -2,6 +2,18 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-22 — Форма обратной связи + нотификации Telegram и email
+- Feature: форма обратной связи на `/contacts/` — поля имя, телефон (необязательный), email, сообщение. Нотификации при каждом обращении: Telegram + email.
+- Model: `Feedback` в boats/models.py. Migration 0037.
+- Form: `FeedbackForm(DaisyUIMixin)` в boats/forms.py.
+- View: `contacts` — POST сохраняет Feedback, вызывает `send_feedback_notification.delay(fb.pk)`.
+- Celery task: `send_feedback_notification` (boats/tasks.py) — Telegram через `send_telegram_message` + email через `django.core.mail.send_mail`. Каналы независимы. max_retries=2, countdown=30 для email retry.
+- Settings: добавлен блок Email SMTP (boat_rental/settings.py) — dev ConsoleEmailBackend по умолчанию, `FEEDBACK_EMAIL` для адреса получателя. `.env.example` обновлён.
+- Template: contacts.html — блок «Написать нам», DaisyUI 5 form pattern (DR-039).
+- Admin: `FeedbackAdmin` с `list_editable=['is_processed']`.
+- Files: `boats/models.py`, `boats/migrations/0037_feedback.py`, `boats/forms.py`, `boats/views.py`, `boats/tasks.py`, `boat_rental/settings.py`, `.env.example`, `templates/boats/contacts.html`, `boats/admin.py`.
+- Validation: `manage.py check` — 0 issues. POST тест: HTTP 302 (redirect), Celery task succeeded, Telegram delivered, console email MIME корректен (Subject UTF-8, body имя/email/телефон/сообщение). `{'tg': 'sent', 'email': 'sent'}`.
+
 ## 2026-04-19 — Улучшения брендированного оффера (визуал, контакты, иконки)
 - Feature: полноэкранная шапка и подвал — добавлены `{% block brand_header %}` и `{% block brand_footer %}` в base.html; каждый переопределяется в offer_tourist.html и offer_captain.html через `{% include 'boats/includes/offer_brand_header/footer.html' %}`.
 - Header: sticky, gradient `primary_color → primary_colorbb`, логотип с drop-shadow, название, слоган, кнопки контактов (phone, Telegram, WhatsApp, email, website) с `bg-white/10 hover:bg-white/25`.

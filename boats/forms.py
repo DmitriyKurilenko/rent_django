@@ -1,4 +1,5 @@
 from django import forms
+from django.utils.translation import gettext_lazy as _
 from .models import Boat, Booking, Review, Offer, Client
 
 
@@ -358,3 +359,27 @@ class ClientForm(DaisyUIMixin, forms.ModelForm):
             'address': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Город, улица, дом...'}),
             'notes': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Заметки о клиенте...'}),
         }
+
+
+class FeedbackForm(DaisyUIMixin, forms.Form):
+    """Форма обратной связи на странице контактов."""
+
+    name = forms.CharField(
+        label=_('Ваше имя'),
+        max_length=150,
+        widget=forms.TextInput(attrs={'placeholder': _('Иван Иванов')}),
+    )
+    phone = forms.CharField(
+        label=_('Телефон'),
+        max_length=30,
+        required=False,
+        widget=forms.TextInput(attrs={'placeholder': '+7 (___) ___-__-__', 'type': 'tel'}),
+    )
+    email = forms.EmailField(
+        label=_('Email'),
+        widget=forms.EmailInput(attrs={'placeholder': 'example@mail.ru'}),
+    )
+    message = forms.CharField(
+        label=_('Сообщение'),
+        widget=forms.Textarea(attrs={'rows': 4, 'placeholder': _('Ваш вопрос или сообщение')}),
+    )

@@ -35,6 +35,72 @@ def send_telegram_notification(self, text):
             return {'status': 'failed'}
 
 
+@shared_task(bind=True, max_retries=2)
+def send_feedback_notification(self, feedback_id):
+    """Уведомление о новом обращении через форму обратной связи.
+
+    Отправляет сообщение в Telegram и на email (FEEDBACK_EMAIL).
+    Оба канала независимы: сбой одного не блокирует другой.
+    Fail-silent когда токены/SMTP не сконфигурированы.
+    """
+    from django.conf import settings
+    from django.core.mail import send_mail
+    from boats.models import Feedback
+    from boats.telegram import send_telegram_message
+
+    try:
+        fb = Feedback.objects.get(pk=feedback_id)
+    except Feedback.DoesNotExist:
+        logger.warning('[Feedback] Feedback pk=%s not found, skipping', feedback_id)
+        return {'status': 'not_found'}
+
+    phone_line = f'Телефон: {fb.phone}\n' if fb.phone else ''
+    tg_text = (
+        f'📩 <b>Новое обращение с сайта</b>\n'
+        f'Имя: {fb.name}\n'
+        f'Email: {fb.email}\n'
+        f'{phone_line}'
+        f'Сообщение: {fb.message}'
+    )
+    tg_ok = False
+    try:
+        tg_ok = send_telegram_message(tg_text)
+        if not tg_ok:
+            logger.warning('[Feedback] Telegram skipped (not configured or API error)')
+    except Exception:
+        logger.exception('[Feedback] Telegram send failed')
+
+    email_ok = False
+    feedback_email = getattr(settings, 'FEEDBACK_EMAIL', '')
+    if feedback_email:
+        subject = f'Новое обращение: {fb.name}'
+        body = (
+            f'Имя: {fb.name}\n'
+            f'Email: {fb.email}\n'
+            f'Телефон: {fb.phone or "—"}\n\n'
+            f'Сообщение:\n{fb.message}'
+        )
+        try:
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[feedback_email],
+                fail_silently=False,
+            )
+            email_ok = True
+        except Exception as exc:
+            logger.exception('[Feedback] Email send failed')
+            try:
+                raise self.retry(exc=exc, countdown=30)
+            except self.MaxRetriesExceededError:
+                logger.warning('[Feedback] Email max retries exceeded')
+    else:
+        logger.debug('[Feedback] Email skipped: FEEDBACK_EMAIL not configured')
+
+    return {'tg': 'sent' if tg_ok else 'skipped', 'email': 'sent' if email_ok else 'skipped'}
+
+
 @shared_task(bind=True, max_retries=3)
 def parse_boat_detail(self, boat_slug):
     """

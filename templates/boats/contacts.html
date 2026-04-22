@@ -69,5 +69,80 @@
             </div>
         </div>
     </div>
+
+    <!-- Форма обратной связи -->
+    <div class="card bg-base-100 shadow mt-6">
+        <div class="card-body">
+            <h2 class="card-title text-lg mb-4">
+                <i class="fas fa-paper-plane text-primary"></i>
+                {% trans "Написать нам" %}
+            </h2>
+            <p class="text-sm text-base-content/70 mb-4">
+                {% trans "Заполните форму, и мы свяжемся с вами в ближайшее время." %}
+            </p>
+
+            {% if messages %}
+            <div class="space-y-2 mb-4">
+                {% for message in messages %}
+                <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <i class="fas {% if message.tags == 'error' %}fa-circle-xmark{% else %}fa-circle-check{% endif %}"></i>
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <form method="post" novalidate>
+                {% csrf_token %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-semibold">
+                            {{ form.name.label }}
+                            <span class="text-error">*</span>
+                        </label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                        <p class="text-xs text-error mt-1">{{ form.name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label class="text-sm font-semibold">
+                            {{ form.phone.label }}
+                        </label>
+                        {{ form.phone }}
+                        {% if form.phone.errors %}
+                        <p class="text-xs text-error mt-1">{{ form.phone.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="text-sm font-semibold">
+                            {{ form.email.label }}
+                            <span class="text-error">*</span>
+                        </label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                        <p class="text-xs text-error mt-1">{{ form.email.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="text-sm font-semibold">
+                            {{ form.message.label }}
+                            <span class="text-error">*</span>
+                        </label>
+                        {{ form.message }}
+                        {% if form.message.errors %}
+                        <p class="text-xs text-error mt-1">{{ form.message.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        {% trans "Отправить" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}

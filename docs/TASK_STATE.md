@@ -1,8 +1,19 @@
 # TASK STATE
 
-Last updated: 2026-04-19 (Europe/Moscow)
+Last updated: 2026-04-22 (Europe/Moscow)
 
 ## Current priorities
+
+### P2.1: Форма обратной связи + нотификации
+- Status: **DONE (2026-04-22)**
+- Модель `Feedback` (boats/models.py): name, phone, email, message, is_processed, created_at. Миграция boats/0037.
+- `FeedbackForm` в boats/forms.py (DaisyUIMixin, поля: имя, телефон*, email, сообщение; * необязательное).
+- Вью `contacts` (boats/views.py): POST сохраняет Feedback + `send_feedback_notification.delay(fb.pk)`.
+- Celery-задача `send_feedback_notification` (boats/tasks.py): Telegram + email, оба канала независимы, fail-silent.
+- Email settings: ConsoleEmailBackend по умолчанию (dev), SMTP через env (prod). FEEDBACK_EMAIL = адрес получателя.
+- Шаблон contacts.html: форма «Написать нам», DaisyUI 5, messages-блок.
+- Admin: `FeedbackAdmin` с list_editable=['is_processed'].
+- Files: `boats/models.py`, `boats/migrations/0037_feedback.py`, `boats/forms.py`, `boats/views.py`, `boats/tasks.py`, `boat_rental/settings.py`, `.env.example`, `templates/boats/contacts.html`, `boats/admin.py`.
 
 ### P2.0: Кастомный брендинг офферов
 - Status: **DONE (2026-04-19)**

@@ -228,6 +228,25 @@ TELEGRAM_BOT_TOKEN = config('TELEGRAM_BOT_TOKEN', default='')
 TELEGRAM_ASSISTANT_CHAT_ID = config('TELEGRAM_CHAT_ID', default='')
 
 # =============================================================================
+# Email (SMTP)
+# Dev default: console backend (no SMTP needed, prints to stdout).
+# Prod: set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend + SMTP vars.
+# =============================================================================
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default='django.core.mail.backends.console.EmailBackend',
+)
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.yandex.ru')
+EMAIL_PORT = config('EMAIL_PORT', default=465, cast=int)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=True, cast=bool)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Ахой!Rent <noreply@ahoyrent.ru>')
+# Адрес, на который приходят обращения через форму обратной связи
+FEEDBACK_EMAIL = config('FEEDBACK_EMAIL', default='info@ahoyrent.ru')
+
+# =============================================================================
 # CACHE (Redis, та же инстанция что и Celery, но БД /1)
 # =============================================================================
 

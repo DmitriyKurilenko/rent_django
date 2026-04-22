@@ -4,6 +4,7 @@ from .models import (
     Boat, Favorite, Booking, Review, Offer, ParsedBoat, Charter,
     BoatTechnicalSpecs, BoatDescription, BoatPrice, BoatGallery, BoatDetails,
     ContractTemplate, Contract, Client, ContractOTP, ParseJob, Notification,
+    Feedback,
 )
 
 
@@ -369,3 +370,13 @@ class ParseJobAdmin(admin.ModelAdmin):
         color = colors.get(obj.status, '#333')
         return format_html('<span style="color:{}">{}</span>', color, obj.get_status_display())
     status_colored.short_description = 'Статус'
+
+
+@admin.register(Feedback)
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ['name', 'email', 'phone', 'created_at', 'is_processed']
+    list_filter = ['is_processed', 'created_at']
+    search_fields = ['name', 'email', 'phone', 'message']
+    list_editable = ['is_processed']
+    ordering = ['-created_at']
+    readonly_fields = ['created_at']

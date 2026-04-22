@@ -2,6 +2,22 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.16.0-dev] - 2026-04-22
+
+### ✨ Added — Форма обратной связи с нотификациями
+
+- **`boats/models.py`**: новая модель `Feedback` (name, phone, email, message, is_processed, created_at). Миграции: `boats/migrations/0037_feedback.py`, `boots/migrations/0038_rename_..._idx.py` (авто-переименование индексов Django).
+- **`boats/forms.py`**: `FeedbackForm(DaisyUIMixin)` — поля имя, телефон (необязательный, `type="tel"`), email, сообщение. `gettext_lazy` для i18n labels.
+- **`boats/views.py`**: `contacts` вью переработана — GET рендерит форму, POST валидирует, сохраняет `Feedback.objects.create()`, вызывает `send_feedback_notification.delay(fb.pk)`, redirect с `messages.success`.
+- **`boats/tasks.py`**: `send_feedback_notification(feedback_id)` — Celery-задача (max_retries=2, countdown=30). Два независимых канала: Telegram через `send_telegram_message` (HTML-форматирование, emoji), email через `django.core.mail.send_mail` → `FEEDBACK_EMAIL`. Fail-silent при отсутствии конфигурации.
+- **`boat_rental/settings.py`**: блок Email SMTP — `EMAIL_BACKEND` (dev: ConsoleEmailBackend; prod: smtp.EmailBackend через env), `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_SSL`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`, `FEEDBACK_EMAIL`. Все параметры через `config()` env-переменные.
+- **`.env.example`**: документированы новые email-переменные с комментариями для dev/prod.
+- **`templates/boats/contacts.html`**: блок «Написать нам» — двухколоночная форма (md:grid-cols-2), messages-блок, DaisyUI 5 form pattern (DR-039). Кнопка «Отправить» с иконкой.
+- **`boats/admin.py`**: `FeedbackAdmin` — `list_display`, `list_editable=['is_processed']`, `search_fields`, `list_filter`, `readonly_fields`.
+
+### 📊 Infrastructure
+- Email SMTP настраивается через env-переменные без изменения кода. Dev работает без SMTP (ConsoleEmailBackend).
+
 ## [0.15.0-dev] - 2026-04-19
 
 ### ✨ Added — Полноценный кастомный брендинг офферов (CaptainBrand)

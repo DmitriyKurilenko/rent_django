@@ -1451,3 +1451,26 @@ class ParseJob(models.Model):
                 "UPDATE boats_parsejob SET errors = errors || %s::jsonb WHERE id = %s",
                 [__import__('json').dumps([{'slug': slug, 'error': error}]), self.pk],
             )
+
+
+class Feedback(models.Model):
+    """Обращение через форму обратной связи на странице контактов."""
+
+    name = models.CharField('Имя', max_length=150)
+    phone = models.CharField('Телефон', max_length=30, blank=True, default='')
+    email = models.EmailField('Email')
+    message = models.TextField('Сообщение')
+    is_processed = models.BooleanField('Обработано', default=False)
+    created_at = models.DateTimeField('Дата обращения', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Обращение'
+        verbose_name_plural = 'Обращения'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['is_processed', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} <{self.email}>"

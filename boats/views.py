@@ -13,11 +13,11 @@ from urllib.parse import urlencode
 from .models import (
     Boat, Favorite, Booking, Review, Offer, ParsedBoat,
     Contract, ContractTemplate, Client, ContractOTP,
-    BoatTechnicalSpecs, Notification,
+    BoatTechnicalSpecs, Notification, Feedback,
 )
 from .forms import (
     SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm,
-    ContractCreateForm, ContractSignForm, ClientForm,
+    ContractCreateForm, ContractSignForm, ClientForm, FeedbackForm,
 )
 from .parser import parse_boataround_url, get_full_image_url
 from .boataround_api import BoataroundAPI
@@ -3517,4 +3517,22 @@ def privacy(request):
 
 
 def contacts(request):
-    return render(request, 'boats/contacts.html')
+    if request.method == 'POST':
+        form = FeedbackForm(request.POST)
+        if form.is_valid():
+            from .tasks import send_feedback_notification
+            fb = Feedback.objects.create(
+                name=form.cleaned_data['name'],
+                phone=form.cleaned_data.get('phone', ''),
+                email=form.cleaned_data['email'],
+                message=form.cleaned_data['message'],
+            )
+            send_feedback_notification.delay(fb.pk)
+            messages.success(
+                request,
+                _('Ваше сообщение отправлено. Мы свяжемся с вами в ближайшее время.'),
+            )
+            return redirect('contacts')
+    else:
+        form = FeedbackForm()
+    return render(request, 'boats/contacts.html', {'form': form})
