@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Boat Rental\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-02-03 10:33+0300\n"
+"POT-Creation-Date: 2026-04-28 21:24+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,547 +16,1984 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-msgid "Вход"
+#: boats/forms.py:368 templates/boats/includes/feedback_modal.html:13
+msgid "Ваше имя"
 msgstr ""
 
-msgid "Добро пожаловать!"
+#: boats/forms.py:370
+msgid "Иван Иванов"
 msgstr ""
 
-msgid "Войдите в свой аккаунт"
-msgstr ""
-
-msgid "Имя пользователя"
-msgstr ""
-
-msgid "Пароль"
-msgstr ""
-
-msgid "Войти"
-msgstr ""
-
-msgid "или"
-msgstr ""
-
-msgid "Создать аккаунт"
-msgstr ""
-
-msgid "Забыли пароль?"
-msgstr ""
-
-msgid "Личный кабинет"
-msgstr ""
-
-msgid "Меню"
-msgstr ""
-
-msgid "Дашборд"
-msgstr ""
-
-msgid "Профиль"
-msgstr ""
-
-msgid "Избранное"
-msgstr ""
-
-msgid "Мои офферы"
-msgstr ""
-
-msgid "Мои бронирования"
-msgstr ""
-
-msgid "Администрация"
-msgstr ""
-
-msgid "Выход"
-msgstr ""
-
-msgid "Избранные"
-msgstr ""
-
-msgid "Бронирования"
-msgstr ""
-
-msgid "Лодки"
-msgstr ""
-
-msgid "Офферы"
-msgstr ""
-
-msgid "Редактировать профиль"
-msgstr ""
-
-msgid "Роль"
-msgstr ""
-
-msgid "Только администратор может изменить"
-msgstr ""
-
+#: boats/forms.py:373 templates/accounts/includes/brand_form_fields.html:45
+#: templates/boats/client_detail.html:42 templates/boats/clients_list.html:53
+#: templates/boats/contacts.html:26 templates/boats/contract_sign.html:104
+#: templates/boats/includes/feedback_modal.html:19
 msgid "Телефон"
 msgstr ""
 
-msgid "О себе"
-msgstr ""
-
-msgid "Аватар"
-msgstr ""
-
-msgid "Сохранить"
-msgstr ""
-
-msgid "Регистрация"
-msgstr ""
-
-msgid "Присоединитесь к нам!"
-msgstr ""
-
-msgid "Создайте новый аккаунт"
-msgstr ""
-
+#: boats/forms.py:379 templates/accounts/includes/brand_form_fields.html:51
+#: templates/accounts/register.html:58 templates/boats/clients_list.html:54
+#: templates/boats/includes/feedback_modal.html:25
 msgid "Email"
 msgstr ""
 
-msgid "Выберите роль"
+#: boats/forms.py:383 templates/boats/includes/feedback_modal.html:31
+msgid "Сообщение"
 msgstr ""
 
-msgid "Турист"
+#: boats/forms.py:384
+msgid "Ваш вопрос или сообщение"
 msgstr ""
 
-msgid "Владелец яхты"
+#: boats/views.py:488
+msgid "Дизель"
 msgstr ""
 
-msgid "Капитан"
+#: boats/views.py:488
+msgid "Электрический"
 msgstr ""
 
-msgid "Подтвердить пароль"
+#: boats/views.py:489
+msgid "Гибрид"
 msgstr ""
 
-msgid "Зарегистрироваться"
+#: boats/views.py:489 boats/views.py:490
+msgid "Бензиновый"
 msgstr ""
 
-msgid "Уже есть аккаунт?"
+#: boats/views.py:490
+msgid "Без двигателя"
 msgstr ""
 
-msgid "Главная"
+#: boats/views.py:3537
+msgid "Ваше сообщение отправлено. Мы свяжемся с вами в ближайшее время."
 msgstr ""
 
-msgid "Поиск"
+#: templates/accounts/brands.html:4 templates/accounts/brands.html:12
+msgid "Мои бренды"
 msgstr ""
 
-msgid "Выйти"
+#: templates/accounts/brands.html:40 templates/boats/create_offer.html:91
+msgid "по умолчанию"
 msgstr ""
 
-msgid "Язык"
+#: templates/accounts/brands.html:67 templates/accounts/profile.html:174
+#: templates/accounts/profile.html:369 templates/accounts/profile.html:461
+#: templates/boats/client_form.html:112
+msgid "Сохранить"
 msgstr ""
 
-msgid "Кабинет"
+#: templates/accounts/brands.html:68 templates/boats/client_form.html:108
+#: templates/boats/create_contract.html:133
+#: templates/boats/my_bookings.html:332
+msgid "Отмена"
 msgstr ""
 
-msgid "Лучшая платформа для аренды яхт по всему миру"
+#: templates/accounts/brands.html:79
+msgid "У вас пока нет брендов. Создайте первый ниже."
 msgstr ""
 
-msgid "Навигация"
+#: templates/accounts/brands.html:88
+msgid "Добавить новый бренд"
 msgstr ""
 
-msgid "Поиск лодок"
+#: templates/accounts/brands.html:99
+msgid "Превью в оффере"
 msgstr ""
 
-msgid "О нас"
+#: templates/accounts/brands.html:124
+msgid "Создать бренд"
 msgstr ""
 
-msgid "Блог"
+#: templates/accounts/includes/brand_form_fields.html:9
+msgid "Название компании"
 msgstr ""
 
-msgid "Информация"
+#: templates/accounts/includes/brand_form_fields.html:16
+msgid "Слоган"
 msgstr ""
 
-msgid "Часто задаваемые вопросы"
+#: templates/accounts/includes/brand_form_fields.html:23
+msgid "Логотип"
 msgstr ""
 
-msgid "Условия использования"
+#: templates/accounts/includes/brand_form_fields.html:27
+msgid "Загрузите новый файл, чтобы заменить"
 msgstr ""
 
-msgid "Политика конфиденциальности"
+#: templates/accounts/includes/brand_form_fields.html:35
+msgid "Основной цвет"
 msgstr ""
 
-msgid "Контакты"
+#: templates/accounts/includes/brand_form_fields.html:57
+msgid "Telegram"
 msgstr ""
 
-msgid "Следите за нами"
+#: templates/accounts/includes/brand_form_fields.html:63
+msgid "WhatsApp"
 msgstr ""
 
-msgid "Все права защищены"
+#: templates/accounts/includes/brand_form_fields.html:69
+msgid "Сайт"
 msgstr ""
 
-msgid "Сделано с"
+#: templates/accounts/includes/brand_form_fields.html:76
+msgid "Текст в подвале оффера"
 msgstr ""
 
-msgid "для любителей приключений"
+#: templates/accounts/includes/brand_form_fields.html:86
+msgid "Использовать этот бренд по умолчанию для новых офферов"
 msgstr ""
 
-msgid "Создать оффер"
+#: templates/accounts/login.html:4
+msgid "Вход"
 msgstr ""
 
-msgid "Вставьте ссылку с boataround.com с датами аренды"
+#: templates/accounts/login.html:15
+msgid "Добро пожаловать!"
 msgstr ""
 
-msgid "Ссылка boataround.com"
+#: templates/accounts/login.html:16
+msgid "Войдите в свой аккаунт"
 msgstr ""
 
-msgid "Заезд:"
+#: templates/accounts/login.html:40 templates/accounts/register.html:40
+msgid "Имя пользователя"
 msgstr ""
 
-msgid "Выезд:"
+#: templates/accounts/login.html:58 templates/accounts/register.html:96
+msgid "Пароль"
 msgstr ""
 
-msgid "Тип оффера"
+#: templates/accounts/login.html:75 templates/base.html:50
+#: templates/base.html:82
+msgid "Войти"
 msgstr ""
 
-msgid "Туристический"
+#: templates/accounts/login.html:79 templates/accounts/register.html:135
+msgid "или"
 msgstr ""
 
-msgid "Агентский"
+#: templates/accounts/login.html:84
+msgid "Создать аккаунт"
 msgstr ""
 
-msgid "Заголовок"
+#: templates/accounts/login.html:90
+msgid "Забыли пароль?"
 msgstr ""
 
-msgid "Роскошная яхта на Кипре"
+#: templates/accounts/profile.html:4
+msgid "Личный кабинет"
 msgstr ""
 
-msgid "Описание"
+#: templates/accounts/profile.html:67
+msgid "Избранные"
 msgstr ""
 
-msgid "Дополнительное описание"
+#: templates/accounts/profile.html:81 templates/boats/client_detail.html:109
+#: templates/includes/lk_sidebar.html:54
+msgid "Бронирования"
 msgstr ""
 
-msgid "Таймер обратного отсчета"
+#: templates/accounts/profile.html:96
+msgid "Лодки"
 msgstr ""
 
-msgid "Обновить данные"
+#: templates/accounts/profile.html:112 templates/boats/client_detail.html:143
+#: templates/includes/lk_sidebar.html:41
+msgid "Офферы"
 msgstr ""
 
-msgid "Включено питание"
+#: templates/accounts/profile.html:128
+msgid "Настройки цен"
 msgstr ""
 
-msgid "Заметки"
+#: templates/accounts/profile.html:132
+msgid "Поисковик"
 msgstr ""
 
-msgid "Внутренние заметки"
+#: templates/accounts/profile.html:135
+msgid "Туристический оффер"
 msgstr ""
 
-msgid "Назад"
+#: templates/accounts/profile.html:138 templates/boats/home.html:202
+msgid "Агентский оффер"
 msgstr ""
 
-msgid "Создание..."
+#: templates/accounts/profile.html:182
+msgid "Логика расчёта цены туристического оффера"
 msgstr ""
 
-msgid "Создать"
+#: templates/accounts/profile.html:183
+msgid "Цена считается последовательно от базовой стоимости аренды лодки (из API):"
 msgstr ""
 
-msgid "Как это работает?"
+#: templates/accounts/profile.html:185
+msgid "Страховка депозита"
 msgstr ""
 
-msgid "Откройте яхту на boataround.com"
+#: templates/accounts/profile.html:185
+msgid "цена"
 msgstr ""
 
-msgid "Выберите даты аренды"
+#: templates/accounts/profile.html:185 templates/accounts/profile.html:191
+#: templates/accounts/profile.html:300
+msgid "ставка"
 msgstr ""
 
-msgid "Скопируйте URL из адресной строки"
+#: templates/accounts/profile.html:185
+msgid "мин.страховка"
 msgstr ""
 
-msgid "Вставьте выше и нажмите создать"
+#: templates/accounts/profile.html:186
+msgid "Доп. каюты"
 msgstr ""
 
-msgid "Готово! Отправьте ссылку клиенту"
+#: templates/accounts/profile.html:186
+msgid "двойных кают"
 msgstr ""
 
-msgid "избранных лодок"
+#: templates/accounts/profile.html:186
+msgid "бесплатных"
 msgstr ""
 
-msgid "Найдите идеальную яхту"
+#: templates/accounts/profile.html:186
+msgid "надбавка"
 msgstr ""
 
-msgid "Более 27 000 яхт в лучших локациях мира"
+#: templates/accounts/profile.html:187
+msgid "5 составляющих базовой цены"
 msgstr ""
 
-msgid "Направление"
+#: templates/accounts/profile.html:188 templates/accounts/profile.html:344
+msgid "Марина Praslin"
 msgstr ""
 
-msgid "Заезд"
+#: templates/accounts/profile.html:188
+msgid "фиксированная надбавка"
 msgstr ""
 
-msgid "Выезд"
+#: templates/accounts/profile.html:189 templates/accounts/profile.html:190
+#: templates/boats/search.html:350
+msgid "Длина"
 msgstr ""
 
-msgid "Тип судна"
+#: templates/accounts/profile.html:190
+msgid "надбавка за катамаран или парусную яхту"
 msgstr ""
 
-msgid "Все типы"
+#: templates/accounts/profile.html:191
+msgid "Питание"
 msgstr ""
 
-msgid "Парусная яхта"
+#: templates/accounts/profile.html:191 templates/accounts/profile.html:300
+msgid "гостей"
 msgstr ""
 
-msgid "Катамаран"
+#: templates/accounts/profile.html:191
+msgid "повар"
 msgstr ""
 
-msgid "Моторная яхта"
+#: templates/accounts/profile.html:197
+msgid "Все страны"
 msgstr ""
 
-msgid "Моторная лодка"
+#: templates/accounts/profile.html:201 templates/accounts/profile.html:206
+msgid "Добавить страну"
 msgstr ""
 
-msgid "Найти лодки"
+#: templates/accounts/profile.html:209 templates/accounts/profile.html:240
+msgid "Название"
 msgstr ""
 
-msgid "Поиск..."
-msgstr ""
-
-msgid "Популярные направления"
-msgstr ""
-
-msgid "Турция"
-msgstr ""
-
-msgid "Сейшелы"
-msgstr ""
-
+#: templates/accounts/profile.html:210 templates/boats/home.html:146
 msgid "Греция"
 msgstr ""
 
-msgid "Хорватия"
+#: templates/accounts/profile.html:213
+msgid "Код"
 msgstr ""
 
-msgid "Испания"
+#: templates/accounts/profile.html:217 templates/accounts/profile.html:246
+msgid "Алиасы"
 msgstr ""
 
-msgid "Италия"
+#: templates/accounts/profile.html:217 templates/accounts/profile.html:246
+msgid "через запятую"
 msgstr ""
 
-msgid "Все бронирования"
+#: templates/accounts/profile.html:220
+msgid "Добавить"
 msgstr ""
 
-msgid "Ваши бронирования и круизы"
+#: templates/accounts/profile.html:230
+msgid "Параметр"
 msgstr ""
 
-msgid "Управление всеми бронированиями"
+#: templates/accounts/profile.html:238
+msgid "Мета"
 msgstr ""
 
-msgid "Бронирования по вашим офферам"
+#: templates/accounts/profile.html:252
+msgid "Страхование"
 msgstr ""
 
-msgid "Всего"
+#: templates/accounts/profile.html:254
+msgid "Ставка страхования"
 msgstr ""
 
-msgid "Ожидают"
+#: templates/accounts/profile.html:254
+#, python-format
+msgid "доля, 0.10 = 10%%"
 msgstr ""
 
-msgid "Подтверждено"
+#: templates/accounts/profile.html:260
+msgid "Мин. страховка"
 msgstr ""
 
-msgid "Ожидает"
+#: templates/accounts/profile.html:266
+msgid "5 составляющих базовой цены (EUR)"
 msgstr ""
 
-msgid "Отменено"
+#: templates/accounts/profile.html:268 templates/boats/offer_tourist.html:136
+msgid "Капитан"
 msgstr ""
 
-msgid "Завершено"
+#: templates/accounts/profile.html:274 templates/boats/offer_tourist.html:137
+msgid "Топливо"
 msgstr ""
 
-msgid "Посмотреть оффер"
+#: templates/accounts/profile.html:280 templates/boats/offer_tourist.html:138
+msgid "Стоянки"
 msgstr ""
 
+#: templates/accounts/profile.html:286 templates/boats/offer_tourist.html:139
+msgid "Транзит лог и клининг"
+msgstr ""
+
+#: templates/accounts/profile.html:292 templates/boats/offer_tourist.html:140
+msgid "Наценка Трипс"
+msgstr ""
+
+#: templates/accounts/profile.html:298
+msgid "Питание (EUR)"
+msgstr ""
+
+#: templates/accounts/profile.html:300
+msgid "Ставка за чел."
+msgstr ""
+
+#: templates/accounts/profile.html:306
+msgid "Повар"
+msgstr ""
+
+#: templates/accounts/profile.html:306
+msgid "фикс. за поездку"
+msgstr ""
+
+#: templates/accounts/profile.html:312
+msgid "Надбавки (EUR)"
+msgstr ""
+
+#: templates/accounts/profile.html:314
+msgid "Длина > 14.2 м"
+msgstr ""
+
+#: templates/accounts/profile.html:314
+msgid "фут"
+msgstr ""
+
+#: templates/accounts/profile.html:320
+msgid "Катамаран, длина > 13.8 м"
+msgstr ""
+
+#: templates/accounts/profile.html:326
+msgid "Парусная яхта, длина > 13.8 м"
+msgstr ""
+
+#: templates/accounts/profile.html:332
+msgid "Доп. двойная каюта"
+msgstr ""
+
+#: templates/accounts/profile.html:332
+msgid "сверх лимита"
+msgstr ""
+
+#: templates/accounts/profile.html:338
+msgid "Бесплатных двойных кают"
+msgstr ""
+
+#: templates/accounts/profile.html:338
+msgid "лимит"
+msgstr ""
+
+#: templates/accounts/profile.html:350
+msgid "Управление"
+msgstr ""
+
+#: templates/accounts/profile.html:352
+msgid "Удалить страну"
+msgstr ""
+
+#: templates/accounts/profile.html:356 templates/boats/offers_list.html:181
+#: templates/boats/offers_list.html:239
 msgid "Удалить"
 msgstr ""
 
+#: templates/accounts/profile.html:358
+#: templates/boats/includes/quick_offer_branding.html:32
+msgid "по умолч."
+msgstr ""
+
+#: templates/accounts/profile.html:421
+msgid "Редактировать профиль"
+msgstr ""
+
+#: templates/accounts/register.html:4
+msgid "Регистрация"
+msgstr ""
+
+#: templates/accounts/register.html:15
+msgid "Присоединитесь к нам!"
+msgstr ""
+
+#: templates/accounts/register.html:16
+msgid "Создайте новый аккаунт"
+msgstr ""
+
+#: templates/accounts/register.html:76
+msgid "Подписка"
+msgstr ""
+
+#: templates/accounts/register.html:80
+msgid "Выберите подписку"
+msgstr ""
+
+#: templates/accounts/register.html:81 templates/boats/home.html:182
+msgid "Бесплатная"
+msgstr ""
+
+#: templates/accounts/register.html:81
+msgid "Турист"
+msgstr ""
+
+#: templates/accounts/register.html:82 templates/boats/create_offer.html:67
+#: templates/boats/home.html:197
+#: templates/boats/includes/quick_offer_branding.html:9
+msgid "Стандарт"
+msgstr ""
+
+#: templates/accounts/register.html:82
+msgid "Капитан/агент"
+msgstr ""
+
+#: templates/accounts/register.html:82 templates/accounts/register.html:83
+#: templates/boats/home.html:183 templates/boats/home.html:198
+#: templates/boats/home.html:213
+msgid "мес"
+msgstr ""
+
+#: templates/accounts/register.html:83 templates/boats/home.html:212
+msgid "Продвинутая"
+msgstr ""
+
+#: templates/accounts/register.html:83
+msgid "Капитан + кастомный брендинг"
+msgstr ""
+
+#: templates/accounts/register.html:89
+msgid "Бесплатная: поиск/избранное/бронирования. Стандарт: агентский оффер. Продвинутая: кастомный брендинг (1000 ₽/мес)."
+msgstr ""
+
+#: templates/accounts/register.html:114
+msgid "Подтвердить пароль"
+msgstr ""
+
+#: templates/accounts/register.html:131 templates/boats/home.html:190
+msgid "Зарегистрироваться"
+msgstr ""
+
+#: templates/accounts/register.html:140
+msgid "Уже есть аккаунт?"
+msgstr ""
+
+#: templates/base.html:29 templates/base.html:77 templates/base.html:149
+msgid "Главная"
+msgstr ""
+
+#: templates/base.html:30 templates/boats/search.html:294
+msgid "Поиск"
+msgstr ""
+
+#: templates/base.html:32 templates/base.html:79
+msgid "Кабинет"
+msgstr ""
+
+#: templates/base.html:33 templates/boats/favorites.html:5
+#: templates/boats/favorites.html:17 templates/boats/home.html:186
+#: templates/includes/lk_sidebar.html:35
+msgid "Избранное"
+msgstr ""
+
+#: templates/base.html:35 templates/boats/offers_list.html:4
+#: templates/boats/offers_list.html:17
+msgid "Мои офферы"
+msgstr ""
+
+#: templates/base.html:37 templates/boats/my_bookings.html:4
+#: templates/boats/my_bookings.html:18
+msgid "Мои бронирования"
+msgstr ""
+
+#: templates/base.html:40 templates/base.html:86
+#: templates/boats/notifications.html:4 templates/boats/notifications.html:14
+msgid "Уведомления"
+msgstr ""
+
+#: templates/base.html:45 templates/boats/client_detail.html:181
+#: templates/boats/contracts_list.html:4 templates/boats/contracts_list.html:16
+#: templates/includes/lk_sidebar.html:60
+msgid "Договоры"
+msgstr ""
+
+#: templates/base.html:46 templates/boats/clients_list.html:4
+#: templates/boats/clients_list.html:16 templates/includes/lk_sidebar.html:67
+msgid "Клиенты"
+msgstr ""
+
+#: templates/base.html:48 templates/base.html:80
+msgid "Выйти"
+msgstr ""
+
+#: templates/base.html:52
+msgid "Язык"
+msgstr ""
+
+#: templates/base.html:97 templates/boats/contacts.html:78
+#: templates/boats/includes/feedback_modal.html:7
+msgid "Написать нам"
+msgstr ""
+
+#: templates/base.html:142
+msgid "Лучшая платформа для аренды яхт по всему миру"
+msgstr ""
+
+#: templates/base.html:147
+msgid "Навигация"
+msgstr ""
+
+#: templates/base.html:150 templates/boats/my_bookings.html:557
+msgid "Поиск лодок"
+msgstr ""
+
+#: templates/base.html:151
+msgid "О нас"
+msgstr ""
+
+#: templates/base.html:152
+msgid "Блог"
+msgstr ""
+
+#: templates/base.html:158
+msgid "Информация"
+msgstr ""
+
+#: templates/base.html:160 templates/boats/contacts.html:66
+#: templates/boats/terms.html:4 templates/boats/terms.html:8
+msgid "Пользовательское соглашение"
+msgstr ""
+
+#: templates/base.html:161
+msgid "Политика обработки данных"
+msgstr ""
+
+#: templates/base.html:162 templates/boats/client_detail.html:38
+#: templates/boats/client_form.html:49 templates/boats/contacts.html:4
+#: templates/boats/contacts.html:8
+msgid "Контакты"
+msgstr ""
+
+#: templates/base.html:174
+msgid "Все права защищены"
+msgstr ""
+
+#: templates/base.html:177
+msgid "Сделано с"
+msgstr ""
+
+#: templates/base.html:177
+msgid "для любителей приключений"
+msgstr ""
+
+#: templates/boats/client_detail.html:23 templates/boats/clients_list.html:55
+#: templates/boats/contract_detail.html:27
+msgid "Создан"
+msgstr ""
+
+#: templates/boats/client_detail.html:28 templates/boats/clients_list.html:73
+msgid "Редактировать"
+msgstr ""
+
+#: templates/boats/client_detail.html:59 templates/boats/client_form.html:70
+msgid "Документы"
+msgstr ""
+
+#: templates/boats/client_detail.html:64
+msgid "Паспорт"
+msgstr ""
+
+#: templates/boats/client_detail.html:70
+msgid "Кем выдан"
+msgstr ""
+
+#: templates/boats/client_detail.html:76
+msgid "Дата выдачи"
+msgstr ""
+
+#: templates/boats/client_detail.html:82 templates/boats/contacts.html:48
+msgid "Адрес"
+msgstr ""
+
+#: templates/boats/client_detail.html:87
+msgid "Документы не заполнены"
+msgstr ""
+
+#: templates/boats/client_detail.html:98 templates/boats/client_form.html:97
+#: templates/boats/create_offer.html:152
+msgid "Заметки"
+msgstr ""
+
+#: templates/boats/client_detail.html:117
+#: templates/boats/create_contract.html:35 templates/boats/my_bookings.html:118
+msgid "Яхта"
+msgstr ""
+
+#: templates/boats/client_detail.html:118 templates/boats/my_bookings.html:123
+#: templates/boats/my_bookings.html:390 templates/boats/offers_list.html:101
+msgid "Даты"
+msgstr ""
+
+#: templates/boats/client_detail.html:119
+#: templates/boats/client_detail.html:190
+#: templates/boats/contracts_list.html:47 templates/boats/my_bookings.html:125
+#: templates/boats/offers_list.html:102
+msgid "Статус"
+msgstr ""
+
+#: templates/boats/client_detail.html:134 templates/boats/my_bookings.html:547
 msgid "Нет бронирований"
 msgstr ""
 
-msgid "Начните искать лодки и создавайте бронирования!"
+#: templates/boats/client_detail.html:151
+msgid "Тип"
 msgstr ""
 
-msgid "Пока нет бронирований от клиентов"
-msgstr ""
-
-msgid "Агентское предложение"
-msgstr ""
-
-msgid "Все офферы"
-msgstr ""
-
-msgid "Галерея"
-msgstr ""
-
-msgid "фото"
-msgstr ""
-
-msgid "Превью"
-msgstr ""
-
-msgid "Нет фотографий"
-msgstr ""
-
+#: templates/boats/client_detail.html:152 templates/boats/my_bookings.html:124
+#: templates/boats/my_bookings.html:393 templates/boats/offers_list.html:103
+#: templates/boats/search.html:129
 msgid "Цена"
 msgstr ""
 
-msgid "Скидка"
+#: templates/boats/client_detail.html:153
+#: templates/boats/client_detail.html:191
+#: templates/boats/contracts_list.html:50
+msgid "Дата"
 msgstr ""
 
-msgid "за"
+#: templates/boats/client_detail.html:172
+msgid "Нет офферов"
 msgstr ""
 
+#: templates/boats/client_detail.html:189
+#: templates/boats/contracts_list.html:46
+msgid "Номер"
+msgstr ""
+
+#: templates/boats/client_detail.html:210
+#: templates/boats/contracts_list.html:170
+msgid "Нет договоров"
+msgstr ""
+
+#: templates/boats/client_form.html:24 templates/boats/clients_list.html:52
+msgid "ФИО"
+msgstr ""
+
+#: templates/boats/client_form.html:112 templates/boats/create_offer.html:197
+#: templates/boats/my_bookings.html:297 templates/boats/my_bookings.html:454
+#: templates/boats/offers_list.html:22
+msgid "Создать"
+msgstr ""
+
+#: templates/boats/clients_list.html:18
+msgid "Управление клиентами"
+msgstr ""
+
+#: templates/boats/clients_list.html:21 templates/boats/create_offer.html:162
+msgid "Новый клиент"
+msgstr ""
+
+#: templates/boats/clients_list.html:30
+msgid "Поиск по имени, телефону, email..."
+msgstr ""
+
+#: templates/boats/clients_list.html:33 templates/boats/my_bookings.html:55
+#: templates/boats/offers_list.html:43
+msgid "Найти"
+msgstr ""
+
+#: templates/boats/clients_list.html:37 templates/boats/my_bookings.html:57
+#: templates/boats/offers_list.html:45
+msgid "Сброс"
+msgstr ""
+
+#: templates/boats/clients_list.html:56
+#: templates/boats/contract_detail.html:130
+#: templates/boats/contracts_list.html:51 templates/boats/my_bookings.html:132
+#: templates/boats/offers_list.html:107
+msgid "Действия"
+msgstr ""
+
+#: templates/boats/clients_list.html:72
+msgid "Просмотр"
+msgstr ""
+
+#: templates/boats/clients_list.html:128 templates/boats/my_bookings.html:190
+msgid "Клиенты не найдены"
+msgstr ""
+
+#: templates/boats/clients_list.html:130
+msgid "У вас пока нет клиентов"
+msgstr ""
+
+#: templates/boats/clients_list.html:132
+msgid "Создать первого клиента"
+msgstr ""
+
+#: templates/boats/contacts.html:15
+msgid "Электронная почта"
+msgstr ""
+
+#: templates/boats/contacts.html:17
+msgid "По всем вопросам, связанным с работой сервиса"
+msgstr ""
+
+#: templates/boats/contacts.html:28
+msgid "Ежедневно с 9:00 до 21:00 (МСК)"
+msgstr ""
+
+#: templates/boats/contacts.html:39
+msgid "Быстрая связь и поддержка"
+msgstr ""
+
+#: templates/boats/contacts.html:50
+msgid "Юридический адрес"
+msgstr ""
+
+#: templates/boats/contacts.html:51
+msgid "г. Москва, Россия"
+msgstr ""
+
+#: templates/boats/contacts.html:60
+msgid "Юридическая информация"
+msgstr ""
+
+#: templates/boats/contacts.html:63
+msgid "Сервис «Ахой!Rent» является информационным посредником и не является стороной в договорах аренды водных транспортных средств."
+msgstr ""
+
+#: templates/boats/contacts.html:67 templates/boats/privacy.html:4
+#: templates/boats/privacy.html:8
+msgid "Политика обработки персональных данных"
+msgstr ""
+
+#: templates/boats/contacts.html:81
+msgid "Заполните форму, и мы свяжемся с вами в ближайшее время."
+msgstr ""
+
+#: templates/boats/contacts.html:141
+#: templates/boats/includes/feedback_modal.html:40
+msgid "Отправить"
+msgstr "Enviar"
+
+#: templates/boats/contract_detail.html:4
+#: templates/boats/contract_detail.html:24
+#: templates/boats/contract_signed.html:15 templates/boats/my_bookings.html:130
+#: templates/boats/my_bookings.html:447
+msgid "Договор"
+msgstr ""
+
+#: templates/boats/contract_detail.html:10
+msgid "Все договоры"
+msgstr ""
+
+#: templates/boats/contract_detail.html:13
+#: templates/boats/contracts_list.html:175
+msgid "К бронированиям"
+msgstr ""
+
+#: templates/boats/contract_detail.html:32
+#: templates/boats/contracts_list.html:64
+#: templates/boats/contracts_list.html:115
+msgid "Черновик"
+msgstr ""
+
+#: templates/boats/contract_detail.html:34
+#: templates/boats/contracts_list.html:66
+#: templates/boats/contracts_list.html:117
+msgid "Отправлен"
+msgstr ""
+
+#: templates/boats/contract_detail.html:36
+#: templates/boats/contracts_list.html:68
+#: templates/boats/contracts_list.html:119
+msgid "Просмотрен"
+msgstr ""
+
+#: templates/boats/contract_detail.html:38
+#: templates/boats/contract_detail.html:102
+#: templates/boats/contracts_list.html:70
+#: templates/boats/contracts_list.html:121
+msgid "Подписан"
+msgstr ""
+
+#: templates/boats/contract_detail.html:40
+#: templates/boats/contracts_list.html:72
+#: templates/boats/contracts_list.html:123
+msgid "Отклонён"
+msgstr ""
+
+#: templates/boats/contract_detail.html:42
+#: templates/boats/contracts_list.html:74
+#: templates/boats/contracts_list.html:125
+msgid "Истёк"
+msgstr ""
+
+#: templates/boats/contract_detail.html:53
+msgid "Стороны"
+msgstr ""
+
+#: templates/boats/contract_detail.html:56 templates/boats/my_bookings.html:120
+#: templates/boats/offer_captain.html:205
+msgid "Агент"
+msgstr ""
+
+#: templates/boats/contract_detail.html:64
+#: templates/boats/contracts_list.html:48
+#: templates/boats/create_contract.html:47
+#: templates/boats/create_offer.html:160 templates/boats/detail.html:752
+#: templates/boats/detail.html:841 templates/boats/my_bookings.html:122
+#: templates/boats/my_bookings.html:406 templates/boats/offer_captain.html:243
+msgid "Клиент"
+msgstr ""
+
+#: templates/boats/contract_detail.html:75
+msgid "Детали"
+msgstr ""
+
+#: templates/boats/contract_detail.html:78
+#: templates/boats/contracts_list.html:49
+#: templates/boats/create_contract.html:20 templates/boats/home.html:187
+msgid "Бронирование"
+msgstr ""
+
+#: templates/boats/contract_detail.html:82
+#: templates/boats/create_contract.html:39
+msgid "Период"
+msgstr ""
+
+#: templates/boats/contract_detail.html:86
+#: templates/boats/create_contract.html:43
+msgid "Стоимость"
+msgstr ""
+
+#: templates/boats/contract_detail.html:90
+msgid "Действителен до"
+msgstr ""
+
+#: templates/boats/contract_detail.html:105
+#: templates/boats/contract_signed.html:19
+msgid "Дата подписания"
+msgstr ""
+
+#: templates/boats/contract_detail.html:109
+msgid "IP"
+msgstr ""
+
+#: templates/boats/contract_detail.html:114
+msgid "Подтверждённое ФИО"
+msgstr ""
+
+#: templates/boats/contract_detail.html:119
+msgid "Хэш документа"
+msgstr ""
+
+#: templates/boats/contract_detail.html:134
+#: templates/boats/contract_signed.html:23
+msgid "Скачать PDF"
+msgstr ""
+
+#: templates/boats/contract_detail.html:145
+msgid "Копировать ссылку для подписания"
+msgstr ""
+
+#: templates/boats/contract_detail.html:146
+msgid "Скопировано!"
+msgstr ""
+
+#: templates/boats/contract_detail.html:153
+#: templates/boats/my_bookings.html:129 templates/boats/my_bookings.html:443
+#: templates/boats/offers_list.html:100
+msgid "Оффер"
+msgstr ""
+
+#: templates/boats/contract_expired.html:4
+msgid "Договор недоступен"
+msgstr ""
+
+#: templates/boats/contract_expired.html:13
+msgid "Срок действия истёк"
+msgstr ""
+
+#: templates/boats/contract_expired.html:15
+msgid "Срок подписания договора"
+msgstr ""
+
+#: templates/boats/contract_expired.html:17
+msgid "истёк. Обратитесь к вашему агенту для получения нового договора."
+msgstr ""
+
+#: templates/boats/contract_sign.html:4 templates/boats/contract_sign.html:33
+msgid "Подписание договора"
+msgstr ""
+
+#: templates/boats/contract_sign.html:36
+msgid "Внимательно ознакомьтесь с договором и подтвердите подписание кодом"
+msgstr ""
+
+#: templates/boats/contract_sign.html:43
+msgid "Договор действителен до"
+msgstr ""
+
+#: templates/boats/contract_sign.html:50
+msgid "Текст договора"
+msgstr ""
+
+#: templates/boats/contract_sign.html:66
+msgid "Подтверждение"
+msgstr ""
+
+#: templates/boats/contract_sign.html:74
+msgid "Введите ваше полное ФИО"
+msgstr ""
+
+#: templates/boats/contract_sign.html:94
+msgid "Код подтверждения"
+msgstr ""
+
+#: templates/boats/contract_sign.html:100
+msgid "Для подписания договора на ваш номер телефона будет отправлен одноразовый код подтверждения"
+msgstr ""
+
+#: templates/boats/contract_sign.html:113
+msgid "Отправить код"
+msgstr ""
+
+#: templates/boats/contract_sign.html:123
+msgid "Код отправлен на номер"
+msgstr ""
+
+#: templates/boats/contract_sign.html:127
+msgid "Введите 6-значный код"
+msgstr ""
+
+#: templates/boats/contract_sign.html:146
+msgid "Повторная отправка через"
+msgstr ""
+
+#: templates/boats/contract_sign.html:146
+msgid "сек"
+msgstr ""
+
+#: templates/boats/contract_sign.html:155
+msgid "Отправить повторно"
+msgstr ""
+
+#: templates/boats/contract_sign.html:169
+msgid "Подписать договор"
+msgstr ""
+
+#: templates/boats/contract_signed.html:4
+msgid "Договор подписан"
+msgstr ""
+
+#: templates/boats/contract_signed.html:13
+msgid "Договор подписан!"
+msgstr ""
+
+#: templates/boats/contract_signed.html:16
+msgid "успешно подписан"
+msgstr ""
+
+#: templates/boats/contracts_list.html:18
+msgid "Управление договорами аренды"
+msgstr ""
+
+#: templates/boats/contracts_list.html:28
+msgid "Все"
+msgstr ""
+
+#: templates/boats/contracts_list.html:88
+msgid "Подробнее"
+msgstr ""
+
+#: templates/boats/contracts_list.html:90
+msgid "Скачать"
+msgstr ""
+
+#: templates/boats/contracts_list.html:172
+msgid "Договоры создаются из подтверждённых бронирований"
+msgstr ""
+
+#: templates/boats/create_contract.html:4
+#: templates/boats/create_contract.html:17
+msgid "Создание договора"
+msgstr ""
+
+#: templates/boats/create_contract.html:10
+msgid "Назад к бронированиям"
+msgstr ""
+
+#: templates/boats/create_contract.html:31
+msgid "Детали бронирования"
+msgstr ""
+
+#: templates/boats/create_contract.html:62
+msgid "Данные клиента (подписант)"
+msgstr ""
+
+#: templates/boats/create_contract.html:98
+msgid "Данные агента"
+msgstr ""
+
+#: templates/boats/create_contract.html:123
+msgid "Дополнительные условия"
+msgstr ""
+
+#: templates/boats/create_contract.html:135
+msgid "Создать договор"
+msgstr ""
+
+#: templates/boats/create_offer.html:4 templates/boats/create_offer.html:10
+#: templates/boats/offers_list.html:256
+msgid "Создать оффер"
+msgstr ""
+
+#: templates/boats/create_offer.html:11
+msgid "Вставьте ссылку с boataround.com с датами аренды"
+msgstr ""
+
+#: templates/boats/create_offer.html:27
+msgid "Ссылка boataround.com"
+msgstr ""
+
+#: templates/boats/create_offer.html:36
+msgid "Заезд:"
+msgstr ""
+
+#: templates/boats/create_offer.html:37
+msgid "Выезд:"
+msgstr ""
+
+#: templates/boats/create_offer.html:43
+msgid "Тип оффера"
+msgstr ""
+
+#: templates/boats/create_offer.html:48
+msgid "Туристический"
+msgstr ""
+
+#: templates/boats/create_offer.html:53 templates/boats/offers_list.html:128
+#: templates/boats/offers_list.html:209
+msgid "Агентский"
+msgstr ""
+
+#: templates/boats/create_offer.html:63
+msgid "Брендинг страницы"
+msgstr ""
+
+#: templates/boats/create_offer.html:72
+msgid "Без брендинга"
+msgstr ""
+
+#: templates/boats/create_offer.html:78
+#: templates/boats/includes/quick_offer_branding.html:20
+msgid "Мой бренд"
+msgstr ""
+
+#: templates/boats/create_offer.html:88
+#: templates/boats/includes/quick_offer_branding.html:29
+msgid "Выберите бренд"
+msgstr ""
+
+#: templates/boats/create_offer.html:96
+msgid "Управление брендами"
+msgstr ""
+
+#: templates/boats/create_offer.html:101
+msgid "У вас нет брендов."
+msgstr ""
+
+#: templates/boats/create_offer.html:102
+#: templates/boats/includes/offer_brand_header.html:29
+#: templates/boats/includes/quick_offer_branding.html:39
+msgid "Создайте бренд"
+msgstr ""
+
+#: templates/boats/create_offer.html:103
+msgid "перед созданием оффера."
+msgstr ""
+
+#: templates/boats/create_offer.html:114
+msgid "Заголовок"
+msgstr ""
+
+#: templates/boats/create_offer.html:118
+msgid "Роскошная яхта на Кипре"
+msgstr ""
+
+#: templates/boats/create_offer.html:126 templates/boats/detail.html:811
+#: templates/boats/detail.html:873
+msgid "Таймер обратного отсчета"
+msgstr ""
+
+#: templates/boats/create_offer.html:131 templates/boats/detail.html:817
+#: templates/boats/detail.html:879
+msgid "Обновить данные"
+msgstr ""
+
+#: templates/boats/create_offer.html:136
+msgid "Включено питание"
+msgstr ""
+
+#: templates/boats/create_offer.html:143
+msgid "Корректировка цены (€)"
+msgstr ""
+
+#: templates/boats/create_offer.html:147
+msgid "Положительное — наценка, отрицательное — скидка"
+msgstr ""
+
+#: templates/boats/create_offer.html:153 templates/boats/offer_captain.html:327
+#: templates/boats/offer_tourist.html:231
+msgid "Внутренние заметки"
+msgstr ""
+
+#: templates/boats/create_offer.html:168
+msgid "Поиск по имени, телефону..."
+msgstr ""
+
+#: templates/boats/create_offer.html:194
+msgid "Назад"
+msgstr ""
+
+#: templates/boats/create_offer.html:197
+msgid "Создание..."
+msgstr ""
+
+#: templates/boats/create_offer.html:207
+msgid "Как это работает?"
+msgstr ""
+
+#: templates/boats/create_offer.html:210
+msgid "Откройте яхту на boataround.com"
+msgstr ""
+
+#: templates/boats/create_offer.html:211
+msgid "Выберите даты аренды"
+msgstr ""
+
+#: templates/boats/create_offer.html:212
+msgid "Скопируйте URL из адресной строки"
+msgstr ""
+
+#: templates/boats/create_offer.html:213
+msgid "Вставьте выше и нажмите создать"
+msgstr ""
+
+#: templates/boats/create_offer.html:214
+msgid "Готово! Отправьте ссылку клиенту"
+msgstr ""
+
+#: templates/boats/detail.html:756 templates/boats/detail.html:845
+msgid "Поиск клиента..."
+msgstr ""
+
+#: templates/boats/favorites.html:20
+msgid "избранных лодок"
+msgstr ""
+
+#: templates/boats/home.html:11
+msgid "Найдите идеальную яхту"
+msgstr ""
+
+#: templates/boats/home.html:14
+msgid "Более 27 000 яхт в лучших локациях мира"
+msgstr ""
+
+#: templates/boats/home.html:23 templates/boats/search.html:64
+msgid "Направление"
+msgstr ""
+
+#: templates/boats/home.html:59 templates/boats/search.html:118
+#: templates/boats/search.html:342
+msgid "Заезд"
+msgstr ""
+
+#: templates/boats/home.html:73 templates/boats/search.html:122
+#: templates/boats/search.html:343
+msgid "Выезд"
+msgstr ""
+
+#: templates/boats/home.html:88
+msgid "Тип судна"
+msgstr ""
+
+#: templates/boats/home.html:91
+msgid "Все типы"
+msgstr ""
+
+#: templates/boats/home.html:92 templates/boats/search.html:106
+msgid "Парусная яхта"
+msgstr ""
+
+#: templates/boats/home.html:93 templates/boats/search.html:107
+msgid "Катамаран"
+msgstr ""
+
+#: templates/boats/home.html:94 templates/boats/search.html:108
+msgid "Моторная яхта"
+msgstr ""
+
+#: templates/boats/home.html:95 templates/boats/search.html:109
+msgid "Моторная лодка"
+msgstr ""
+
+#: templates/boats/home.html:101
+msgid "Найти лодки"
+msgstr ""
+
+#: templates/boats/home.html:102 templates/boats/my_bookings.html:421
+msgid "Поиск..."
+msgstr ""
+
+#: templates/boats/home.html:114
+msgid "Популярные направления"
+msgstr ""
+
+#: templates/boats/home.html:132
+msgid "Турция"
+msgstr ""
+
+#: templates/boats/home.html:139
+msgid "Сейшелы"
+msgstr ""
+
+#: templates/boats/home.html:153
+msgid "Хорватия"
+msgstr ""
+
+#: templates/boats/home.html:160
+msgid "Испания"
+msgstr ""
+
+#: templates/boats/home.html:167
+msgid "Италия"
+msgstr ""
+
+#: templates/boats/home.html:176
+msgid "Подписки"
+msgstr ""
+
+#: templates/boats/home.html:185
+msgid "Поиск и просмотр лодок"
+msgstr ""
+
+#: templates/boats/home.html:200
+msgid "Всё из Бесплатной"
+msgstr ""
+
+#: templates/boats/home.html:201
+msgid "Роль капитан/агент"
+msgstr ""
+
+#: templates/boats/home.html:205
+msgid "Перейти к регистрации"
+msgstr ""
+
+#: templates/boats/home.html:215
+msgid "Всё из Стандарт"
+msgstr ""
+
+#: templates/boats/home.html:216
+msgid "Кастомный брендинг"
+msgstr ""
+
+#: templates/boats/home.html:217
+msgid "Название и логотип"
+msgstr ""
+
+#: templates/boats/home.html:217
+msgid "скоро"
+msgstr ""
+
+#: templates/boats/home.html:220
+msgid "Оформить доступ"
+msgstr ""
+
+#: templates/boats/includes/feedback_modal.html:40
+msgid "Отправляем..."
+msgstr ""
+
+#: templates/boats/includes/feedback_modal.html:46
+msgid "Сообщение отправлено!"
+msgstr ""
+
+#: templates/boats/includes/feedback_modal.html:47
+msgid "Мы свяжемся с вами в ближайшее время."
+msgstr ""
+
+#: templates/boats/includes/feedback_modal.html:49
+#: templates/boats/my_bookings.html:192 templates/boats/my_bookings.html:429
+msgid "Закрыть"
+msgstr "Cerrar"
+
+#: templates/boats/includes/feedback_modal.html:53
+msgid "закрыть"
+msgstr "cerrar"
+
+#: templates/boats/includes/feedback_modal.html:82
+msgid "Проверьте заполнение формы"
+msgstr ""
+
+#: templates/boats/includes/feedback_modal.html:85
+msgid "Ошибка соединения. Попробуйте ещё раз."
+msgstr ""
+
+#: templates/boats/includes/offer_brand_contacts.html:7
+msgid "Связаться с организатором"
+msgstr ""
+
+#: templates/boats/includes/offer_brand_header.html:28
+msgid "Бренд не привязан к офферу."
+msgstr ""
+
+#: templates/boats/includes/offer_brand_header.html:30
+msgid "и пересоздайте оффер."
+msgstr ""
+
+#: templates/boats/includes/quick_offer_branding.html:5
+msgid "Брендинг"
+msgstr ""
+
+#: templates/boats/includes/quick_offer_branding.html:14
+msgid "Без бренд."
+msgstr ""
+
+#: templates/boats/my_bookings.html:20
+msgid "Все бронирования"
+msgstr ""
+
+#: templates/boats/my_bookings.html:25
+msgid "Ваши бронирования и круизы"
+msgstr ""
+
+#: templates/boats/my_bookings.html:27
+msgid "Управление всеми бронированиями"
+msgstr ""
+
+#: templates/boats/my_bookings.html:29
+msgid "Бронирования по вашим офферам"
+msgstr ""
+
+#: templates/boats/my_bookings.html:39
+msgid "Поиск по автору оффера"
+msgstr ""
+
+#: templates/boats/my_bookings.html:51
+msgid "Только мои"
+msgstr ""
+
+#: templates/boats/my_bookings.html:71
+msgid "Всего"
+msgstr ""
+
+#: templates/boats/my_bookings.html:82
+msgid "Ожидают"
+msgstr ""
+
+#: templates/boats/my_bookings.html:93 templates/boats/my_bookings.html:225
+#: templates/boats/my_bookings.html:375
+msgid "На опции"
+msgstr ""
+
+#: templates/boats/my_bookings.html:104 templates/boats/my_bookings.html:230
+#: templates/boats/my_bookings.html:380
+msgid "Подтверждено"
+msgstr ""
+
+#: templates/boats/my_bookings.html:127 templates/boats/my_bookings.html:438
+msgid "Ответственный"
+msgstr ""
+
+#: templates/boats/my_bookings.html:178 templates/boats/my_bookings.html:415
+msgid "Привязать"
+msgstr ""
+
+#: templates/boats/my_bookings.html:183 templates/boats/my_bookings.html:419
+msgid "Привязать клиента"
+msgstr ""
+
+#: templates/boats/my_bookings.html:184
+msgid "Поиск по имени или телефону..."
+msgstr ""
+
+#: templates/boats/my_bookings.html:223 templates/boats/my_bookings.html:373
+msgid "Ожидает"
+msgstr ""
+
+#: templates/boats/my_bookings.html:227 templates/boats/my_bookings.html:377
+msgid "до"
+msgstr ""
+
+#: templates/boats/my_bookings.html:232 templates/boats/my_bookings.html:382
+msgid "Отменено"
+msgstr ""
+
+#: templates/boats/my_bookings.html:234 templates/boats/my_bookings.html:384
+msgid "Завершено"
+msgstr ""
+
+#: templates/boats/my_bookings.html:244
+msgid "Вы"
+msgstr ""
+
+#: templates/boats/my_bookings.html:259
+msgid "Взять"
+msgstr ""
+
+#: templates/boats/my_bookings.html:284 templates/boats/my_bookings.html:444
+#: templates/boats/offers_list.html:180 templates/boats/offers_list.html:238
+msgid "Открыть"
+msgstr ""
+
+#: templates/boats/my_bookings.html:312 templates/boats/my_bookings.html:486
+msgid "Подтвердить"
+msgstr ""
+
+#: templates/boats/my_bookings.html:314 templates/boats/my_bookings.html:488
+msgid "На опцию"
+msgstr ""
+
+#: templates/boats/my_bookings.html:319 templates/boats/my_bookings.html:493
+msgid "Отменить"
+msgstr ""
+
+#: templates/boats/my_bookings.html:324
+msgid "Поставить на опцию"
+msgstr ""
+
+#: templates/boats/my_bookings.html:329
+msgid "Опция действует до"
+msgstr ""
+
+#: templates/boats/my_bookings.html:333
+msgid "Поставить"
+msgstr ""
+
+#: templates/boats/my_bookings.html:469
+msgid "Взять на себя"
+msgstr ""
+
+#: templates/boats/my_bookings.html:476
+msgid "Снять с себя"
+msgstr ""
+
+#: templates/boats/my_bookings.html:501
+msgid "OK"
+msgstr ""
+
+#: templates/boats/my_bookings.html:550
+msgid "Начните искать лодки и создавайте бронирования!"
+msgstr ""
+
+#: templates/boats/my_bookings.html:552
+msgid "Пока нет бронирований от клиентов"
+msgstr ""
+
+#: templates/boats/notifications.html:21
+msgid "Прочитать все"
+msgstr ""
+
+#: templates/boats/notifications.html:47
+msgid "Прочитано"
+msgstr ""
+
+#: templates/boats/notifications.html:61
+msgid "Нет уведомлений"
+msgstr ""
+
+#: templates/boats/offer_captain.html:4
+msgid "Агентское предложение"
+msgstr ""
+
+#: templates/boats/offer_captain.html:28 templates/boats/offer_tourist.html:28
+msgid "Скопировать ссылку"
+msgstr ""
+
+#: templates/boats/offer_captain.html:32 templates/boats/offer_tourist.html:32
+msgid "Все офферы"
+msgstr ""
+
+#: templates/boats/offer_captain.html:48 templates/boats/offer_tourist.html:48
+msgid "Галерея"
+msgstr ""
+
+#: templates/boats/offer_captain.html:48 templates/boats/offer_tourist.html:48
+msgid "фото"
+msgstr ""
+
+#: templates/boats/offer_captain.html:73 templates/boats/offer_tourist.html:73
+msgid "Превью"
+msgstr ""
+
+#: templates/boats/offer_captain.html:87 templates/boats/offer_tourist.html:87
+msgid "Нет фотографий"
+msgstr ""
+
+#: templates/boats/offer_captain.html:98 templates/boats/offer_tourist.html:179
 msgid "Кокпит"
 msgstr ""
 
+#: templates/boats/offer_captain.html:115
+#: templates/boats/offer_tourist.html:196 templates/boats/search.html:262
+#: templates/boats/search.html:358
 msgid "Развлечения"
 msgstr ""
 
+#: templates/boats/offer_captain.html:132
+#: templates/boats/offer_tourist.html:213 templates/boats/search.html:278
+#: templates/boats/search.html:359
 msgid "Оборудование"
 msgstr ""
 
+#: templates/boats/offer_captain.html:152 templates/boats/offer_tourist.html:98
 msgid "Параметры"
 msgstr ""
 
-msgid "Название:"
-msgstr ""
-
+#: templates/boats/offer_captain.html:154
+#: templates/boats/offer_tourist.html:100
 msgid "Тип:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:155
+#: templates/boats/offer_tourist.html:101
 msgid "Производитель:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:156
+#: templates/boats/offer_tourist.html:102
 msgid "Модель:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:157
+#: templates/boats/offer_tourist.html:103
 msgid "Год:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:158
+#: templates/boats/offer_tourist.html:104
 msgid "Длина:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:159
+#: templates/boats/offer_tourist.html:105
 msgid "Ширина:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:160
+#: templates/boats/offer_tourist.html:106
 msgid "Осадка:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:161
+#: templates/boats/offer_tourist.html:107
 msgid "Каюты:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:162
+#: templates/boats/offer_tourist.html:108
 msgid "Мест:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:163
+#: templates/boats/offer_tourist.html:109
 msgid "Туалеты:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:164
+#: templates/boats/offer_tourist.html:110
 msgid "Двигатель:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:165
+#: templates/boats/offer_tourist.html:111
 msgid "Мощность:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:166
+#: templates/boats/offer_tourist.html:112
 msgid "Двигателей:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:167
+#: templates/boats/offer_tourist.html:113
 msgid "Тип ДВ:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:168
+#: templates/boats/offer_tourist.html:114
 msgid "Топливо:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:169
+#: templates/boats/offer_tourist.html:115
 msgid "Вид ТС:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:170
+#: templates/boats/offer_tourist.html:116
 msgid "Вода:"
 msgstr ""
 
+#: templates/boats/offer_captain.html:171
+#: templates/boats/offer_tourist.html:117
 msgid "Скорость:"
 msgstr ""
 
-msgid "Дополнительно"
+#: templates/boats/offer_captain.html:181
+#: templates/boats/offer_tourist.html:128
+msgid "Период аренды"
 msgstr ""
 
-msgid "Услуги"
+#: templates/boats/offer_captain.html:187
+msgid "Скидка"
 msgstr ""
 
-msgid "Доставка"
+#: templates/boats/offer_captain.html:198 templates/boats/offers_list.html:105
+msgid "Комиссия"
 msgstr ""
 
-msgid "Не включено"
+#: templates/boats/offer_captain.html:202
+msgid "Комиссия чартера"
 msgstr ""
 
-msgid "Туристическое предложение"
-msgstr ""
-
-msgid "ночей"
-msgstr ""
-
+#: templates/boats/offer_captain.html:218
+#: templates/boats/offer_captain.html:225
+#: templates/boats/offer_tourist.html:155
+#: templates/boats/offer_tourist.html:162
 msgid "Забронировать"
 msgstr ""
 
+#: templates/boats/offer_captain.html:230
+msgid "Предложение действует"
+msgstr ""
+
+#: templates/boats/offer_captain.html:245
+msgid "ФИО:"
+msgstr ""
+
+#: templates/boats/offer_captain.html:246
+msgid "Телефон:"
+msgstr ""
+
+#: templates/boats/offer_captain.html:247
+msgid "Email:"
+msgstr ""
+
+#: templates/boats/offer_captain.html:257
+msgid "Дополнительно"
+msgstr ""
+
+#: templates/boats/offer_captain.html:274
+msgid "Услуги"
+msgstr ""
+
+#: templates/boats/offer_captain.html:293
+msgid "Доставка"
+msgstr ""
+
+#: templates/boats/offer_captain.html:310
+msgid "Не включено"
+msgstr ""
+
+#: templates/boats/offer_captain.html:378
+msgid "Истекло"
+msgstr ""
+
+#: templates/boats/offer_tourist.html:4
+msgid "Туристическое предложение"
+msgstr ""
+
+#: templates/boats/offer_tourist.html:130
+msgid "ночей"
+msgstr ""
+
+#: templates/boats/offer_tourist.html:146
+msgid "Итого"
+msgstr ""
+
+#: templates/boats/offer_tourist.html:166
 msgid "Цена не доступна"
 msgstr ""
 
+#: templates/boats/offers_list.html:19
 msgid "Управление коммерческими предложениями"
 msgstr ""
 
+#: templates/boats/offers_list.html:31
+msgid "Поиск по офферам"
+msgstr ""
+
+#: templates/boats/offers_list.html:37
+msgid "Название, описание..."
+msgstr ""
+
+#: templates/boats/offers_list.html:130 templates/boats/offers_list.html:209
+msgid "Турист."
+msgstr ""
+
+#: templates/boats/offers_list.html:143 templates/boats/offers_list.html:226
+msgid "Активен"
+msgstr ""
+
+#: templates/boats/offers_list.html:145 templates/boats/offers_list.html:228
+msgid "Неактивен"
+msgstr ""
+
+#: templates/boats/offers_list.html:148
+msgid "Отсчёт"
+msgstr ""
+
+#: templates/boats/offers_list.html:179 templates/boats/offers_list.html:237
+msgid "Ссылка"
+msgstr ""
+
+#: templates/boats/offers_list.html:253
+msgid "Офферов не найдено"
+msgstr ""
+
+#: templates/boats/offers_list.html:254
+msgid "Создайте первый оффер для клиента"
+msgstr ""
+
+#: templates/boats/privacy.html:9 templates/boats/terms.html:9
+msgid "Дата последнего обновления"
+msgstr ""
+
+#: templates/boats/search.html:6
 msgid "Поиск яхт"
 msgstr ""
 
+#: templates/boats/search.html:22
 msgid "Найти яхту"
 msgstr ""
 
+#: templates/boats/search.html:24
 msgid "Поиск доступных яхт для аренды"
 msgstr ""
 
+#: templates/boats/search.html:52
 msgid "Фильтры"
 msgstr ""
 
+#: templates/boats/search.html:72
+msgid "Введите место (например, Греция)"
+msgstr ""
+
+#: templates/boats/search.html:95
+msgid "лодок"
+msgstr ""
+
+#: templates/boats/search.html:103
 msgid "Тип яхты"
 msgstr ""
 
+#: templates/boats/search.html:105 templates/boats/search.html:202
 msgid "Любой"
 msgstr ""
 
-msgid "Парусник"
+#: templates/boats/search.html:110
+msgid "Гулет"
 msgstr ""
 
-msgid "Моторная"
+#: templates/boats/search.html:111
+msgid "Моторный катамаран"
 msgstr ""
 
-msgid "Количество кают"
-msgstr ""
-
-msgid "Любое"
-msgstr ""
-
-msgid "Год выпуска"
-msgstr ""
-
+#: templates/boats/search.html:131 templates/boats/search.html:154
+#: templates/boats/search.html:163 templates/boats/search.html:184
+#: templates/boats/search.html:193
 msgid "От"
 msgstr ""
 
+#: templates/boats/search.html:132 templates/boats/search.html:155
+#: templates/boats/search.html:164 templates/boats/search.html:185
+#: templates/boats/search.html:194
 msgid "До"
 msgstr ""
 
-msgid "Цена за день (EUR)"
+#: templates/boats/search.html:138 templates/boats/search.html:344
+msgid "Каюты"
 msgstr ""
 
+#: templates/boats/search.html:140 templates/boats/search.html:172
+msgid "Любое"
+msgstr ""
+
+#: templates/boats/search.html:152 templates/boats/search.html:345
+msgid "Спальные места"
+msgstr ""
+
+#: templates/boats/search.html:161
+msgid "Макс. гостей"
+msgstr ""
+
+#: templates/boats/search.html:170 templates/boats/search.html:347
+msgid "Санузлы"
+msgstr ""
+
+#: templates/boats/search.html:182
+msgid "Год выпуска"
+msgstr ""
+
+#: templates/boats/search.html:191
+msgid "Длина (м)"
+msgstr ""
+
+#: templates/boats/search.html:200
+msgid "Экипаж"
+msgstr ""
+
+#: templates/boats/search.html:212
+msgid "Парус и двигатель"
+msgstr ""
+
+#: templates/boats/search.html:218
+msgid "Тип паруса"
+msgstr ""
+
+#: templates/boats/search.html:230
+msgid "Тип двигателя"
+msgstr ""
+
+#: templates/boats/search.html:246 templates/boats/search.html:357
+msgid "Комфорт"
+msgstr ""
+
+#: templates/boats/search.html:308
 msgid "Найдено яхт"
 msgstr ""
 
+#: templates/boats/search.html:320
 msgid "По рейтингу"
 msgstr ""
 
+#: templates/boats/search.html:321
 msgid "Цена ↑"
 msgstr ""
 
+#: templates/boats/search.html:322
 msgid "Цена ↓"
 msgstr ""
 
+#: templates/boats/search.html:323
 msgid "Скидка ↓"
+msgstr ""
+
+#: templates/boats/search.html:324
+msgid "По отзывам"
+msgstr ""
+
+#: templates/boats/search.html:325
+msgid "Лучшие предложения"
+msgstr ""
+
+#: templates/boats/search.html:330
+msgid "Сбросить"
+msgstr ""
+
+#: templates/boats/search.html:339
+msgid "Активные фильтры"
+msgstr ""
+
+#: templates/boats/search.html:346
+msgid "Гостей"
+msgstr ""
+
+#: templates/boats/search.html:348
+msgid "Год от"
+msgstr ""
+
+#: templates/boats/search.html:349
+msgid "Год до"
+msgstr ""
+
+#: templates/boats/search.html:351
+msgid "Цена от"
+msgstr ""
+
+#: templates/boats/search.html:352
+msgid "Цена до"
+msgstr ""
+
+#: templates/boats/search.html:355
+msgid "Парус"
+msgstr ""
+
+#: templates/boats/search.html:356
+msgid "Двигатель"
+msgstr ""
+
+#: templates/boats/search.html:360
+msgid "Сортировка"
+msgstr ""
+
+#: templates/boats/search.html:649
+msgid "Выберите направление"
+msgstr ""
+
+#: templates/includes/lk_sidebar.html:9
+msgid "Меню"
+msgstr ""
+
+#: templates/includes/lk_sidebar.html:14 templates/includes/lk_sidebar.html:18
+msgid "Дашборд"
+msgstr ""
+
+#: templates/includes/lk_sidebar.html:25 templates/includes/lk_sidebar.html:29
+msgid "Профиль"
+msgstr ""
+
+#: templates/includes/lk_sidebar.html:48
+msgid "Бренды"
+msgstr ""
+
+#: templates/includes/lk_sidebar.html:75 templates/includes/lk_sidebar.html:79
+msgid "Цены"
+msgstr ""
+
+#: templates/includes/lk_sidebar.html:87
+msgid "Чартеры"
 msgstr ""
 
 # Navigation

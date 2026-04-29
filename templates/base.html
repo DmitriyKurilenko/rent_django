@@ -90,6 +90,13 @@
                 {% endif %}
             </a>
             {% endif %}
+            
+            <!-- Кнопка обратной связи -->
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('feedbackModal').showModal()">
+                <i class="fas fa-envelope"></i>
+                <span class="hidden sm:inline ml-1">{% trans "Написать нам" %}</span>
+            </button>
+            
             <!-- Language Selector -->
             <div class="dropdown dropdown-end">
                 <label tabindex="0" class="btn btn-ghost btn-sm">
@@ -175,6 +182,8 @@
     </footer>
     {% endif %}
     
+    {% include 'boats/includes/feedback_modal.html' %}
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

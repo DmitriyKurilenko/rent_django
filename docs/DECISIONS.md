@@ -1,6 +1,33 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-22 (Europe/Moscow)
+Last updated: 2026-04-29 (Europe/Moscow)
+
+## DR-047: WebSocket-чат в ЛК — Django Channels + Daphne, round-robin назначение staff
+- Date: 2026-04-29
+- Context: Нужен реальный internal-чат между туристами/капитанами и менеджерами без перезагрузки страницы. Gunicorn (WSGI) не поддерживает WebSocket.
+- Decision:
+  - Gunicorn → Daphne (ASGI). `boat_rental/asgi.py` — `ProtocolTypeRouter` (HTTP через Django, WS через `ChatConsumer`). `AuthMiddlewareStack` + `AllowedHostsOriginValidator`.
+  - `ChatConsumer(AsyncJsonWebsocketConsumer)`: connect проверяет аутентификацию (close 4401) и `can_access_thread()` (close 4403). Все DB-операции через `database_sync_to_async`.
+  - Модели `Thread`, `Message`, `MessageRead` в `boats/models.py`. `Notification.thread` (FK). `UserProfile.assigned_staff` + `telegram_chat_id` в `accounts/models.py`.
+  - `assign_staff_for_new_thread` — round-robin через Redis INCR (ключ `chat:staff_round_robin`). Сброс счётчика при `FLUSHDB` не критичен.
+  - Сигнал `sync_assigned_staff` (`post_save` Booking): при назначении менеджера на бронь → обновляет `profile.assigned_staff` клиента.
+  - `notify_offline_chat_recipients` (Celery, countdown=30): пропускает получателей с `MessageRead` внутри окна 30s. Три канала: in-app Notification, Telegram (`send_telegram_message_to`), email.
+  - Channel layer: Redis db=2 (изолирован от Celery broker db=0 и Django cache db=1).
+  - Alpine.js WS-клиент: exponential backoff reconnect (1s → 30s cap), pagination по `before_id`, `markVisible` → `sendRead`.
+  - nginx: блок `location /ws/` с `proxy_http_version 1.1`, upgrade headers, `proxy_read_timeout 3600s`.
+- Consequence: HTTP и WebSocket обслуживаются одним процессом Daphne. Откат на Gunicorn: вернуть `gunicorn` в entrypoint.sh и docker-compose.prod.yml (gunicorn остаётся в requirements.txt). Чат доступен только аутентифицированным пользователям; доступ к треду контролируется `can_access_thread`.
+
+## DR-046: Feedback modal — глобальный DaisyUI-модал + роль-зависимая кнопка «Забронировать»
+- Date: 2026-04-28
+- Context: Туристы и капитаны нажимают «Забронировать» и попадают в `book_offer` / `booking_modal`, которые недоступны им по роли — возникал 403 или некорректный флоу. Нужна точка обратной связи для неавторизованных/нелицензированных ролей.
+- Decision:
+  - `FeedbackModal` — DaisyUI `<dialog id="feedbackModal">` включён в `base.html` (доступен на любой странице). Alpine.js-компонент с состояниями: `submitting`, `success`, `errorMsg`, per-field `errors`.
+  - `feedback_submit` — AJAX POST-view без `@login_required`. Валидирует `FeedbackForm`, возвращает JSON `{'ok': True}` / `{'errors': …, status: 400}`. Метод не POST → 405.
+  - `feedback_form` context processor: инжектирует пустой `FeedbackForm()` без DB-запросов на каждую страницу.
+  - `UserProfile.can_make_internal_booking()`: True только для manager/assistant/admin/superadmin. Метод проверяет `role` напрямую (не через permission), т.к. permission `book_boats` исторически выдан tourist/captain.
+  - Кнопка «Забронировать» в `detail.html`, `offer_tourist.html`, `offer_captain.html`: `can_make_internal_booking()=True` → `bookingModal`, иначе → `feedbackModal`.
+  - `can_book_from_offer` в `offer_detail` и `offer_view` переключён на `can_make_internal_booking()`.
+- Consequence: Captain/tourist больше не получают доступ к `book_offer`/`bookingModal`. Все роли видят кнопку «Забронировать», но действие различается по роли. Feedback-данные сохраняются в `Feedback` model и нотифицируют через существующий `send_feedback_notification`.
 
 ## DR-045: Feedback — форма обратной связи с нотификациями в Telegram и на email
 - Date: 2026-04-22 (дополнено: Telegram + email нотификации)

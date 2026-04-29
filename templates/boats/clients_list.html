@@ -68,9 +68,18 @@
                                     <td>{{ client.email|default:"-" }}</td>
                                     <td class="text-xs text-base-content/60">{{ client.created_at|date:"d.m.Y" }}</td>
                                     <td>
-                                        <div class="flex gap-1">
+                                        <div class="flex gap-1 items-center">
                                             <a href="{% url 'client_detail' client.pk %}" class="btn btn-xs btn-ghost">{% trans "Просмотр" %}</a>
                                             <a href="{% url 'client_edit' client.pk %}" class="btn btn-xs btn-ghost">{% trans "Редактировать" %}</a>
+                                            {% if client.user %}
+                                            <form method="post" action="{% url 'chat_get_or_create' %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="target_user_id" value="{{ client.user.pk }}">
+                                                <button type="submit" class="btn btn-xs btn-ghost" title="{% trans 'Открыть диалог' %}">
+                                                    <i class="fas fa-comment"></i>
+                                                </button>
+                                            </form>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>

@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ thread }} — {% trans "Чат" %} — Ахой!Rent{% endblock %}
+
+{% block extra_head %}
+<style>
+footer { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex gap-6 px-4" style="height: calc(100vh - 4rem);">
+    {% include 'includes/lk_sidebar.html' with active_page='chat' %}
+
+    <div class="flex-1 min-w-0 flex flex-col overflow-hidden py-4"
+         x-data="chatWindow({{ thread.pk }}, {{ request.user.pk }}, '{% url 'chat_messages_api' thread.pk %}')"
+         x-init="init()">
+
+        <!-- Header -->
+        <div class="flex-shrink-0 mb-3">
+            <a href="{% url 'chat_inbox' %}" class="btn btn-ghost btn-sm mb-2">
+                <i class="fas fa-arrow-left mr-1"></i> {% trans "Назад" %}
+            </a>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-xl font-bold">
+                        {% if thread.subject %}{{ thread.subject }}
+                        {% elif thread.booking %}{% trans "По бронированию" %} #{{ thread.booking.pk }}
+                        {% else %}{% trans "Тред" %} #{{ thread.pk }}
+                        {% endif %}
+                    </h1>
+                    <div class="text-sm text-base-content/50 mt-0.5">
+                        {% for p in thread.participants.all %}
+                            {{ p.get_full_name|default:p.username }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span x-show="wsState === 'connected'" class="badge badge-success badge-sm">{% trans "онлайн" %}</span>
+                    <span x-show="wsState === 'connecting'" class="badge badge-warning badge-sm">{% trans "подключение..." %}</span>
+                    <span x-show="wsState === 'disconnected'" class="badge badge-error badge-sm">{% trans "нет связи" %}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat box -->
+        <div class="card bg-base-100 shadow-sm flex flex-col flex-1 min-h-0">
+
+                <!-- Load more -->
+                <div class="p-2 text-center border-b border-base-200">
+                    <button @click="loadMore()" x-show="hasMore" :disabled="loadingMore"
+                            class="btn btn-ghost btn-xs">
+                        <span x-show="!loadingMore">{% trans "Загрузить ещё" %}</span>
+                        <span x-show="loadingMore" class="loading loading-spinner loading-xs"></span>
+                    </button>
+                </div>
+
+                <!-- Messages -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-3" id="msgContainer"
+                     @scroll="onScroll($event)">
+
+                    <!-- Server-rendered history -->
+                    {% for msg in history %}
+                    <div class="flex {% if msg.sender_id == request.user.pk %}justify-end{% else %}justify-start{% endif %}"
+                         data-msg-id="{{ msg.pk }}">
+                        <div class="max-w-xs lg:max-w-md">
+                            {% if msg.sender_id != request.user.pk %}
+                            <div class="text-xs text-base-content/50 mb-1 ml-1">
+                                {{ msg.sender.get_full_name|default:msg.sender.username }}
+                            </div>
+                            {% endif %}
+                            <div class="{% if msg.is_system %}bg-base-200 text-base-content/60 italic{% elif msg.sender_id == request.user.pk %}bg-primary text-primary-content{% else %}bg-base-200{% endif %} rounded-2xl px-4 py-2 text-sm">
+                                {{ msg.body }}
+                            </div>
+                            <div class="text-xs text-base-content/40 mt-1 {% if msg.sender_id == request.user.pk %}text-right{% endif %}">
+                                {{ msg.created_at|date:"d.m H:i" }}
+                                {% if msg.pk in read_ids %}<i class="fas fa-check-double text-primary ml-1"></i>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    <div id="msgBottom"></div>
+                </div>
+
+                <!-- Input -->
+                <div class="p-3 border-t border-base-200">
+                    {% if not thread.is_closed %}
+                    <form @submit.prevent="send()" class="flex gap-2">
+                        <input type="text" x-model="inputText"
+                               placeholder="{% trans 'Написать сообщение...' %}"
+                               class="input input-bordered flex-1 input-sm"
+                               :disabled="wsState !== 'connected'"
+                               maxlength="5000"
+                               @keydown.enter.prevent="send()">
+                        <button type="submit" class="btn btn-primary btn-sm"
+                                :disabled="wsState !== 'connected' || !inputText.trim()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="text-center text-sm text-base-content/50 py-1">{% trans "Тред закрыт" %}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+</div>
+{% endblock %}
+
+
+
+{% block extra_js %}
+<script>
+function chatWindow(threadId, myUserId, apiUrl) {
+    return {
+        threadId,
+        myUserId,
+        apiUrl,
+        ws: null,
+        wsState: 'disconnected',
+        inputText: '',
+        hasMore: {% if history|length == 200 %}true{% else %}false{% endif %},
+        loadingMore: false,
+        reconnectDelay: 1000,
+        beforeId: {% if history %}{{ history.0.pk }}{% else %}null{% endif %},
+
+        init() {
+            this.connect();
+            this.scrollToBottom();
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') this.markVisible();
+            });
+        },
+
+        connect() {
+            const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const url = `${proto}://${window.location.host}/ws/chat/${this.threadId}/`;
+            this.wsState = 'connecting';
+            this.ws = new WebSocket(url);
+
+            this.ws.onopen = () => {
+                this.wsState = 'connected';
+                this.reconnectDelay = 1000;
+                this.markVisible();
+            };
+
+            this.ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                if (data.type === 'message.new') {
+                    // Remove matching optimistic element
+                    if (data.message.sender_id === this.myUserId) {
+                        const opt = [...document.querySelectorAll('#msgContainer [data-opt-body]')]
+                            .find(el => el.dataset.optBody === data.message.body);
+                        if (opt) opt.remove();
+                    }
+                    // Dedup: skip if already in DOM
+                    if (document.querySelector(`#msgContainer [data-msg-id="${data.message.id}"]`)) return;
+                    this.appendMessage(data.message);
+                    this.scrollToBottom();
+                    if (document.visibilityState === 'visible') {
+                        this.sendRead([data.message.id]);
+                    }
+                }
+            };
+
+            this.ws.onclose = (e) => {
+                this.wsState = 'disconnected';
+                if (e.code !== 4401 && e.code !== 4403) {
+                    setTimeout(() => this.connect(), this.reconnectDelay);
+                    this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
+                }
+            };
+
+            this.ws.onerror = () => {
+                this.ws.close();
+            };
+        },
+
+        send() {
+            const body = this.inputText.trim();
+            if (!body || this.wsState !== 'connected') return;
+            // Optimistic DOM insert — real message replaces it on WS echo
+            const opt = this.renderMessage({
+                id: 'opt_' + Date.now(), sender_id: this.myUserId,
+                sender_name: '', body, created_at: new Date().toISOString(), is_system: false,
+            });
+            opt.dataset.optBody = body;
+            document.getElementById('msgContainer').insertBefore(opt, document.getElementById('msgBottom'));
+            this.scrollToBottom();
+            this.inputText = '';
+            this.ws.send(JSON.stringify({type: 'message.send', body}));
+        },
+
+        sendRead(ids) {
+            if (this.wsState !== 'connected' || !ids.length) return;
+            this.ws.send(JSON.stringify({type: 'message.read', message_ids: ids}));
+        },
+
+        markVisible() {
+            const ids = [...document.querySelectorAll('#msgContainer [data-msg-id]')]
+                .map(el => parseInt(el.dataset.msgId))
+                .filter(id => !isNaN(id));
+            this.sendRead(ids);
+        },
+
+        appendMessage(msg) {
+            const el = this.renderMessage(msg);
+            document.getElementById('msgContainer').insertBefore(el, document.getElementById('msgBottom'));
+        },
+
+        scrollToBottom() {
+            const el = document.getElementById('msgBottom');
+            if (el) el.scrollIntoView({behavior: 'smooth'});
+        },
+
+        onScroll(e) {
+            // Load more when scrolled near top
+            if (e.target.scrollTop < 50 && this.hasMore && !this.loadingMore) {
+                this.loadMore();
+            }
+        },
+
+        async loadMore() {
+            if (this.loadingMore || !this.hasMore || !this.beforeId) return;
+            this.loadingMore = true;
+            try {
+                const resp = await fetch(`${this.apiUrl}?before_id=${this.beforeId}`);
+                const data = await resp.json();
+                if (data.messages && data.messages.length) {
+                    this.beforeId = data.messages[0].id;
+                    this.hasMore = data.messages.length >= 50;
+                    const container = document.getElementById('msgContainer');
+                    const oldHeight = container.scrollHeight;
+                    // Prepend server messages via DOM
+                    const frag = document.createDocumentFragment();
+                    data.messages.forEach(msg => {
+                        const div = this.renderMessage(msg);
+                        frag.appendChild(div);
+                    });
+                    container.insertBefore(frag, container.querySelector('[data-msg-id]') || document.getElementById('msgBottom'));
+                    container.scrollTop = container.scrollHeight - oldHeight;
+                } else {
+                    this.hasMore = false;
+                }
+            } catch(e) {
+                console.error('[chat] loadMore failed', e);
+            }
+            this.loadingMore = false;
+        },
+
+        renderMessage(msg) {
+            const isMine = msg.sender_id === this.myUserId;
+            const wrap = document.createElement('div');
+            wrap.className = `flex ${isMine ? 'justify-end' : 'justify-start'}`;
+            wrap.dataset.msgId = msg.id;
+            const bubble = isMine
+                ? `<div class="bg-primary text-primary-content rounded-2xl px-4 py-2 text-sm">${this.escHtml(msg.body)}</div>`
+                : `<div class="text-xs text-base-content/50 mb-1 ml-1">${this.escHtml(msg.sender_name)}</div>
+                   <div class="bg-base-200 rounded-2xl px-4 py-2 text-sm">${this.escHtml(msg.body)}</div>`;
+            wrap.innerHTML = `<div class="max-w-xs lg:max-w-md">${bubble}
+                <div class="text-xs text-base-content/40 mt-1 ${isMine ? 'text-right' : ''}">${this.formatTime(msg.created_at)}</div>
+            </div>`;
+            return wrap;
+        },
+
+        formatTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        },
+
+        escHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        },
+    };
+}
+</script>
+{% endblock %}

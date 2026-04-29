@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Новый диалог" %} — Ахой!Rent{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex gap-6">
+        {% include 'includes/lk_sidebar.html' with active_page='chat' %}
+
+        <div class="flex-1 min-w-0 max-w-lg">
+            <div class="mb-6">
+                <a href="{% url 'chat_inbox' %}" class="btn btn-ghost btn-sm mb-2">
+                    <i class="fas fa-arrow-left mr-1"></i> {% trans "Назад" %}
+                </a>
+                <h1 class="text-2xl font-bold">{% trans "Новый диалог" %}</h1>
+            </div>
+
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body">
+                    <form method="post" action="{% url 'chat_create' %}">
+                        {% csrf_token %}
+
+                        <div class="form-control mb-4">
+                            <label class="label">
+                                <span class="label-text font-medium">{% trans "Получатель" %}</span>
+                                <span class="label-text-alt text-base-content/50">{% trans "не обязательно" %}</span>
+                            </label>
+                            <select name="target_user_id" class="select select-bordered w-full">
+                                <option value="">— {% trans "Автоматически (round-robin)" %} —</option>
+                                {% for u in available_users %}
+                                <option value="{{ u.pk }}">
+                                    {{ u.get_full_name|default:u.username }}
+                                    {% if u.profile.role %}({{ u.profile.get_role_display }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-control mb-4">
+                            <label class="label">
+                                <span class="label-text font-medium">{% trans "Тема" %}</span>
+                                <span class="label-text-alt text-base-content/50">{% trans "не обязательно" %}</span>
+                            </label>
+                            <input type="text" name="subject" maxlength="200"
+                                   placeholder="{% trans 'Например: Вопрос по бронированию' %}"
+                                   class="input input-bordered w-full">
+                        </div>
+
+                        {% if user_bookings %}
+                        <div class="form-control mb-6">
+                            <label class="label">
+                                <span class="label-text font-medium">{% trans "Привязать к бронированию" %}</span>
+                                <span class="label-text-alt text-base-content/50">{% trans "не обязательно" %}</span>
+                            </label>
+                            <select name="booking_id" class="select select-bordered w-full">
+                                <option value="">— {% trans "Без бронирования" %} —</option>
+                                {% for b in user_bookings %}
+                                <option value="{{ b.pk }}">
+                                    #{{ b.pk }} — {{ b.start_date }} — {{ b.boat }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        <button type="submit" class="btn btn-primary w-full">
+                            <i class="fas fa-paper-plane mr-1"></i> {% trans "Начать диалог" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

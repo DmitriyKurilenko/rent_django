@@ -81,6 +81,16 @@
                 {% endif %}
                 {% endif %}
 
+                {# Чат #}
+                {% if user.is_authenticated %}
+                <a href="{% url 'chat_inbox' %}" class="btn btn-sm {% if active_page == 'chat' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full relative">
+                    <i class="fas fa-comments"></i> {% trans "Чат" %}
+                    {% if unread_chat_count %}
+                    <span class="badge badge-error badge-xs absolute top-1 right-1">{{ unread_chat_count }}</span>
+                    {% endif %}
+                </a>
+                {% endif %}
+
                 {# Комиссии чартеров #}
                 {% if user.profile.can_manage_charters %}
                 <a href="{% url 'charters_management' %}" class="btn btn-sm {% if active_page == 'charters' %}btn-primary{% else %}btn-ghost{% endif %} justify-start w-full">

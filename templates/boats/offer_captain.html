@@ -218,6 +218,12 @@
                                 {% trans "Забронировать" %}
                             </button>
                         </form>
+                        {% else %}
+                        <button type="button" class="btn btn-secondary btn-sm w-full"
+                                onclick="document.getElementById('feedbackModal').showModal()">
+                            <i class="fas fa-calendar-check"></i>
+                            {% trans "Забронировать" %}
+                        </button>
                         {% endif %}
                         {% if show_countdown and countdown_end_iso %}
                         <div class="p-2 rounded bg-base-100/20 text-center">

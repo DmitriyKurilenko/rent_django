@@ -1,0 +1,91 @@
+{% load i18n %}
+<dialog id="feedbackModal" class="modal" x-data="feedbackModal()">
+    <div class="modal-box">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                onclick="document.getElementById('feedbackModal').close()">✕</button>
+
+        <h3 class="text-lg font-bold mb-4">{% trans "Написать нам" %}</h3>
+
+        <form x-show="!success" @submit.prevent="submit($event)" id="feedbackForm" novalidate>
+            {% csrf_token %}
+
+            <div class="mb-3">
+                <label class="text-sm font-semibold">{% trans "Ваше имя" %} <span class="text-error">*</span></label>
+                {{ feedback_form.name }}
+                <div class="text-xs text-error mt-1" x-show="errors.name" x-text="errors.name"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="text-sm font-semibold">{% trans "Телефон" %}</label>
+                {{ feedback_form.phone }}
+                <div class="text-xs text-error mt-1" x-show="errors.phone" x-text="errors.phone"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="text-sm font-semibold">{% trans "Email" %} <span class="text-error">*</span></label>
+                {{ feedback_form.email }}
+                <div class="text-xs text-error mt-1" x-show="errors.email" x-text="errors.email"></div>
+            </div>
+
+            <div class="mb-4">
+                <label class="text-sm font-semibold">{% trans "Сообщение" %} <span class="text-error">*</span></label>
+                {{ feedback_form.message }}
+                <div class="text-xs text-error mt-1" x-show="errors.message" x-text="errors.message"></div>
+            </div>
+
+            <div x-show="errorMsg" class="alert alert-error mb-3 text-sm" x-text="errorMsg"></div>
+
+            <button type="submit" class="btn btn-primary w-full" :disabled="submitting">
+                <span x-show="submitting" class="loading loading-spinner loading-sm"></span>
+                <span x-text="submitting ? '{% trans "Отправляем..." %}' : '{% trans "Отправить" %}'"></span>
+            </button>
+        </form>
+
+        <div x-show="success" class="text-center py-6">
+            <div class="text-5xl mb-4">✉️</div>
+            <p class="text-lg font-semibold mb-2">{% trans "Сообщение отправлено!" %}</p>
+            <p class="text-sm opacity-70 mb-4">{% trans "Мы свяжемся с вами в ближайшее время." %}</p>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('feedbackModal').close()">
+                {% trans "Закрыть" %}
+            </button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>{% trans "закрыть" %}</button></form>
+</dialog>
+
+<script>
+function feedbackModal() {
+    return {
+        submitting: false,
+        success: false,
+        errorMsg: '',
+        errors: {},
+        async submit(event) {
+            this.submitting = true;
+            this.errorMsg = '';
+            this.errors = {};
+            const data = new FormData(event.target);
+            try {
+                const resp = await fetch('{% url "feedback_submit" %}', {
+                    method: 'POST',
+                    body: data,
+                    headers: {'X-CSRFToken': data.get('csrfmiddlewaretoken')},
+                });
+                const json = await resp.json();
+                if (json.ok) {
+                    this.success = true;
+                } else if (json.errors) {
+                    this.errors = Object.fromEntries(
+                        Object.entries(json.errors).map(([k, v]) => [k, v.join(' ')])
+                    );
+                } else {
+                    this.errorMsg = '{% trans "Проверьте заполнение формы" %}';
+                }
+            } catch (e) {
+                this.errorMsg = '{% trans "Ошибка соединения. Попробуйте ещё раз." %}';
+            }
+            this.submitting = false;
+        },
+    };
+}
+</script>

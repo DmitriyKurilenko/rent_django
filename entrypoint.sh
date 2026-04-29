@@ -55,4 +55,4 @@ echo "🔐 Admin: admin / admin"
 echo "==================================="
 echo ""
 
-exec python manage.py runserver 0.0.0.0:8000
+exec daphne -b 0.0.0.0 -p 8000 boat_rental.asgi:application

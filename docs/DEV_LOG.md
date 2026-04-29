@@ -2,6 +2,43 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-04-29 — Внутренний чат в ЛК (WebSocket, Django Channels + Daphne)
+
+- **ASGI-переход**: Gunicorn → Daphne. `boat_rental/asgi.py` — ProtocolTypeRouter (HTTP + WS). `entrypoint.sh` теперь запускает `daphne -b 0.0.0.0 -p 8000 boat_rental.asgi:application`. `docker-compose.prod.yml` аналогично.
+- **nginx**: добавлен блок `location /ws/` с WebSocket upgrade headers, `proxy_read_timeout 3600s`.
+- **requirements.txt**: `channels==4.1.0`, `channels-redis==4.2.1`, `daphne==4.1.2`.
+- **settings.py**: `daphne` первым в INSTALLED_APPS, добавлен `channels`, `ASGI_APPLICATION`, `CHANNEL_LAYERS` (Redis db=2). Context processor `boats.context_processors.chat` зарегистрирован.
+- **Модели** (boats/models.py): `Thread`, `Message`, `MessageRead`, `Notification.thread` FK. Миграции: 0039 (Thread/Message/MessageRead), 0040 (Notification.thread), 0041 (авто-rename indexes).
+- **Модели** (accounts/models.py): `UserProfile.assigned_staff` + `telegram_chat_id`. Миграция: 0011.
+- **Signal** `sync_assigned_staff` (accounts/signals.py): `post_save` на Booking → обновляет `profile.assigned_staff` у клиента при назначении менеджера. Зарегистрирован в accounts/apps.py.
+- **Consumer** (boats/consumers.py): `ChatConsumer(AsyncJsonWebsocketConsumer)` — connect (auth + access check), send, read, broadcast. Всё через `database_sync_to_async`. Close 4401 (anonymous), 4403 (forbidden).
+- **Chat helpers** (boats/chat_helpers.py): `can_access_thread`, `can_initiate_thread_with`, `assign_staff_for_new_thread` (round-robin Redis INCR), `get_available_staff`.
+- **Telegram**: `send_telegram_message_to(chat_id, text)` — адресная отправка в личный chat_id. Параллельна `send_telegram_message` (групповой).
+- **Celery task** `notify_offline_chat_recipients(message_id)` — countdown=30. Пропускает тех, кто прочитал в окне. In-app Notification + Telegram (если telegram_chat_id) + email.
+- **Views**: `chat_inbox`, `chat_thread`, `chat_create`, `chat_messages_api` (REST pagination by before_id). `Thread`, `Message`, `MessageRead` добавлены в import.
+- **URLs**: 4 пути в boats/urls.py.
+- **Context processor** `chat` (boats/context_processors.py): `unread_chat_count` для navbar/sidebar.
+- **Admin**: Thread (inline Messages), Message, MessageRead в boats/admin.py. UserProfileAdmin: `assigned_staff`, `telegram_chat_id` в fieldsets.
+- **Templates**: `chat_inbox.html`, `chat_thread.html`, `chat_create.html`. Alpine.js WS-клиент с exponential backoff reconnect (1s→30s), load-more (pagination по before_id), markVisible → sendRead. sidebar обновлён: пункт «Чат» с badge `unread_chat_count`.
+- **Tests**: 32 теста — все зелёные. `manage.py check` — 0 issues.
+- **Risks**: смена ASGI в prod — gunicorn сохранён в requirements.txt для отката. Channel layer Redis db=2 — очистка при `FLUSHDB` сбрасывает счётчик round-robin (не критично).
+- Files: `requirements.txt`, `boat_rental/settings.py`, `boat_rental/asgi.py`, `boats/routing.py`, `boats/consumers.py`, `boats/chat_helpers.py`, `boats/telegram.py`, `boats/tasks.py`, `boats/models.py`, `boats/urls.py`, `boats/views.py`, `boats/context_processors.py`, `boats/admin.py`, `boats/migrations/0039-0041`, `accounts/models.py`, `accounts/apps.py`, `accounts/signals.py`, `accounts/admin.py`, `accounts/migrations/0011`, `accounts/tests/test_assigned_staff_signal.py`, `boats/tests/test_chat_models.py`, `boats/tests/test_chat_helpers.py`, `boats/tests/test_chat_views.py`, `templates/boats/chat_inbox.html`, `templates/boats/chat_thread.html`, `templates/boats/chat_create.html`, `templates/includes/lk_sidebar.html`, `entrypoint.sh`, `docker-compose.prod.yml`, `nginx/templates/boatrental.conf.template`.
+
+## 2026-04-28 — Глобальный модал обратной связи + роль-зависимая кнопка «Забронировать»
+- Feature: форма обратной связи вынесена в DaisyUI `<dialog id="feedbackModal">` в base.html, доступна на любой странице.
+- New: `feedback_submit` AJAX-view (boats/views.py) — POST, no `@login_required`, возвращает `{'ok': True}` / `{'errors': …, status: 400}` / 405.
+- New: маршрут `feedback/submit/` → `name='feedback_submit'` (boats/urls.py).
+- New: `feedback_form` context processor (boats/context_processors.py) — инжектирует `FeedbackForm()` на каждую страницу без запросов к БД.
+- New: `UserProfile.can_make_internal_booking()` (accounts/models.py) — True для manager/assistant/admin/superadmin; проверяет `role` напрямую (не через permission), т.к. `book_boats` permission исторически выдан tourist/captain.
+- Changed: `can_book_from_offer` в `offer_detail` и `offer_view` (boats/views.py) — теперь `can_make_internal_booking()`, captain больше не получает кнопку «Забронировать» в офферах.
+- Changed: кнопка «Забронировать» в detail.html — manager/assistant/admin/superadmin → `bookingModal`, остальные → `feedbackModal`.
+- Changed: кнопка «Забронировать» в offer_tourist.html и offer_captain.html — аналогичное разделение.
+- New: `templates/boats/includes/feedback_modal.html` — Alpine.js компонент с состояниями submitting/success/errorMsg/errors, per-field ошибки.
+- Translations: `make messages` + `compilemessages` для ru/en/de/fr/es. Новые строки: «Написать нам», «Отправляем...», «Сообщение отправлено!» и 5 других.
+- Tests: `boats/tests/test_feedback_modal.py` — 18 тестов (все зелёные).
+- Validation: `manage.py check` — 0 issues. 18/18 тестов. feedbackModal присутствует на `/ru/` и `/ru/boats/search/`.
+- Files: `accounts/models.py`, `boats/views.py`, `boats/urls.py`, `boats/context_processors.py`, `boat_rental/settings.py`, `templates/base.html`, `templates/boats/includes/feedback_modal.html`, `templates/boats/detail.html`, `templates/boats/offer_tourist.html`, `templates/boats/offer_captain.html`, `boats/tests/test_feedback_modal.py`, `locale/*/LC_MESSAGES/django.po`, `locale/*/LC_MESSAGES/django.mo`.
+
 ## 2026-04-22 — Форма обратной связи + нотификации Telegram и email
 - Feature: форма обратной связи на `/contacts/` — поля имя, телефон (необязательный), email, сообщение. Нотификации при каждом обращении: Telegram + email.
 - Model: `Feedback` в boats/models.py. Migration 0037.

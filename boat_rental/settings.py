@@ -13,6 +13,7 @@ ALLOWED_HOSTS = [
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',  # must be first for ASGI/WS support
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -21,6 +22,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',  # ⭐ для sitemap
     'django_celery_beat',
+    'channels',
     'accounts',
     'boats',
 ]
@@ -53,12 +55,24 @@ TEMPLATES = [
                 'django.template.context_processors.media',
                 'django.template.context_processors.i18n',  # ⭐ i18n context
                 'boats.context_processors.notifications',
+                'boats.context_processors.feedback_form',
+                'boats.context_processors.chat',
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = 'boat_rental.wsgi.application'
+ASGI_APPLICATION = 'boat_rental.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [config('CHANNEL_LAYER_REDIS_URL', default='redis://redis:6379/2')],
+        },
+    },
+}
 
 # Database
 DATABASE_URL = config('DATABASE_URL', default='sqlite:///db.sqlite3')

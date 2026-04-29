@@ -155,6 +155,12 @@
                                 {% trans "Забронировать" %}
                             </button>
                         </form>
+                        {% else %}
+                        <button type="button" class="btn btn-secondary btn-sm w-full mt-2"
+                                onclick="document.getElementById('feedbackModal').showModal()">
+                            <i class="fas fa-calendar-check"></i>
+                            {% trans "Забронировать" %}
+                        </button>
                         {% endif %}
                         {% else %}
                         <div class="text-sm opacity-90">{% trans "Цена не доступна" %}</div>

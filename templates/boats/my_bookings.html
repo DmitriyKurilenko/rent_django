@@ -128,6 +128,7 @@
                             {% endif %}
                             <th>{% trans "Оффер" %}</th>
                             <th>{% trans "Договор" %}</th>
+                            <th></th>
                             {% if user.profile.can_confirm_booking %}
                                 <th>{% trans "Действия" %}</th>
                             {% endif %}
@@ -298,6 +299,17 @@
                                 {% else %}
                                     <span class="text-base-content/30">—</span>
                                 {% endif %}
+                            </td>
+
+                            <!-- Чат -->
+                            <td>
+                                <form method="post" action="{% url 'chat_get_or_create' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                                    <button type="submit" class="btn btn-ghost btn-xs" title="{% trans 'Открыть диалог' %}">
+                                        <i class="fas fa-comment"></i>
+                                    </button>
+                                </form>
                             </td>
 
                             <!-- Действия -->

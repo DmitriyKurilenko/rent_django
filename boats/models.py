@@ -389,6 +389,12 @@ class Notification(models.Model):
         related_name='notifications',
         verbose_name='Бронирование',
     )
+    thread = models.ForeignKey(
+        'Thread', on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='notifications',
+        verbose_name='Тред',
+    )
     message = models.TextField('Текст уведомления')
     is_read = models.BooleanField('Прочитано', default=False)
     created_at = models.DateTimeField('Создано', auto_now_add=True)
@@ -1474,3 +1480,102 @@ class Feedback(models.Model):
 
     def __str__(self):
         return f"{self.name} <{self.email}>"
+
+
+class Thread(models.Model):
+    """Тред переписки в ЛК."""
+
+    booking = models.ForeignKey(
+        Booking, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='chat_threads',
+        verbose_name='Бронирование',
+    )
+    participants = models.ManyToManyField(
+        User, related_name='chat_threads',
+        verbose_name='Участники',
+    )
+    subject = models.CharField('Тема', max_length=200, blank=True, default='')
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT,
+        related_name='created_threads',
+        verbose_name='Автор',
+    )
+    last_message_at = models.DateTimeField(
+        'Последнее сообщение', null=True, blank=True, db_index=True,
+    )
+    is_closed = models.BooleanField('Закрыт', default=False)
+    created_at = models.DateTimeField('Создан', auto_now_add=True)
+    updated_at = models.DateTimeField('Обновлён', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Тред'
+        verbose_name_plural = 'Треды'
+        ordering = ['-last_message_at', '-created_at']
+        indexes = [
+            models.Index(fields=['-last_message_at']),
+            models.Index(fields=['booking']),
+        ]
+
+    def __str__(self):
+        if self.subject:
+            return self.subject
+        if self.booking_id:
+            return f'Тред по бронированию #{self.booking_id}'
+        return f'Тред #{self.pk}'
+
+    def get_absolute_url(self):
+        return reverse('chat_thread', kwargs={'thread_id': self.pk})
+
+
+class Message(models.Model):
+    """Сообщение в треде."""
+
+    thread = models.ForeignKey(
+        Thread, on_delete=models.CASCADE,
+        related_name='messages',
+        verbose_name='Тред',
+    )
+    sender = models.ForeignKey(
+        User, on_delete=models.PROTECT,
+        related_name='sent_messages',
+        verbose_name='Отправитель',
+    )
+    body = models.TextField('Текст')
+    is_system = models.BooleanField('Системное', default=False)
+    created_at = models.DateTimeField('Создано', auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'Сообщение'
+        verbose_name_plural = 'Сообщения'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['thread', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'[{self.thread_id}] {self.sender.username}: {self.body[:60]}'
+
+
+class MessageRead(models.Model):
+    """Отметка прочтения сообщения пользователем."""
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE,
+        related_name='reads',
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='message_reads',
+    )
+    read_at = models.DateTimeField('Прочитано', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Отметка прочтения'
+        verbose_name_plural = 'Отметки прочтения'
+        constraints = [
+            models.UniqueConstraint(fields=['message', 'user'], name='unique_message_user_read'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'read_at']),
+        ]

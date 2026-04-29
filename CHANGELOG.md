@@ -2,6 +2,48 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.17.0-dev] - 2026-04-29
+
+### ✨ Added — WebSocket-чат в ЛК (Django Channels + Daphne)
+
+- **`boat_rental/asgi.py`**: ProtocolTypeRouter (HTTP + WebSocket). Daphne заменяет Gunicorn в качестве ASGI-сервера.
+- **`boats/consumers.py`**: `ChatConsumer(AsyncJsonWebsocketConsumer)` — connect (auth + access check), send, read, broadcast через channel group. Close 4401 (anonymous), 4403 (forbidden).
+- **`boats/routing.py`**: URL-маршрут для WS (`/ws/chat/<thread_id>/`).
+- **`boats/chat_helpers.py`**: `can_access_thread`, `can_initiate_thread_with`, `assign_staff_for_new_thread` (round-robin через Redis INCR).
+- **`boats/models.py`**: модели `Thread`, `Message`, `MessageRead`. `Notification.thread` (FK, nullable). Миграции: `0039` (Thread/Message/MessageRead), `0040` (Notification.thread FK), `0041` (авто-rename индексов).
+- **`accounts/models.py`**: `UserProfile.assigned_staff` (FK → User, nullable) + `telegram_chat_id`. Миграция `0011`.
+- **`accounts/signals.py`**: сигнал `sync_assigned_staff` — `post_save` на Booking обновляет `profile.assigned_staff` клиента при назначении менеджера.
+- **`boats/telegram.py`**: `send_telegram_message_to(chat_id, text)` — адресная отправка (дополняет групповую `send_telegram_message`).
+- **`boats/tasks.py`**: `notify_offline_chat_recipients(message_id)` — Celery task, countdown=30. Пропускает прочитавших. Каналы: in-app Notification + Telegram (если `telegram_chat_id`) + email.
+- **`boats/views.py`**: `chat_inbox`, `chat_thread`, `chat_create`, `chat_messages_api` (REST pagination by `before_id`).
+- **`boats/context_processors.py`**: `chat` — добавляет `unread_chat_count` для navbar/sidebar.
+- **`templates/boats/chat_inbox.html`**, **`chat_thread.html`**, **`chat_create.html`**: Alpine.js WS-клиент с exponential backoff reconnect (1s→30s), load-more pagination, markVisible → sendRead.
+- **`templates/includes/lk_sidebar.html`**: пункт «Чат» с badge `unread_chat_count`.
+- **`requirements.txt`**: `channels==4.1.0`, `channels-redis==4.2.1`, `daphne==4.1.2`.
+- **`nginx/templates/boatrental.conf.template`**: WS proxy block (`/ws/`) с upgrade-headers и `proxy_read_timeout 3600s`.
+- **`entrypoint.sh`**, **`docker-compose.prod.yml`**: запуск через `daphne -b 0.0.0.0 -p 8000`.
+- **Тесты**: 32 теста в `boats/tests/test_chat_models.py`, `test_chat_helpers.py`, `test_chat_views.py`, `accounts/tests/test_assigned_staff_signal.py` — все зелёные.
+
+### ✨ Added — Глобальный feedback modal + роль-зависимая кнопка «Забронировать»
+
+- **`templates/boats/includes/feedback_modal.html`**: DaisyUI `<dialog id="feedbackModal">` — Alpine.js компонент с состояниями submitting/success/errorMsg/errors, per-field ошибки, AJAX submit.
+- **`templates/base.html`**: `{% include 'boats/includes/feedback_modal.html' %}` — модал доступен на любой странице.
+- **`boats/views.py`**: `feedback_submit` AJAX-view — POST, без `@login_required`, возвращает `{'ok': True}` / `{'errors': …}` (400) / 405.
+- **`boats/urls.py`**: маршрут `feedback/submit/` → `name='feedback_submit'`.
+- **`boats/context_processors.py`**: `feedback_form` — инжектирует `FeedbackForm()` без запросов к БД.
+- **`accounts/models.py`**: `UserProfile.can_make_internal_booking()` — True для manager/assistant/admin/superadmin.
+- **`templates/boats/detail.html`**, **`offer_tourist.html`**, **`offer_captain.html`**: кнопка «Забронировать» — manager/assistant/admin/superadmin → `bookingModal`, остальные → `feedbackModal`.
+- **i18n**: `make messages` + `compilemessages` для ru/en/de/fr/es.
+- **Тесты**: 18 тестов в `boats/tests/test_feedback_modal.py` — все зелёные.
+
+### 📝 Misc
+
+- **`CLAUDE.md`**: инструкции для AI-агентов по работе с проектом.
+- **docs**: DR-046, DR-047 в `DECISIONS.md`; обновлены `TASK_STATE.md`, `DEV_LOG.md`, `RELEASE_NOTES.md`.
+- Удалены устаревшие файлы: `README.md`, `DEPLOYMENT_CHECKLIST_FINAL.md`, `task-commit-template.md`, `Screenshot 2026-04-12 at 10.23.01.png`.
+
+---
+
 ## [0.16.0-dev] - 2026-04-22
 
 ### ✨ Added — Форма обратной связи с нотификациями

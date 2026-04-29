@@ -4,7 +4,7 @@ from .models import (
     Boat, Favorite, Booking, Review, Offer, ParsedBoat, Charter,
     BoatTechnicalSpecs, BoatDescription, BoatPrice, BoatGallery, BoatDetails,
     ContractTemplate, Contract, Client, ContractOTP, ParseJob, Notification,
-    Feedback,
+    Feedback, Thread, Message, MessageRead,
 )
 
 
@@ -380,3 +380,43 @@ class FeedbackAdmin(admin.ModelAdmin):
     list_editable = ['is_processed']
     ordering = ['-created_at']
     readonly_fields = ['created_at']
+
+
+class MessageInline(admin.TabularInline):
+    model = Message
+    extra = 0
+    readonly_fields = ['sender', 'body', 'is_system', 'created_at']
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Thread)
+class ThreadAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'created_by', 'booking', 'last_message_at', 'is_closed', 'created_at']
+    list_filter = ['is_closed', 'created_at']
+    search_fields = ['subject', 'created_by__username']
+    readonly_fields = ['created_at', 'updated_at', 'last_message_at']
+    filter_horizontal = ['participants']
+    inlines = [MessageInline]
+
+
+@admin.register(Message)
+class MessageAdmin(admin.ModelAdmin):
+    list_display = ['thread', 'sender', 'body_preview', 'is_system', 'created_at']
+    list_filter = ['is_system', 'created_at']
+    search_fields = ['sender__username', 'body']
+    readonly_fields = ['created_at']
+
+    def body_preview(self, obj):
+        return obj.body[:80]
+    body_preview.short_description = 'Текст'
+
+
+@admin.register(MessageRead)
+class MessageReadAdmin(admin.ModelAdmin):
+    list_display = ['message', 'user', 'read_at']
+    list_filter = ['read_at']
+    search_fields = ['user__username']
+    readonly_fields = ['read_at']

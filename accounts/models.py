@@ -69,6 +69,18 @@ class UserProfile(models.Model):
     avatar = models.ImageField('Аватар', upload_to='avatars/', blank=True, null=True)
     created_at = models.DateTimeField('Дата регистрации', auto_now_add=True)
 
+    assigned_staff = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='managed_clients',
+        verbose_name='Ответственный (менеджер/ассистент)',
+        help_text='Автоматически назначается при взятии бронирования. Меняется только админом.',
+    )
+    telegram_chat_id = models.CharField(
+        'Telegram chat_id', max_length=50, blank=True, default='',
+        help_text='Личный chat_id для оффлайн-уведомлений из чата. Пусто — не слать в TG.',
+    )
+
     class Meta:
         verbose_name = 'Профиль пользователя'
         verbose_name_plural = 'Профили пользователей'
@@ -187,6 +199,10 @@ class UserProfile(models.Model):
 
     def can_book_boats(self):
         return self.has_perm('book_boats')
+
+    def can_make_internal_booking(self):
+        """Только внутренние роли могут создавать бронирование напрямую."""
+        return self.role in ('manager', 'assistant', 'admin', 'superadmin')
 
     def can_create_captain_offers(self):
         return self.has_perm('create_captain_offers')

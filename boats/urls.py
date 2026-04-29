@@ -56,4 +56,12 @@ urlpatterns = [
     path('terms/', views.terms, name='terms'),
     path('privacy/', views.privacy, name='privacy'),
     path('contacts/', views.contacts, name='contacts'),
+    path('feedback/submit/', views.feedback_submit, name='feedback_submit'),
+
+    # ЛК Чат
+    path('chat/', views.chat_inbox, name='chat_inbox'),
+    path('chat/new/', views.chat_create, name='chat_create'),
+    path('chat/open/', views.chat_get_or_create, name='chat_get_or_create'),
+    path('chat/<int:thread_id>/', views.chat_thread, name='chat_thread'),
+    path('chat/api/<int:thread_id>/messages/', views.chat_messages_api, name='chat_messages_api'),
 ]

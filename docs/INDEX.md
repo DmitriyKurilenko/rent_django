@@ -28,6 +28,7 @@ Start here for architectural understanding and code patterns:
 - **[DECISIONS.md](./DECISIONS.md)** - accepted behavior decisions (ADR-lite)
 - **[KNOWN_ISSUES.md](./KNOWN_ISSUES.md)** - active bugs/risks and current mitigations
 - **[DEV_LOG.md](./DEV_LOG.md)** - concise chronological development log
+- **[TASK_TEMPLATE.md](./TASK_TEMPLATE.md)** - шаблон для постановки задачи «составить детальный план реализации»
 
 ### 🔒 Security
 Security policies and best practices:

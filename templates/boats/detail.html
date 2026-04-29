@@ -605,8 +605,14 @@
                     {% endif %}
                     
                     {% if user.is_authenticated and user.profile.can_book_boats %}
-                    <!-- Кнопка бронирования для туриста/капитана/агента -->
+                    <!-- Аутентифицированный — прямое бронирование через bookingModal -->
                     <button class="btn btn-primary w-full mt-2" x-data @click="document.getElementById('bookingModal').showModal()">
+                        <i class="fas fa-calendar-check"></i> Забронировать
+                    </button>
+                    {% else %}
+                    <!-- Анонимный — форма обратной связи -->
+                    <button class="btn btn-primary w-full mt-2"
+                            onclick="document.getElementById('feedbackModal').showModal()">
                         <i class="fas fa-calendar-check"></i> Забронировать
                     </button>
                     {% endif %}

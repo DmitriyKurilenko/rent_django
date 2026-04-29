@@ -1,8 +1,36 @@
 # TASK STATE
 
-Last updated: 2026-04-22 (Europe/Moscow)
+Last updated: 2026-04-29 (Europe/Moscow)
 
 ## Current priorities
+
+### P2.3: Внутренний чат в ЛК (WebSocket)
+- Status: **DONE (2026-04-29)**
+- Django Channels 4.1 + Daphne 4.1 — полная замена Gunicorn/WSGI на ASGI. Daphne обслуживает HTTP и WebSocket.
+- `boat_rental/asgi.py` — ProtocolTypeRouter (HTTP + WS), AuthMiddlewareStack, AllowedHostsOriginValidator.
+- `boats/routing.py` + `boats/consumers.py` — `ChatConsumer(AsyncJsonWebsocketConsumer)`, `database_sync_to_async`, reconnect на клиенте.
+- Модели: `Thread`, `Message`, `MessageRead` (boats/models.py), миграции 0039, 0040, 0041.
+- `UserProfile.assigned_staff` + `telegram_chat_id` (accounts/models.py), миграция 0011.
+- `Notification.thread` FK (boats/models.py), миграция 0040.
+- Signal `sync_assigned_staff` (accounts/signals.py) — при назначении менеджера на Booking → обновляет `assigned_staff` клиента.
+- `boats/chat_helpers.py` — `can_access_thread`, `can_initiate_thread_with`, `assign_staff_for_new_thread` (round-robin через Redis).
+- Celery-задача `notify_offline_chat_recipients` (boats/tasks.py) — countdown=30, пропускает прочитавших.
+- `send_telegram_message_to(chat_id, text)` (boats/telegram.py) — адресная отправка.
+- 4 views: `chat_inbox`, `chat_thread`, `chat_create`, `chat_messages_api`. 4 URL-пути.
+- Context processor `chat` — `unread_chat_count`. Зарегистрирован в settings.py.
+- 3 шаблона чата + sidebar обновлён. Alpine.js WS-клиент с reconnect (exponential backoff).
+- Admin: `ThreadAdmin` (inline Messages), `MessageAdmin`, `MessageReadAdmin`, UserProfileAdmin — `assigned_staff` + `telegram_chat_id`.
+- Tests: 32 теста в boats/tests/test_chat_models.py, test_chat_helpers.py, test_chat_views.py, accounts/tests/test_assigned_staff_signal.py — все зелёные.
+- Validation: `manage.py check` — 0 issues. 32/32 тестов. Daphne running on port 8000.
+- Risks: смена ASGI-сервера в prod — откат: вернуть gunicorn в docker-compose.prod.yml. Channel layer на Redis db=2.
+
+### P2.2: Глобальный модал обратной связи + роль-зависимая кнопка «Забронировать»
+- Status: **DONE (2026-04-28)**
+- Новый AJAX-endpoint `feedback_submit`, context processor `feedback_form`, метод `UserProfile.can_make_internal_booking()`.
+- DaisyUI-модал `#feedbackModal` в base.html (Alpine.js, per-field ошибки, success-state).
+- Кнопка «Забронировать» разделена по роли: manager/assistant/admin/superadmin → bookingModal, остальные → feedbackModal.
+- `can_book_from_offer` в offer_detail/offer_view переключён на `can_make_internal_booking()`.
+- 18 тестов в `boats/tests/test_feedback_modal.py`.
 
 ### P2.1: Форма обратной связи + нотификации
 - Status: **DONE (2026-04-22)**

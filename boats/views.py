@@ -14,6 +14,7 @@ from .models import (
     Boat, Favorite, Booking, Review, Offer, ParsedBoat,
     Contract, ContractTemplate, Client, ContractOTP,
     BoatTechnicalSpecs, Notification, Feedback,
+    Thread, Message, MessageRead,
 )
 from .forms import (
     SearchForm, BoatForm, BookingForm, ReviewForm, OfferForm,
@@ -1348,11 +1349,14 @@ def my_bookings(request):
     slug_pattern = re.compile(r'/(?:boat|yachta)/([^/?#]+)')
     booking_slugs = {}
     for b in bookings:
-        if b.offer and b.offer.source_url:
+        if b.parsed_boat_id:
+            # Прямая ссылка на ParsedBoat (бронирование без оффера)
+            booking_slugs[b.pk] = b.parsed_boat.slug if b.parsed_boat else None
+        elif b.offer and b.offer.source_url:
             m = slug_pattern.search(b.offer.source_url)
             if m:
                 booking_slugs[b.pk] = m.group(1).rstrip('/')
-    valid_slugs = list(set(booking_slugs.values()))
+    valid_slugs = list({s for s in booking_slugs.values() if s})
     preview_map = {}
     if valid_slugs:
         preview_map = dict(
@@ -1502,6 +1506,9 @@ def assign_booking_manager(request, booking_id):
     elif action == 'assign_self':
         booking.assigned_manager = request.user
         booking.save(update_fields=['assigned_manager', 'updated_at'])
+        thread = Thread.objects.filter(booking=booking).first()
+        if thread:
+            thread.participants.add(request.user)
         messages.success(request, 'Вы назначены ответственным')
     elif action == 'assign' and request.user.profile.can_assign_managers():
         manager_id = request.POST.get('manager_id')
@@ -1510,6 +1517,9 @@ def assign_booking_manager(request, booking_id):
             manager = get_object_or_404(AuthUser, id=manager_id, profile__role_ref__codename='manager')
             booking.assigned_manager = manager
             booking.save(update_fields=['assigned_manager', 'updated_at'])
+            thread = Thread.objects.filter(booking=booking).first()
+            if thread:
+                thread.participants.add(manager)
             messages.success(request, f'Менеджер {manager.get_full_name() or manager.username} назначен')
         else:
             messages.error(request, 'Менеджер не выбран')
@@ -2303,7 +2313,8 @@ def offer_detail(request, uuid):
     is_custom_branding = offer.branding_mode == 'custom_branding'
     can_view_internal_notes = request.user.is_authenticated and request.user == offer.created_by
     can_book_from_offer = request.user.is_authenticated and (
-        request.user == offer.created_by or request.user.profile.can_see_all_bookings()
+        request.user == offer.created_by
+        or request.user.profile.can_make_internal_booking()
     )
 
     context = {
@@ -2590,7 +2601,10 @@ def offer_view(request, uuid):
         'is_custom_branding': offer.branding_mode == 'custom_branding',
         'brand': offer.brand if offer.branding_mode == 'custom_branding' else None,
         'can_view_internal_notes': request.user == offer.created_by,
-        'can_book_from_offer': request.user == offer.created_by or request.user.profile.can_see_all_bookings(),
+        'can_book_from_offer': request.user.is_authenticated and (
+            request.user == offer.created_by
+            or request.user.profile.can_make_internal_booking()
+        ),
     }
 
     # Выбираем шаблон в зависимости от типа оффера
@@ -3536,3 +3550,228 @@ def contacts(request):
     else:
         form = FeedbackForm()
     return render(request, 'boats/contacts.html', {'form': form})
+
+
+def feedback_submit(request):
+    """AJAX endpoint для глобального модала обратной связи. Доступен без аутентификации."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'method not allowed'}, status=405)
+    from .tasks import send_feedback_notification
+    form = FeedbackForm(request.POST)
+    if form.is_valid():
+        fb = Feedback.objects.create(
+            name=form.cleaned_data['name'],
+            phone=form.cleaned_data.get('phone', ''),
+            email=form.cleaned_data['email'],
+            message=form.cleaned_data['message'],
+        )
+        send_feedback_notification.delay(fb.pk)
+        return JsonResponse({'ok': True})
+    return JsonResponse({'errors': form.errors}, status=400)
+
+
+# =============================================================================
+# ЛК Чат
+# =============================================================================
+
+@login_required
+def chat_inbox(request):
+    """Список тредов пользователя."""
+    from .chat_helpers import can_access_thread
+    threads = Thread.objects.filter(
+        participants=request.user,
+    ).select_related('booking', 'created_by').prefetch_related('participants').order_by(
+        '-last_message_at', '-created_at',
+    )
+
+    user_threads = list(threads.values_list('pk', flat=True))
+    unread_by_thread = {}
+    if user_threads:
+        from django.db.models import Count
+        counts = (
+            Message.objects
+            .filter(thread_id__in=user_threads)
+            .exclude(sender=request.user)
+            .exclude(reads__user=request.user)
+            .values('thread_id')
+            .annotate(cnt=Count('id'))
+        )
+        unread_by_thread = {row['thread_id']: row['cnt'] for row in counts}
+
+    thread_list = []
+    for t in threads:
+        thread_list.append({'thread': t, 'unread': unread_by_thread.get(t.pk, 0)})
+
+    return render(request, 'boats/chat_inbox.html', {'thread_list': thread_list})
+
+
+@login_required
+def chat_thread(request, thread_id):
+    """Просмотр треда (история + WS-подключение)."""
+    from .chat_helpers import can_access_thread
+    thread = get_object_or_404(Thread, pk=thread_id)
+    if not can_access_thread(request.user, thread):
+        messages.error(request, _('Нет доступа к треду'))
+        return redirect('chat_inbox')
+    history = list(thread.messages.select_related('sender').order_by('created_at')[:200])
+    read_ids = set(
+        MessageRead.objects.filter(
+            user=request.user, message_id__in=[m.pk for m in history],
+        ).values_list('message_id', flat=True)
+    )
+    return render(request, 'boats/chat_thread.html', {
+        'thread': thread,
+        'history': history,
+        'read_ids': read_ids,
+    })
+
+
+def _build_chat_create_context(request):
+    """Контекст для формы создания треда."""
+    from django.contrib.auth import get_user_model
+    AuthUser = get_user_model()
+    profile = getattr(request.user, 'profile', None)
+    INTERNAL = ('manager', 'assistant', 'admin', 'superadmin')
+    if profile and profile.role in INTERNAL:
+        available_users = AuthUser.objects.filter(is_active=True).exclude(pk=request.user.pk)
+    else:
+        available_users = AuthUser.objects.filter(
+            is_active=True,
+            profile__role_ref__codename__in=['manager', 'assistant'],
+        )
+    user_bookings = Booking.objects.filter(user=request.user).order_by('-created_at')[:20]
+    return {'available_users': available_users, 'user_bookings': user_bookings}
+
+
+@login_required
+def chat_get_or_create(request):
+    """Перейти в существующий тред или создать новый (1 бронирование = 1 тред).
+
+    POST params:
+        booking_id  — привязать/найти тред по бронированию
+        target_user_id — найти прямой тред с пользователем (без бронирования)
+    """
+    if request.method != 'POST':
+        return redirect('chat_inbox')
+
+    from .chat_helpers import assign_staff_for_new_thread, can_initiate_thread_with
+    from django.contrib.auth import get_user_model
+    AuthUser = get_user_model()
+
+    booking_id = request.POST.get('booking_id') or None
+    target_user_id = request.POST.get('target_user_id') or None
+
+    if booking_id:
+        booking = get_object_or_404(Booking, pk=booking_id)
+        profile = getattr(request.user, 'profile', None)
+        if not (booking.user == request.user
+                or booking.assigned_manager == request.user
+                or (profile and profile.can_see_all_bookings())):
+            messages.error(request, _('Нет доступа к бронированию'))
+            return redirect('chat_inbox')
+        existing = Thread.objects.filter(booking=booking).first()
+        if existing:
+            return redirect('chat_thread', thread_id=existing.pk)
+        target = assign_staff_for_new_thread(request.user)
+        if target is None:
+            messages.error(request, _('Нет доступного менеджера'))
+            return redirect('chat_inbox')
+        thread = Thread.objects.create(booking=booking, created_by=request.user)
+        thread.participants.add(request.user, target)
+        return redirect('chat_thread', thread_id=thread.pk)
+
+    if target_user_id:
+        target = get_object_or_404(AuthUser, pk=target_user_id)
+        if not can_initiate_thread_with(request.user, target):
+            messages.error(request, _('Нельзя написать этому пользователю'))
+            return redirect('chat_inbox')
+        existing = (
+            Thread.objects.filter(booking__isnull=True, participants=request.user)
+            .filter(participants=target)
+            .first()
+        )
+        if existing:
+            return redirect('chat_thread', thread_id=existing.pk)
+        thread = Thread.objects.create(created_by=request.user)
+        thread.participants.add(request.user, target)
+        return redirect('chat_thread', thread_id=thread.pk)
+
+    return redirect('chat_create')
+
+
+@login_required
+def chat_create(request):
+    """Создать новый тред."""
+    from .chat_helpers import can_initiate_thread_with, assign_staff_for_new_thread
+    from django.contrib.auth import get_user_model
+    AuthUser = get_user_model()
+
+    if request.method != 'POST':
+        return render(request, 'boats/chat_create.html', _build_chat_create_context(request))
+
+    target_user_id = request.POST.get('target_user_id')
+    subject = request.POST.get('subject', '').strip()[:200]
+    booking_id = request.POST.get('booking_id') or None
+
+    target = None
+    if target_user_id:
+        target = get_object_or_404(AuthUser, pk=target_user_id)
+        if not can_initiate_thread_with(request.user, target):
+            messages.error(request, _('Нельзя написать этому пользователю'))
+            return redirect('chat_inbox')
+
+    if target is None:
+        target = assign_staff_for_new_thread(request.user)
+        if target is None:
+            messages.error(request, _('Нет доступного менеджера'))
+            return redirect('chat_inbox')
+
+    booking = None
+    if booking_id:
+        booking = get_object_or_404(Booking, pk=booking_id)
+        profile = getattr(request.user, 'profile', None)
+        if not (booking.user == request.user
+                or booking.assigned_manager == request.user
+                or (profile and profile.can_see_all_bookings())):
+            messages.error(request, _('Нет доступа к бронированию'))
+            return redirect('chat_inbox')
+
+    thread = Thread.objects.create(
+        booking=booking, subject=subject, created_by=request.user,
+    )
+    thread.participants.add(request.user, target)
+    return redirect('chat_thread', thread_id=thread.pk)
+
+
+@login_required
+def chat_messages_api(request, thread_id):
+    """REST для подгрузки истории (before_id) и поллинга новых (after_id)."""
+    from .chat_helpers import can_access_thread
+    thread = get_object_or_404(Thread, pk=thread_id)
+    if not can_access_thread(request.user, thread):
+        return JsonResponse({'error': 'forbidden'}, status=403)
+
+    qs = thread.messages.select_related('sender').order_by('-created_at')
+    before_id = request.GET.get('before_id')
+    after_id = request.GET.get('after_id')
+    if before_id:
+        try:
+            qs = qs.filter(pk__lt=int(before_id))
+        except (ValueError, TypeError):
+            pass
+    elif after_id:
+        try:
+            qs = qs.filter(pk__gt=int(after_id))
+        except (ValueError, TypeError):
+            pass
+    qs = qs[:50]
+
+    data = [{
+        'id': m.id,
+        'sender_id': m.sender_id,
+        'sender_name': m.sender.get_full_name() or m.sender.username,
+        'body': m.body,
+        'is_system': m.is_system,
+        'created_at': m.created_at.isoformat(),
+    } for m in reversed(list(qs))]
+    return JsonResponse({'messages': data})

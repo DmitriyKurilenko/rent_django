@@ -33,17 +33,21 @@ class RoleAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'get_role_badge', 'phone', 'created_at']
+    list_display = ['user', 'get_role_badge', 'assigned_staff', 'phone', 'created_at']
     list_filter = ['role_ref', 'created_at']
     search_fields = ['user__username', 'user__email', 'phone']
     ordering = ['-created_at']
-    
+    raw_id_fields = ['assigned_staff']
+
     fieldsets = (
         ('Пользователь', {
             'fields': ('user', 'role_ref')
         }),
         ('Контакты', {
             'fields': ('phone',)
+        }),
+        ('Чат', {
+            'fields': ('assigned_staff', 'telegram_chat_id'),
         }),
         ('Дополнительно', {
             'fields': ('bio', 'avatar')
@@ -53,7 +57,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     readonly_fields = ['created_at']
     
     def get_role_badge(self, obj):

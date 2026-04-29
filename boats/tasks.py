@@ -36,6 +36,72 @@ def send_telegram_notification(self, text):
 
 
 @shared_task(bind=True, max_retries=2)
+def notify_offline_chat_recipients(self, message_id):
+    """Уведомляет участников треда, не прочитавших сообщение за 30 сек.
+
+    Триггерится через countdown=30 при отправке. Если получатель прочитал
+    в окне ожидания — задача его пропускает (MessageRead существует).
+    """
+    from django.contrib.auth.models import User
+    from django.core.mail import send_mail
+    from django.conf import settings as django_settings
+    from boats.models import Message, MessageRead, Notification
+    from boats.telegram import send_telegram_message_to
+
+    try:
+        msg = Message.objects.select_related('thread', 'sender').get(pk=message_id)
+    except Message.DoesNotExist:
+        return {'status': 'message_not_found'}
+
+    thread = msg.thread
+    recipients = thread.participants.exclude(pk=msg.sender_id)
+    read_user_ids = set(
+        MessageRead.objects.filter(message=msg).values_list('user_id', flat=True)
+    )
+
+    sender_name = msg.sender.get_full_name() or msg.sender.username
+    snippet = msg.body[:200] + ('…' if len(msg.body) > 200 else '')
+    subject = thread.subject or f'Тред #{thread.pk}'
+
+    delivered = 0
+    for user in recipients:
+        if user.pk in read_user_ids:
+            continue
+
+        Notification.objects.create(
+            recipient=user,
+            thread=thread,
+            message=f'Новое сообщение от {sender_name} в «{subject}»: {snippet}',
+        )
+
+        chat_id = getattr(getattr(user, 'profile', None), 'telegram_chat_id', '') or ''
+        if chat_id:
+            tg_text = (
+                f'💬 <b>Новое сообщение</b>\n'
+                f'От: {sender_name}\n'
+                f'Тред: {subject}\n\n'
+                f'{snippet}'
+            )
+            send_telegram_message_to(chat_id, tg_text)
+
+        if user.email:
+            try:
+                send_mail(
+                    subject=f'[Ахой!Rent] Новое сообщение в чате — {subject}',
+                    message=f'{sender_name} написал(а):\n\n{msg.body}\n\nОткройте ЛК для ответа.',
+                    from_email=django_settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[user.email],
+                    fail_silently=True,
+                )
+            except Exception:
+                logger.exception('[Chat notify] email failed for user=%s', user.pk)
+
+        delivered += 1
+
+    return {'status': 'ok', 'delivered': delivered}
+
+
+@shared_task(bind=True, max_retries=2)
 def send_feedback_notification(self, feedback_id):
     """Уведомление о новом обращении через форму обратной связи.
 
