@@ -150,3 +150,143 @@ class BoataroundAPICharterResolutionTest(TestCase):
         # Аддитивная модель: total_discount = 10 + 0 + min(5, 20) = 15%
         # final = 1000 * (1 - 15/100) = 850
         self.assertEqual(result.get("price"), 850)
+
+
+class BoataroundAPIPrefetchConsensusTest(SimpleTestCase):
+    """Tests for prefetch_search_consensus — 5 search requests → cache price consensus."""
+
+    @patch("time.sleep")
+    @patch("boats.boataround_api.BoataroundAPI.search")
+    @patch("django.core.cache.cache.set")
+    def test_prefetch_makes_5_search_requests(self, mock_cache_set, mock_search, _mock_sleep):
+        """prefetch_search_consensus should call search exactly 5 times."""
+        mock_search.return_value = {
+            'boats': [
+                {'slug': 'boat-a', 'totalPrice': 1000, 'price': 1500, 'discount': 33},
+                {'slug': 'boat-b', 'totalPrice': 2000, 'price': 2500, 'discount': 20},
+            ],
+            'total': 2,
+            'page': 1,
+            'totalPages': 1,
+            'filters': {},
+        }
+
+        result = BoataroundAPI.prefetch_search_consensus(
+            destination='turkey',
+            check_in='2026-08-29',
+            check_out='2026-09-05',
+            slugs=['boat-a', 'boat-b'],
+            lang='en_EN',
+        )
+
+        self.assertEqual(mock_search.call_count, 5)
+        # Each call should have slugs parameter
+        for call in mock_search.call_args_list:
+            self.assertEqual(call.kwargs.get('slugs'), 'boat-a,boat-b')
+
+    @patch("time.sleep")
+    @patch("boats.boataround_api.BoataroundAPI.search")
+    @patch("django.core.cache.cache.set")
+    def test_prefetch_writes_most_common_totalPrice_to_cache(self, mock_cache_set, mock_search, _mock_sleep):
+        """When prices vary across 5 calls, most common should be cached."""
+        # Round 1-2: 1000, Round 3-4: 1100, Round 5: 1000
+        # Expected: most common = 1000 (3 times)
+        # price=1500, additionalDiscount=0, consensus totalPrice=1000
+        # dwe = (1 - 1000/1500)*100 - 0 = 33.33
+        mock_search.side_effect = [
+            {'boats': [{'slug': 'boat-a', 'totalPrice': 1000.0, 'price': 1500.0, 'discount': 33, 'additionalDiscount': 0}]},
+            {'boats': [{'slug': 'boat-a', 'totalPrice': 1000.0, 'price': 1500.0, 'discount': 33, 'additionalDiscount': 0}]},
+            {'boats': [{'slug': 'boat-a', 'totalPrice': 1100.0, 'price': 1500.0, 'discount': 27, 'additionalDiscount': 0}]},
+            {'boats': [{'slug': 'boat-a', 'totalPrice': 1100.0, 'price': 1500.0, 'discount': 27, 'additionalDiscount': 0}]},
+            {'boats': [{'slug': 'boat-a', 'totalPrice': 1000.0, 'price': 1500.0, 'discount': 33, 'additionalDiscount': 0}]},
+        ]
+
+        BoataroundAPI.prefetch_search_consensus(
+            destination='turkey',
+            check_in='2026-08-29',
+            check_out='2026-09-05',
+            slugs=['boat-a'],
+            lang='en_EN',
+        )
+
+        # Verify cache.set was called with consensus totalPrice = 1000
+        cache_calls = [c for c in mock_cache_set.call_args_list]
+        self.assertEqual(len(cache_calls), 1)
+        call_args = cache_calls[0]
+        self.assertEqual(call_args[0][0], 'price_consensus:boat-a:2026-08-29:2026-09-05:EUR')
+        self.assertEqual(call_args[0][1]['totalPrice'], 1000.0)
+        # Verify computed discount_without_additionalExtra is written
+        self.assertIn('discount_without_additionalExtra', call_args[0][1])
+
+    @patch("time.sleep")
+    @patch("boats.boataround_api.BoataroundAPI.search")
+    @patch("django.core.cache.cache.set")
+    def test_prefetch_returns_dict_with_all_slugs(self, mock_cache_set, mock_search, _mock_sleep):
+        """Return value should contain consensus dict for each requested slug."""
+        mock_search.return_value = {
+            'boats': [
+                {'slug': 'boat-a', 'totalPrice': 1000.0, 'price': 1500.0, 'discount': 33, 'additionalDiscount': 0},
+                {'slug': 'boat-b', 'totalPrice': 2000.0, 'price': 2500.0, 'discount': 20, 'additionalDiscount': 0},
+            ],
+            'total': 2,
+            'page': 1,
+            'totalPages': 1,
+            'filters': {},
+        }
+
+        result = BoataroundAPI.prefetch_search_consensus(
+            destination='turkey',
+            check_in='2026-08-29',
+            check_out='2026-09-05',
+            slugs=['boat-a', 'boat-b'],
+            lang='en_EN',
+        )
+
+        self.assertEqual(set(result.keys()), {'boat-a', 'boat-b'})
+        self.assertEqual(result['boat-a']['totalPrice'], 1000.0)
+        self.assertEqual(result['boat-b']['totalPrice'], 2000.0)
+
+    @patch("time.sleep")
+    @patch("boats.boataround_api.BoataroundAPI.search")
+    @patch("django.core.cache.cache.set")
+    def test_prefetch_handles_missing_slugs_in_response(self, mock_cache_set, mock_search, _mock_sleep):
+        """If search returns fewer boats than requested, missing slugs get no cache entry."""
+        mock_search.return_value = {
+            'boats': [{'slug': 'boat-a', 'totalPrice': 1000.0, 'price': 1500, 'discount': 33}],
+            'total': 1,
+            'page': 1,
+            'totalPages': 1,
+            'filters': {},
+        }
+
+        result = BoataroundAPI.prefetch_search_consensus(
+            destination='turkey',
+            check_in='2026-08-29',
+            check_out='2026-09-05',
+            slugs=['boat-a', 'boat-b'],  # boat-b not in response
+            lang='en_EN',
+        )
+
+        # boat-a should be in result, boat-b should not
+        self.assertIn('boat-a', result)
+        self.assertNotIn('boat-b', result)
+        # Only one cache write for boat-a
+        cache_calls = [c for c in mock_cache_set.call_args_list]
+        self.assertEqual(len(cache_calls), 1)
+
+    @patch("time.sleep")
+    @patch("boats.boataround_api.BoataroundAPI.search")
+    @patch("django.core.cache.cache.set")
+    def test_prefetch_returns_empty_when_no_slugs(self, mock_cache_set, mock_search, _mock_sleep):
+        """Empty slugs list → no search calls, empty dict returned."""
+        result = BoataroundAPI.prefetch_search_consensus(
+            destination='turkey',
+            check_in='2026-08-29',
+            check_out='2026-09-05',
+            slugs=[],
+            lang='en_EN',
+        )
+
+        self.assertEqual(result, {})
+        mock_search.assert_not_called()
+        mock_cache_set.assert_not_called()

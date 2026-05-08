@@ -1,6 +1,16 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-04-29 (Europe/Moscow)
+Last updated: 2026-05-08 (Europe/Moscow)
+
+## DR-048: Search page price consensus for unified pricing with detail/offer pages
+- Date: 2026-05-08
+- Context: Prices shown on search results page and detail page were different for same boat/date range. Search used `format_boat_data()` (search API), detail used `resolve_live_or_fallback_price()` (price API via `get_price()`). Different APIs + different computation paths produced different results.
+- Decision:
+  - `BoataroundAPI.prefetch_search_consensus()` makes 5 search API calls, computes most common `totalPrice` per slug, calculates full price breakdown via `extract_price_components()` + `build_price_breakdown()` (same logic as detail/offer), writes to `price_consensus:{slug}:{check_in}:{check_out}:{currency}` cache (6h TTL).
+  - After prefetch completes, `boat_search` view reads prices from cache and updates `boats[i]` fields (`price`, `old_price`, `discount_percent`, `currency`).
+  - Cache format is compatible with `get_price()` used by detail/offer pages — no extra computation needed there.
+  - `BoataroundAPI.search()` extended with `slugs` parameter for targeted boat filtering.
+- Consequence: Search shows same prices as detail/offer pages. First user waits ~1-2s for 5 search calls; subsequent users and detail page get cache hit immediately.
 
 ## DR-047: WebSocket-чат в ЛК — Django Channels + Daphne, round-robin назначение staff
 - Date: 2026-04-29

@@ -19,7 +19,7 @@ If instructions conflict, do not guess. Stop and ask the user for a decision.
 - Do not remove production data without explicit user approval.
 - **Docker-only development.** NEVER install packages on the host machine (no `brew install`, no `pip install`, no `npm install -g`, no local venv). All commands run through `docker compose exec` or `docker run --rm`. CSS builds: `docker run --rm -v "$(pwd)":/app -w /app node:18-alpine sh -c "npm install && npx tailwindcss ..."`.
 - Do not introduce one-off hacks for symptoms. Fix root logic and all affected flows.
-- **Django URL rules.** ALL routes in `boats.urls` and `accounts.urls` are inside `i18n_patterns(prefix_default_language=True)`. Every URL gets a language prefix (`/ru/`, `/en/`, etc.). NEVER hardcode URL paths in JavaScript — always use `{% url "name" %}` template tags. For dynamic segments: `'{% url "name" 9999999 %}'.replace('9999999', id)`.
+- **Django URL rules.** ALL routes in `boats.urls` and `accounts.urls` are inside `i18n_patterns(prefix_default_language=True)`. Every URL gets a language prefix (`/ru/`, `/en/`, etc.). NEVER hardcode URL paths in JavaScrыipt — always use `{% url "name" %}` template tags. For dynamic segments: `'{% url "name" 9999999 %}'.replace('9999999', id)`.ы
 
 ## Pricing Domain Rules (Current)
 - Treat Boataround top-level `totalPrice` and `discount` as unstable.

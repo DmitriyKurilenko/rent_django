@@ -153,6 +153,7 @@ class BoataroundAPI:
         entertainment: Optional[str] = None,
         equipment: Optional[str] = None,
         toilets: Optional[str] = None,
+        slugs: Optional[str] = None,
         **kwargs
     ) -> Dict:
         """
@@ -181,6 +182,7 @@ class BoataroundAPI:
             entertainment: Развлечения (значения через запятую)
             equipment: Оборудование/навигация (значения через запятую)
             toilets: Санузлы (число или диапазон X-Y)
+            slugs: Фильтр по slug'ам (через запятую)
             **kwargs: Дополнительные параметры
 
         Returns:
@@ -242,6 +244,8 @@ class BoataroundAPI:
                 params['equipment'] = equipment
             if toilets:
                 params['toilets'] = toilets
+            if slugs:
+                params['slugs'] = slugs
 
             # Язык (важно для фильтров и названий)
             if lang:
@@ -593,6 +597,150 @@ class BoataroundAPI:
 
         except Exception as e:
             logger.error(f"[Price] Error getting price for {slug}: {e}")
+            return {}
+
+    @staticmethod
+    def prefetch_search_consensus(
+        destination: str,
+        check_in: str,
+        check_out: str,
+        slugs: List[str],
+        lang: str = 'en_EN',
+        currency: str = 'EUR'
+    ) -> Dict[str, Dict]:
+        """
+        Стабилизация цен через Search API для последующего использования в detail/offer.
+
+        Делает 5 search API запросов. Для каждого slug вычисляет most common totalPrice.
+        Результат пишется в Redis кэш price_consensus:{slug}:{check_in}:{check_out}:{currency}
+        в формате, совместимом с get_price().
+
+        Returns: {slug: consensus_price_dict} для всех slug'ов
+        """
+        try:
+            from django.core.cache import cache as django_cache
+            from collections import Counter
+
+            if not slugs:
+                return {}
+
+            logger.info(f"[Prefetch] Starting price consensus for {len(slugs)} slugs")
+
+            # Собираем totalPrice для каждого slug за 5 запросов
+            slug_prices: Dict[str, List[float]] = {slug: [] for slug in slugs}
+            # Track all observations per (slug, totalPrice) to find consensus data
+            slug_observations: Dict[str, Dict[float, Dict]] = {slug: {} for slug in slugs}
+
+            for round_num in range(5):
+                try:
+                    result = BoataroundAPI.search(
+                        destination=destination,
+                        check_in=check_in,
+                        check_out=check_out,
+                        slugs=','.join(slugs) if slugs else None,
+                        limit=len(slugs),
+                        lang=lang,
+                    )
+
+                    boats = result.get('boats', [])
+                    for boat in boats:
+                        slug = boat.get('slug')
+                        if slug and slug in slug_prices:
+                            tp = boat.get('totalPrice')
+                            if tp is not None:
+                                tp_rounded = round(float(tp), 2)
+                                slug_prices[slug].append(tp_rounded)
+                                # Track all observations to find consensus data later
+                                if tp_rounded not in slug_observations[slug]:
+                                    slug_observations[slug][tp_rounded] = {
+                                        'totalPrice': boat.get('totalPrice'),
+                                        'price': boat.get('price'),
+                                        'discount': boat.get('discount'),
+                                        'discount_without_additionalExtra': boat.get('discountWithoutAdditional'),
+                                        'additional_discount': boat.get('additionalDiscount'),
+                                        'slug': slug,
+                                        'title': boat.get('title'),
+                                    }
+
+                    logger.info(
+                        f"[Prefetch] Round {round_num + 1}/5 done, "
+                        f"collected prices: { {s: len(slug_prices[s]) for s in slugs} }"
+                    )
+
+                except Exception as e:
+                    logger.warning(f"[Prefetch] Round {round_num + 1} failed: {e}")
+                    continue
+
+                # Небольшая задержка между запросами
+                if round_num < 4:
+                    import time
+                    time.sleep(0.3)
+
+            # Вычисляем consensus для каждого slug и пишем в кэш
+            consensus_results = {}
+            for slug in slugs:
+                prices = slug_prices.get(slug, [])
+                if not prices:
+                    logger.warning(f"[Prefetch] No price data for {slug}")
+                    continue
+
+                # Most common totalPrice
+                counter = Counter(prices)
+                consensus_total = counter.most_common(1)[0][0]
+
+                # Get raw data corresponding to consensus totalPrice
+                if slug in slug_observations and consensus_total in slug_observations[slug]:
+                    raw = slug_observations[slug][consensus_total]
+                    base_price = float(raw.get('price') or 0)
+
+                    # Вычисляем discount_without_extra из base_price и consensus_totalPrice
+                    # totalPrice = base_price * (1 - (dwe + additional_discount) / 100)
+                    additional_discount = float(raw.get('additional_discount') or 0) or float(raw.get('additionalDiscount') or 0)
+                    if base_price > 0 and consensus_total > 0:
+                        # dwe = (1 - totalPrice / base_price) * 100 - additional_discount
+                        computed_dwe = max((1 - consensus_total / base_price) * 100 - additional_discount, 0)
+                    else:
+                        computed_dwe = 0
+
+                    # Вычисляем полную структуру цены как в detail/offer
+                    from boats.pricing import extract_price_components, build_price_breakdown
+                    bp, dwe, ad = extract_price_components({
+                        'price': base_price,
+                        'totalPrice': consensus_total,
+                        'discount_without_additionalExtra': computed_dwe,
+                        'additional_discount': additional_discount,
+                    })
+                    breakdown = build_price_breakdown(bp, dwe, ad)
+
+                    cached_data = {
+                        'totalPrice': consensus_total,
+                        'price': base_price,
+                        'discount_without_additionalExtra': computed_dwe,
+                        'additional_discount': additional_discount,
+                        'final_price': breakdown.get('final_price'),
+                        'old_price': breakdown.get('old_price'),
+                        'discount_percent': breakdown.get('discount_percent'),
+                        'currency': breakdown.get('currency', 'EUR'),
+                        'slug': slug,
+                        'title': raw.get('title', ''),
+                    }
+                else:
+                    cached_data = {'slug': slug, 'title': '', 'totalPrice': consensus_total}
+
+                cache_key = f"price_consensus:{slug}:{check_in}:{check_out}:{currency}"
+                django_cache.set(cache_key, cached_data, 60 * 60 * 6)
+
+                consensus_results[slug] = cached_data
+                logger.info(
+                    f"[Prefetch] {slug}: consensus totalPrice={consensus_total} "
+                    f"(from {len(prices)} samples, counts: {dict(counter)})"
+                )
+
+            logger.info(f"[Prefetch] Completed for {len(consensus_results)}/{len(slugs)} slugs")
+            return consensus_results
+
+        except Exception as e:
+            logger.error(f"[Prefetch] Error: {e}")
             return {}
 
     @staticmethod

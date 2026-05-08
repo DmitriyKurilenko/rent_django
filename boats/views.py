@@ -424,6 +424,32 @@ def boat_search(request):
 
         logger.info(f"[Search View] Successfully formatted {len(boats)} boats")
 
+        # Prefetch price consensus для всех slugs на странице (стабилизация цен для detail/offer)
+        # Пользователь увидит цены только после заполнения кэша — никаких "неправильных" цен
+        if check_in and check_out and slugs:
+            try:
+                api_lang = _request_api_lang(request)
+                BoataroundAPI.prefetch_search_consensus(
+                    destination=destination,
+                    check_in=check_in,
+                    check_out=check_out,
+                    slugs=slugs,
+                    lang=api_lang,
+                )
+                # После prefetch обновляем цены в boats из кэша чтобы они совпадали с detail page
+                for boat in boats:
+                    slug = boat.get('slug')
+                    if slug:
+                        cache_key = f"price_consensus:{slug}:{check_in}:{check_out}:EUR"
+                        cached = cache.get(cache_key)
+                        if cached:
+                            boat['price'] = round(float(cached.get('final_price', cached.get('totalPrice', 0))))
+                            boat['old_price'] = round(float(cached.get('old_price', 0)))
+                            boat['discount_percent'] = int(cached.get('discount_percent', 0))
+                            boat['currency'] = cached.get('currency', 'EUR')
+            except Exception as e:
+                logger.warning(f"[Search View] Price prefetch failed: {e}")
+
         # Подготавливаем контекст для шаблона
         total_pages = search_results.get('totalPages', 0)
         total_results = search_results.get('total', 0)

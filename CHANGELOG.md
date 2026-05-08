@@ -2,6 +2,45 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.18.1-dev] - 2026-05-08
+
+### 🐛 Fixed — Price consistency between search and detail pages
+
+- **Problem**: Prices shown on search results page and detail page were different for the same boat/date range. Search page used `format_boat_data()` (search API → computed price), detail page used `resolve_live_or_fallback_price()` (price API → computed price). Different APIs and different computation paths produced different results.
+
+- **Solution**: Search page now uses unified `BoataroundAPI.prefetch_search_consensus()` which makes 5 search API requests, computes consensus `totalPrice`, calculates full price breakdown (same as detail page uses), and writes to `price_consensus:{slug}:{check_in}:{check_out}:{currency}` cache. After prefetch completes, search view reads prices from this cache to display them to user.
+
+- **`boats/boataround_api.py`**:
+  - `search()`: added `slugs` parameter to filter by specific boat slugs.
+  - `prefetch_search_consensus()`: new staticmethod — 5 search API calls, most common `totalPrice` per slug, full price breakdown calculated via `extract_price_components()` + `build_price_breakdown()`, written to Redis cache.
+
+- **`boats/views.py`**:
+  - `boat_search`: after prefetch completes, updates `boats[i]['price']`, `boats[i]['old_price']`, `boats[i]['discount_percent']`, `boats[i]['currency']` from cache.
+
+- **`boats/tests/test_boataround_api.py`**: 5 new tests for `BoataroundAPIPrefetchConsensusTest`.
+
+- **Cache format** (compatible with `get_price()` used by detail/offer pages):
+  ```python
+  {
+      'totalPrice': consensus_value,
+      'price': base_price,
+      'final_price': computed_final_price,
+      'old_price': computed_old_price,
+      'discount_percent': computed_discount_percent,
+      'discount_without_additionalExtra': computed_dwe,
+      'additional_discount': ad,
+      'currency': 'EUR',
+  }
+  ```
+
+- **Data flow after fix**:
+  ```
+  Search → prefetch (5 calls) → price_consensus cache → read from cache → display
+  Detail → get_price() → price_consensus cache HIT → display (same price)
+  ```
+
+---
+
 ## [0.17.0-dev] - 2026-04-29
 
 ### ✨ Added — WebSocket-чат в ЛК (Django Channels + Daphne)
