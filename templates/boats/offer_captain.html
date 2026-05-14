@@ -181,12 +181,6 @@
                             <div class="text-sm opacity-75 mb-1">{% trans "Период аренды" %}</div>
                             <div class="text-lg font-semibold">{{ offer.check_in|date:"d.m.Y" }} — {{ offer.check_out|date:"d.m.Y" }}</div>
                         </div>
-                        {% if display_old_price and display_discount_percent %}
-                        <div>
-                            <div class="text-sm opacity-60 line-through">{{ display_old_price|floatformat:0 }} {{ offer.currency }}</div>
-                            <div class="text-sm opacity-80">{% trans "Скидка" %} {{ display_discount_percent|floatformat:0 }}% (−{{ display_discount_amount|floatformat:0 }} {{ offer.currency }})</div>
-                        </div>
-                        {% endif %}
                         <div>
                             <div class="text-6xl font-bold">{{ offer.total_price|floatformat:0 }}</div>
                             <div class="text-xl opacity-90 mt-1">{{ offer.currency }}</div>

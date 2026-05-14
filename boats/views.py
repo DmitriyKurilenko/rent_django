@@ -1415,16 +1415,6 @@ def my_bookings(request):
     option_bookings = bookings_qs.filter(status='option').count()
     confirmed_bookings = bookings_qs.filter(status='confirmed').count()
 
-    # Расшифровка цены
-    booking_price_debug = {}
-    if user.profile.can_view_price_breakdown():
-        for b in bookings:
-            if b.offer:
-                try:
-                    booking_price_debug[b.pk] = _build_price_debug(b.offer)
-                except Exception:
-                    logger.exception('[Bookings] Failed to build price debug for booking_id=%s', b.pk)
-
     # Список менеджеров для назначения
     managers = []
     if user.profile.can_assign_managers():
@@ -1440,7 +1430,6 @@ def my_bookings(request):
         'author_query': author_query,
         'only_mine': only_mine,
         'managers': managers,
-        'booking_price_debug': booking_price_debug,
     }
     return render(request, 'boats/my_bookings.html', context)
 
@@ -2300,25 +2289,6 @@ def offer_detail(request, uuid):
     # Увеличиваем счетчик просмотров
     offer.increment_views()
 
-    # Вычисляем отображаемую скидку от исходной цены в boat_data
-    display_old_price = 0
-    display_discount_percent = 0
-    display_discount_amount = 0
-
-    try:
-        old_price_raw = offer.boat_data.get('price', 0) if isinstance(offer.boat_data, dict) else 0
-        old_price = float(old_price_raw) if old_price_raw else 0
-        final_price = float(offer.total_price) if offer.total_price else 0
-
-        if old_price > 0 and final_price > 0 and old_price > final_price:
-            display_old_price = old_price
-            display_discount_amount = old_price - final_price
-            display_discount_percent = round((display_discount_amount / old_price) * 100)
-    except (TypeError, ValueError, ZeroDivisionError):
-        display_old_price = 0
-        display_discount_percent = 0
-        display_discount_amount = 0
-
     # Данные таймера
     countdown_end_at = offer.expires_at
     if offer.show_countdown and not countdown_end_at:
@@ -2345,9 +2315,6 @@ def offer_detail(request, uuid):
 
     context = {
         'offer': offer,
-        'display_old_price': display_old_price,
-        'display_discount_percent': display_discount_percent,
-        'display_discount_amount': display_discount_amount,
         'show_countdown': show_countdown,
         'countdown_end_iso': countdown_end_at.isoformat() if countdown_end_at else '',
         'hide_site_branding': hide_site_branding,

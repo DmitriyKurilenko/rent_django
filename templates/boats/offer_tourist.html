@@ -130,18 +130,6 @@
                             <div class="text-sm opacity-75 mt-1">{% nights_between offer.check_in offer.check_out %} {% trans "ночей" %}</div>
                         </div>
 
-                        <!-- 5 составляющих базовой цены -->
-                        {% if offer.price_captain or offer.price_fuel or offer.price_moorings or offer.price_transit_cleaning or offer.price_trips_markup %}
-                        <div class="space-y-1 text-sm">
-                            {% if offer.price_captain %}<div class="flex justify-between"><span class="opacity-75">{% trans "Капитан" %}</span><span>{{ offer.price_captain|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
-                            {% if offer.price_fuel %}<div class="flex justify-between"><span class="opacity-75">{% trans "Топливо" %}</span><span>{{ offer.price_fuel|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
-                            {% if offer.price_moorings %}<div class="flex justify-between"><span class="opacity-75">{% trans "Стоянки" %}</span><span>{{ offer.price_moorings|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
-                            {% if offer.price_transit_cleaning %}<div class="flex justify-between"><span class="opacity-75">{% trans "Транзит лог и клининг" %}</span><span>{{ offer.price_transit_cleaning|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
-                            {% if offer.price_trips_markup %}<div class="flex justify-between"><span class="opacity-75">{% trans "Наценка Трипс" %}</span><span>{{ offer.price_trips_markup|floatformat:0 }} {{ offer.currency }}</span></div>{% endif %}
-                            <div class="border-t {% if is_custom_branding and brand %}border-white/20{% else %}border-primary-content/20{% endif %} mt-2 pt-2"></div>
-                        </div>
-                        {% endif %}
-
                         <div>
                             <div class="text-sm opacity-75 mb-1">{% trans "Итого" %}</div>
                             <div class="text-7xl font-bold">{{ offer.total_price|floatformat:0 }}</div>

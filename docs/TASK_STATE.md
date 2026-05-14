@@ -1,8 +1,18 @@
 # TASK STATE
 
-Last updated: 2026-04-29 (Europe/Moscow)
+Last updated: 2026-05-14 (Europe/Moscow)
 
 ## Current priorities
+
+### P2.4: Удаление детализации цен в оферах
+- Status: **DONE (2026-05-14)**
+- Удалена детализация из карточки цены во всех оферах для всех пользователей.
+- `offer_tourist.html`: удалён блок 5 составляющих (капитан, топливо, стоянки, транзит/клининг, наценка Трипс).
+- `offer_captain.html`: удалён блок старой цены + скидки.
+- `my_bookings.html`: удалены инлайн-блоки `booking_price_debug`.
+- `boats/views.py`: удалён код вычисления `display_old_price/display_discount_percent/display_discount_amount` из `offer_detail`, удалён код `booking_price_debug` из `my_bookings`.
+- Расшифровка цен (`price_debug`) остаётся permission-gated.
+- Validation: `manage.py check` — 0 issues. HTTP 200 для /, /search/, /login/. Template compilation OK.
 
 ### P2.3: Внутренний чат в ЛК (WebSocket)
 - Status: **DONE (2026-04-29)**

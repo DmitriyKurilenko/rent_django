@@ -2,6 +2,19 @@
 
 Purpose: short, append-only engineering memory to avoid re-discovery and regressions.
 
+## 2026-05-14 — Удаление детализации цен в оферах
+
+- **Problem**: В оферах рядом с ценой отображалась детализация: 5 составляющих (капитан, топливо, стоянки, транзит/клининг, наценка Трипс) для туристических офферов и старая цена + скидка для капитанских. Это дублировало расшифровку цен и засоряло карточку цены.
+- **Fix**:
+  - `templates/boats/offer_tourist.html`: удалён блок 5 составляющих из карточки цены.
+  - `templates/boats/offer_captain.html`: удалён блок старой цены + скидки из карточки цены.
+  - `templates/boats/my_bookings.html`: удалены инлайн-блоки `booking_price_debug` из десктопной таблицы и мобильных карточек.
+  - `boats/views.py`: удалён код вычисления `display_old_price`, `display_discount_percent`, `display_discount_amount` из `offer_detail`. Удалён код построения `booking_price_debug` из `my_bookings`. Удалены переменные из контекста.
+- **What stays**: Расшифровка цен (`price_debug`) остаётся permission-gated (`can_view_price_breakdown()`) внизу страницы. Комиссия в `offer_captain.html` и `offers_list.html` остаётся permission-gated. Модельные поля `price_captain`, `price_fuel` и т.д. в `Offer` остаются.
+- **Files**: `templates/boats/offer_tourist.html`, `templates/boats/offer_captain.html`, `templates/boats/my_bookings.html`, `boats/views.py`.
+- **Validation**: `docker compose down` → `docker compose up -d --build` → `docker compose run --rm web python manage.py check` — 0 issues. HTTP 200 для /, /search/, /login/. Template compilation OK.
+- **Risks**: Нет. Изменения только в presentation layer. Данные не затронуты.
+
 ## 2026-04-29 — Внутренний чат в ЛК (WebSocket, Django Channels + Daphne)
 
 - **ASGI-переход**: Gunicorn → Daphne. `boat_rental/asgi.py` — ProtocolTypeRouter (HTTP + WS). `entrypoint.sh` теперь запускает `daphne -b 0.0.0.0 -p 8000 boat_rental.asgi:application`. `docker-compose.prod.yml` аналогично.

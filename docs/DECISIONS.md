@@ -1,6 +1,18 @@
 # DECISIONS (ADR-lite)
 
-Last updated: 2026-05-08 (Europe/Moscow)
+Last updated: 2026-05-14 (Europe/Moscow)
+
+## DR-049: Удаление детализации цен из карточки цены в оферах
+- Date: 2026-05-14
+- Context: В оферах рядом с ценой отображалась детализация: 5 составляющих (капитан, топливо, стоянки, транзит/клининг, наценка Трипс) для туристических офферов и старая цена + скидка для капитанских. Это дублировало расшифровку цен (`price_debug`) и засоряло карточку цены.
+- Decision:
+  - Удалить детализацию из карточки цены во всех оферах для всех пользователей.
+  - Расшифровка цен (`price_debug`) остаётся permission-gated (`can_view_price_breakdown()`) внизу страницы.
+  - Комиссия в `offer_captain.html` и `offers_list.html` остаётся permission-gated (`show_full_price_breakdown` / `show_charter_commission_only`).
+  - Удалить неиспользуемый код вычисления `display_old_price`, `display_discount_percent`, `display_discount_amount` из `offer_detail`.
+  - Удалить неиспользуемый код построения `booking_price_debug` из `my_bookings`.
+  - Модельные поля `price_captain`, `price_fuel` и т.д. в `Offer` остаются — они часть модели данных.
+- Consequence: Карточка цены в оферах показывает только период, итого и кнопку бронирования. Расшифровка цен доступна пользователям с соответствующим разрешением.
 
 ## DR-048: Search page price consensus for unified pricing with detail/offer pages
 - Date: 2026-05-08

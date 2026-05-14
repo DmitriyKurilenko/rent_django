@@ -2,6 +2,21 @@
 
 All notable changes to BoatRental project will be documented in this file.
 
+## [0.18.2-dev] - 2026-05-14
+
+### 🔄 Changed — Убрана детализация цен в оферах
+
+- **Problem**: В оферах рядом с ценой отображалась детализация (5 составляющих для туристических офферов, старая цена + скидка для капитанских). Это дублировало расшифровку цен и засоряло карточку цены.
+
+- **Solution**: Удалена детализация из карточки цены во всех оферах. Расшифровка цен (`price_debug`) остаётся permission-gated внизу страницы.
+
+- **`templates/boats/offer_tourist.html`**: Удалён блок 5 составляющих (капитан, топливо, стоянки, транзит/клининг, наценка Трипс).
+- **`templates/boats/offer_captain.html`**: Удалён блок старой цены + скидки.
+- **`templates/boats/my_bookings.html`**: Удалены инлайн-блоки `booking_price_debug` из десктопной таблицы и мобильных карточек.
+- **`boats/views.py`**: Удалён код вычисления `display_old_price`, `display_discount_percent`, `display_discount_amount` из `offer_detail`. Удалён код построения `booking_price_debug` из `my_bookings`.
+
+---
+
 ## [0.18.1-dev] - 2026-05-08
 
 ### 🐛 Fixed — Price consistency between search and detail pages
